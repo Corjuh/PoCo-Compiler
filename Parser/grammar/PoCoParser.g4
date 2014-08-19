@@ -11,8 +11,7 @@ policy:     pimports macrodecls ppol |
             macrodecls ppol |
             ppol ;
 
-ppol:       MAIN LPAREN RPAREN COLON treedefs |
-            id LPAREN RPAREN COLON treedefs |
+ppol:       metapol |
             id LPAREN paramlist RPAREN COLON vardecls macrodecls execution transactionlist |
             id LPAREN paramlist RPAREN COLON vardecls macrodecls execution |
             id LPAREN paramlist RPAREN COLON macrodecls execution |
@@ -21,6 +20,9 @@ ppol:       MAIN LPAREN RPAREN COLON treedefs |
             id LPAREN paramlist RPAREN COLON vardecls execution transactionlist |
             id LPAREN paramlist RPAREN COLON execution transactionlist |
             id LPAREN paramlist RPAREN COLON execution ;
+
+metapol:    MAIN LPAREN RPAREN COLON treedefs |
+            id LPAREN RPAREN COLON treedefs ;
 
 pimport:    IMPORT id ;
 
