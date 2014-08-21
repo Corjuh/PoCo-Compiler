@@ -12,7 +12,10 @@ policy:     pimports macrodecls ppol |
             ppol ;
 
 ppol:       metapol |
-            id LPAREN paramlist RPAREN COLON vardecls macrodecls execution transactionlist |
+            pocopol ;
+
+
+pocopol:    id LPAREN paramlist RPAREN COLON vardecls macrodecls execution transactionlist |
             id LPAREN paramlist RPAREN COLON vardecls macrodecls execution |
             id LPAREN paramlist RPAREN COLON macrodecls execution |
             id LPAREN paramlist RPAREN COLON vardecls execution |
