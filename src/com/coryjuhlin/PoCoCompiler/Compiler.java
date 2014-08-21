@@ -1,4 +1,4 @@
-package com.coryjuhlin.PoCoTest;
+package com.coryjuhlin.PoCoCompiler;
 
 import com.coryjuhlin.Extractor.Extractor;
 import com.coryjuhlin.Extractor.MethodSignaturesExtract;
@@ -18,7 +18,7 @@ import java.nio.file.Paths;
 import java.util.*;
 
 
-public class PoCoCompiler {
+public class Compiler {
     /*
      * COMPILATION OPTIONS
      */
@@ -32,12 +32,14 @@ public class PoCoCompiler {
      */
     /** Folder for compiler output */
     private Path outputDir;
-    /** Path to PoCo policy */
+    /** Path to main PoCo policy */
     private Path policyFilePath;
     /** Paths to files (jar or class) to be instrumented */
     private Path[] scanFilePaths;
     /** Used to write to the AspectJ file */
     private PrintWriter aspectWriter = null;
+    /** Other policies that need to be parsed (found via "import" statements) */
+    private LinkedHashSet<String> additionalPolicies = new LinkedHashSet<>();
 
     /*
      * COMPILATION RESULTS
@@ -68,6 +70,10 @@ public class PoCoCompiler {
         } catch (Exception ex) {
             System.out.println(ex.getMessage());
         }
+    }
+
+    public void addPolicy(String newPolicy) {
+        additionalPolicies.add(newPolicy);
     }
 
     private void jOut(int indentLevel, String text, Object... args) {
@@ -119,7 +125,7 @@ public class PoCoCompiler {
      * Constructor. Parses command-line arguments and outputs execution information.
      * @param arguments command-line arguments
      */
-    public PoCoCompiler(String[] arguments) {
+    public Compiler(String[] arguments) {
         // Set up command-line option parser (see JOpts library documentation for more information)
         OptionParser optParser = new OptionParser();
         optParser.accepts("extract");
@@ -217,6 +223,11 @@ public class PoCoCompiler {
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         PoCoParser parser = new PoCoParser(tokens);
         this.parseTree = parser.policy();
+
+        // THIS IS FOR TESTING. REMOVE:
+        MetaPolicy meta = new MetaPolicy();
+        meta.visit(parseTree);
+        meta.printImports();
     }
 
     /**
@@ -357,7 +368,7 @@ public class PoCoCompiler {
     }
 
     public static void main(String[] args) {
-        PoCoCompiler compiler = new PoCoCompiler(args);
+        Compiler compiler = new Compiler(args);
         compiler.compile();
     }
 }
