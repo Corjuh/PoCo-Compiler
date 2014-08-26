@@ -291,8 +291,7 @@ public class Compiler {
         }
 
         // Create some class names
-        String childPolicyName = "PoCo" + policyName;
-
+        String childPolicyName = policyName;
 
         outAspectPrologue(aspectName, childPolicyName);
 
@@ -331,7 +330,7 @@ public class Compiler {
         pointcutNum = 0;
         for (Map.Entry<String, ArrayList<String>> entry : this.regexMethodMappings.entrySet()) {
             outAdvicePrologue("PointCut" + pointcutNum);
-            jOut(2, "root.query(new PoCoEvent(\"%s\"));", entry.getKey());
+            jOut(2, "root.queryAction(new Event(thisJoinPoint));");
             outAdviceEpilogue();
 
             pointcutNum++;
@@ -348,8 +347,9 @@ public class Compiler {
     }
 
     private void outAspectPrologue(String aspectName, String childName) {
+        jOut(0, "import com.poco.PoCoRuntime.*;\n");
         jOut(0, "public aspect %s {", aspectName);
-        jOut(1, "private RootPolicy root = new RootPolicy( new %s() );\n", childName);
+        jOut(1, "private DummyRootPolicy root = new DummyRootPolicy( new %s() );\n", childName);
     }
 
     private void outAspectEpilogue() {
