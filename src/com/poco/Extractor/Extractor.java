@@ -1,7 +1,7 @@
-package com.coryjuhlin.Extractor;
+package com.poco.Extractor;
 
-import com.coryjuhlin.PoCoParser.PoCoParser;
-import com.coryjuhlin.PoCoParser.PoCoParserBaseVisitor;
+import com.poco.PoCoParser.PoCoParser;
+import com.poco.PoCoParser.PoCoParserBaseVisitor;
 import org.antlr.v4.runtime.misc.NotNull;
 
 import java.util.ArrayList;

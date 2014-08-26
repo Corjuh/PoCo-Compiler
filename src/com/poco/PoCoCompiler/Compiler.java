@@ -1,10 +1,9 @@
-package com.coryjuhlin.PoCoCompiler;
+package com.poco.PoCoCompiler;
 
-import com.coryjuhlin.Extractor.Extractor;
-import com.coryjuhlin.Extractor.MethodSignaturesExtract;
-import com.coryjuhlin.PoCoParser.PoCoLexer;
-import com.coryjuhlin.PoCoParser.PoCoParser;
-import com.coryjuhlin.RegexMapper;
+import com.poco.Extractor.Extractor;
+import com.poco.Extractor.MethodSignaturesExtract;
+import com.poco.PoCoParser.PoCoLexer;
+import com.poco.PoCoParser.PoCoParser;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
@@ -223,11 +222,6 @@ public class Compiler {
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         PoCoParser parser = new PoCoParser(tokens);
         this.parseTree = parser.policy();
-
-        // THIS IS FOR TESTING. REMOVE:
-        MetaPolicy meta = new MetaPolicy();
-        meta.visit(parseTree);
-        meta.printImports();
     }
 
     /**
@@ -343,6 +337,10 @@ public class Compiler {
             pointcutNum++;
         }
 
+        // Generate policy classes
+        PolicyVisitor pvisitor = new PolicyVisitor(aspectWriter, 1);
+        pvisitor.visit(parseTree);
+
         outAspectEpilogue();
 
         aspectWriter.close();
@@ -364,7 +362,7 @@ public class Compiler {
 
     private void outAdviceEpilogue() {
         jOut(2, "return proceed();");
-        jOut(1, "}");
+        jOut(1, "}\n");
     }
 
     public static void main(String[] args) {

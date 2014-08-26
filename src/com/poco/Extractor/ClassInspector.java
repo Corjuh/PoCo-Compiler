@@ -1,4 +1,4 @@
-package com.coryjuhlin.Extractor;
+package com.poco.Extractor;
 
 import java.util.LinkedHashSet;
 

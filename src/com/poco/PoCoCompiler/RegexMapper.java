@@ -1,4 +1,4 @@
-package com.coryjuhlin;
+package com.poco.PoCoCompiler;
 
 import java.util.ArrayList;
 import java.util.Collection;
