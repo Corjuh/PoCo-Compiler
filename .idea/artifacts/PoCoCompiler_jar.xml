@@ -1,0 +1,13 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="PoCoCompiler:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/PoCoCompiler_jar</output-path>
+    <root id="archive" name="PoCoCompiler.jar">
+      <element id="module-output" name="PoCoCompiler" />
+      <element id="module-output" name="Parser" />
+      <element id="extracted-dir" path="/Library/Java/Extensions/asm-5.0.3/lib/asm-commons-5.0.3.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="/Library/Java/Extensions/asm-5.0.3/lib/asm-5.0.3.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="/Library/Java/Extensions/Antlr-4.4/antlr-4.4-complete.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="/Library/Java/Extensions/jopt-simple-4.7-beta-1.jar" path-in-jar="/" />
+    </root>
+  </artifact>
+</component>
