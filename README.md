@@ -28,6 +28,13 @@ TODO
 
 *   Add logic that converts PoCo matching strings into valid RegEx strings (this is fairly involved).
 
+*   Add support for declaring variables and macros (and inserting them into RegEx).
+
+*   Add support for binding variables during execution (and inserting them into RegEx during runtime).
+
+*   Add support for suggesting alternate actions (i.e. obligations). We probably will have to use reflection to
+    accomplish this.
+
 *   *Lots* more to come :-)
 
 Notes & Gotchas
