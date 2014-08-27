@@ -10,6 +10,14 @@ import org.aspectj.lang.JoinPoint;
 public class Event {
     private String signature;
 
+    /**
+     * Construct an event from explicitly passed details. Used when testing.
+     * @param signature method signature of event
+     */
+    public Event(String signature) {
+        this.signature = signature;
+    }
+
     public Event(JoinPoint joinPoint) {
         this.signature = joinPoint.getSignature().toString();
     }
