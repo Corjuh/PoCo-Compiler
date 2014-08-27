@@ -33,6 +33,6 @@ public class Match implements Matchable {
         Pattern pattern = Pattern.compile(matchString);
         Matcher matcher = pattern.matcher(event.getSignature());
 
-        return matcher.matches();
+        return matcher.find();
     }
 }
