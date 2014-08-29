@@ -7,7 +7,7 @@ public class SequentialExecution extends AbstractExecution implements Queryable,
     private int currentCursor = 0;
     private boolean exhausted = false;
 
-    public SequentialExecution(String modifier) {
+    public SequentialExecution(String modifier) throws PoCoException {
         super(modifier);
     }
 
