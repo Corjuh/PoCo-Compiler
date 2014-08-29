@@ -4,14 +4,14 @@ package com.poco.PoCoRuntime;
  * Represents an exchange from a PoCo policy.
  */
 public class Exchange extends EventResponder implements Matchable, Queryable {
-    private Matchs matcher;
+    private Matchable matcher;
     private SRE returnSRE;
 
     public Exchange() {
         // Initialize...
     }
 
-    public void addMatcher(Matchs matcher) {
+    public void addMatcher(Matchable matcher) {
         this.matcher = matcher;
     }
 
