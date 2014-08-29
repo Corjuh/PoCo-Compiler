@@ -102,9 +102,15 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
         outLine(0, "class %s extends Policy {", policyName);
         outLine(1, "public %s() {", policyName);
+        outLine(2, "try {");
         executionNames.push("ROOT");
         visitChildren(ctx);
         executionNames.pop();
+        outLine(2, "} catch (PoCoException pex) {");
+        outLine(3, "System.out.println(pex.getMessage());");
+        outLine(3, "pex.printStackTrace();");
+        outLine(3, "System.exit(-1);");
+        outLine(2, "}");
         outLine(1, "}");
         outLine(0, "}");
 
@@ -141,16 +147,16 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
             // CODE GENERATION:
             // Declare new execution variable and initialize it
-            outLine(2, "SequentialExecution %s = new SequentialExecution(\"%s\");", executionName, modifier);
+            outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", executionName, modifier);
 
             // Visit children, who will add themselves as children to this execution.
             visitChildren(ctx);
 
             // Add this execution as a child to the parent
             if (parentExecutionName == "ROOT") {
-                outLine(2, "rootExecution = %s;", executionName);
+                outLine(3, "rootExecution = %s;", executionName);
             } else {
-                outLine(2, "%s.addChild(%s);", parentExecutionName, executionName);
+                outLine(3, "%s.addChild(%s);", parentExecutionName, executionName);
             }
 
             // All children have been visited. Remove from stack.
@@ -168,24 +174,18 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         // Create Exchange object
         String exchangeName = "exch" + exchangeNum++;
 
-        outLine(2, "Exchange %s = new Exchange();", exchangeName);
+        outLine(3, "Exchange %s = new Exchange();", exchangeName);
 
-        // Create top-level matchs object
-        String matchsName = "matchs" + matchsNum++;
-        outLine(2, "Matchs %s = new Matchs();", matchsName);
-
-
-        // The code for the matchs object is not generated here unless the match portion is a wildcard
+        // The code for the match object is not generated here unless the match portion is a wildcard
         boolean isWildcardMatch = (ctx.INPUTWILD() != null);
         if (isWildcardMatch) {
             String matchName = "match" + matchNum++;
-            outLine(2, "Match %s = new Match(%s);", matchName, "\"%\"");
-            outLine(2, "%s.addChild(%s);", matchsName, matchName);
+            outLine(3, "Match %s = new Match(%s);", matchName, "\"%\"");
+            outLine(3, "%s.addMatcher(%s);", exchangeName, matchName);
         }
 
         // Visit children to flesh out the exchange object
         currentExchange = exchangeName;
-        matchsNames.push(matchsName);
 
         if (!isWildcardMatch) {
             visitChildren(ctx.matchs());
@@ -196,38 +196,46 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         visitSre(ctx.sre());
         isReturnValue = false;
 
-        matchsNames.pop();
         currentExchange = null;
 
-        // Add top-level matchs object to exchange
-        outLine(2, "%s.addMatcher(%s);", exchangeName, matchsName);
-
         // Add Exchange to containing execution
-        outLine(2, "%s.addChild(%s);", executionNames.peek(), exchangeName);
+        outLine(3, "%s.addChild(%s);", executionNames.peek(), exchangeName);
 
         return null;
     }
 
     @Override
     public Void visitMatchs(@NotNull PoCoParser.MatchsContext ctx) {
+        // If the child node is a Match object, this Matchs object is unnecessary
         boolean hasMatch = (ctx.match() != null);
-
         if (!hasMatch) {
-            String parentMatchs = matchsNames.peek();
             String matchsName = "matchs" + matchsNum++;
 
-            // Create matchs object
-            outLine(2, "Matchs %s = new Matchs();", matchsName);
+            // Does this contain a &&, ||, or ! operator?
+            String operator = "";
+            if (ctx.BOOLBOP() != null) {
+                operator = ctx.BOOLBOP().getText();
+            } else if (ctx.BOOLUOP() != null) {
+                operator = ctx.BOOLUOP().getText();
+            }
 
-            // TODO: Handle BOOLBOP and BOOLUOP on matchs objects
+            // Create matchs object
+            outLine(3, "Matchs %s = new Matchs(%s);", matchsName, operator);
 
             // Visit children
             matchsNames.push(matchsName);
             visitChildren(ctx);
             matchsNames.pop();
 
-            // Add this object as a child to the parent
-            outLine(2, "%s.addChild(%s);", parentMatchs, matchsName);
+            // Add to parent
+            if (matchsNames.empty()) {
+                // Add this object directly to the parent Exchange
+                outLine(3, "%s.addMatcher(%s);", currentExchange, matchsName);
+
+            } else {
+                // Add this object as a child to the parent matchs
+                outLine(3, "%s.addChild(%s);", matchsNames.peek(), matchsName);
+            }
         } else {
             // This matchs simply wraps a match object. No need to create a matchs object
             visitChildren(ctx);
@@ -240,8 +248,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     public Void visitMatch(@NotNull PoCoParser.MatchContext ctx) {
         // Create match object
         String matchName = "match" + matchNum++;
-        outLine(2, "Match %s = new Match();", matchName);
-
+        outLine(3, "Match %s = new Match();", matchName);
 
         // TODO: Handle case when something other than an ire is in a match object
         // Visit children
@@ -249,8 +256,14 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         visitChildren(ctx);
         currentMatch = null;
 
-        // Add match object to parent matchs
-        outLine(2, "%s.addChild(%s);", matchsNames.peek(), matchName);
+        // Add to parent
+        if (matchsNames.empty()) {
+            // Add match object to parent exchange
+            outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
+        } else {
+            // Add match object to parent matchs
+            outLine(3, "%s.addChild(%s);", matchsNames.peek(), matchName);
+        }
 
         return null;
     }
@@ -268,7 +281,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         // TODO: Actually do something with Action vs. Result type ire
 
         // Add this ire's action match string to the current Match object
-        outLine(2, "%s.setMatchString(%s);", currentMatch, ctx.re(0).toString());
+        outLine(3, "%s.setMatchString(%s);", currentMatch, ctx.re(0).toString());
         return null;
     }
 
@@ -280,13 +293,13 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         String content = ctx.re().getText();
 
         if (positive) {
-            outLine(2, "SRE %s = new SRE(\"%s\", null);", sreName, content);
+            outLine(3, "SRE %s = new SRE(\"%s\", null);", sreName, content);
         } else {
-            outLine(2, "SRE %s = new SRE(null, \"%s\");", sreName, content);
+            outLine(3, "SRE %s = new SRE(null, \"%s\");", sreName, content);
         }
 
         if (isReturnValue) {
-            outLine(2, "%s.setSRE(%s);", currentExchange, sreName);
+            outLine(3, "%s.setSRE(%s);", currentExchange, sreName);
         }
 
         return null;
