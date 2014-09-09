@@ -4,6 +4,7 @@ import com.poco.Extractor.Extractor;
 import com.poco.Extractor.MethodSignaturesExtract;
 import com.poco.PoCoParser.PoCoLexer;
 import com.poco.PoCoParser.PoCoParser;
+import com.poco.StaticAnalysis.StaticAnalysis;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
@@ -188,6 +189,7 @@ public class Compiler {
         // Runs through the steps of compilation (parse, extract, mapping)
         this.doParse();
         this.doExtract();
+        this.doStaticAnalysis();
 
         // User wants to only do extracts
         if (endAfterFlag.equals("extract")) {
@@ -251,6 +253,25 @@ public class Compiler {
         // Write the extracted methods to a file
         Path methodExtractPath = outputDir.resolve(policyName + "_allmethods.txt");
         writeToFile(extractedMethodSignatures, methodExtractPath);
+    }
+
+    /**
+     * Runs static analysis on policy. doExtract() must have already been called
+     */
+    private void doStaticAnalysis()
+    {
+        vOut("Performing static analysis...\n");
+        ANTLRInputStream antlrStream = null;
+
+        try {
+            antlrStream = new ANTLRInputStream(new FileInputStream(policyFilePath.toFile()));
+            StaticAnalysis sa = new StaticAnalysis();
+            sa.StaticAnalysis(antlrStream, this.extractedMethodSignatures);
+        } catch (Exception ex) {
+            System.out.println(ex.getMessage());
+            ex.printStackTrace();
+            System.exit(-1);
+        }
     }
 
     /**

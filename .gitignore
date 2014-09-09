@@ -77,3 +77,11 @@ tempfiles/
 *.class
 *.jar
 Parser/src/*
+src/com/poco/PoCoParser/PoCoLexer.java
+src/com/poco/PoCoParser/PoCoLexer.tokens
+src/com/poco/PoCoParser/PoCoParser.java
+src/com/poco/PoCoParser/PoCoParser.tokens
+src/com/poco/PoCoParser/PoCoParserBaseListener.java
+src/com/poco/PoCoParser/PoCoParserBaseVisitor.java
+src/com/poco/PoCoParser/PoCoParserListener.java
+src/com/poco/PoCoParser/PoCoParserVisitor.java
