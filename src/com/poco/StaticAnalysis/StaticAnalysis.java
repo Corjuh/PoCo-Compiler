@@ -31,16 +31,22 @@ public class StaticAnalysis {
             UncoveredExecutionPaths uncoveredExecutionPaths = new UncoveredExecutionPaths(parser, methods);
             walker.walk(uncoveredExecutionPaths, tree);
         }
-        catch(Exception ex){}
+        catch(Exception ex){
+            System.out.println("Error: There was an error performing 'Uncovered Execution Paths'");
+        }
         try {
             NoMatchingActions noMatchingActions = new NoMatchingActions(parser, methods);
             walker.walk(noMatchingActions, tree);
         }
-        catch(Exception ex){}
+        catch(Exception ex){
+            System.out.println("Error: There was an error performing 'No Matching Actions'");
+        }
         try {
             UnusedBindings unusedBindings = new UnusedBindings(parser);
             walker.walk(unusedBindings, tree);
         }
-        catch(Exception ex){}
+        catch(Exception ex){
+            System.out.println("Error: There was an error performing 'Unused Bindings'");
+        }
     }
 }
