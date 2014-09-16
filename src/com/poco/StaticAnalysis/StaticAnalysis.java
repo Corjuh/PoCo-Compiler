@@ -15,8 +15,8 @@ public class StaticAnalysis {
 
     public void StaticAnalysis(CharStream input, LinkedHashSet<String> possibleinputs)
     {
-        Iterator<String> itr =  possibleinputs.iterator();
-        while(itr.hasNext()) {
+        Iterator<String> itr = possibleinputs.iterator();
+        while (itr.hasNext()) {
             String method = itr.next().replaceAll("\\(.*\\)", "");
             method = method.substring(method.indexOf(' ') + 1);
             methods.add(method);
@@ -27,9 +27,20 @@ public class StaticAnalysis {
         PoCoParser parser = new PoCoParser(tokens);
         ParserRuleContext tree = parser.policy(); // parse
         ParseTreeWalker walker = new ParseTreeWalker(); // create standard walker
-        UncoveredExecutionPaths uncoveredExecutionPaths = new UncoveredExecutionPaths(parser, methods);
-        walker.walk(uncoveredExecutionPaths, tree);
-        NoMatchingActions noMatchingActions = new NoMatchingActions(parser, methods);
-        walker.walk(noMatchingActions, tree);
+        try {
+            UncoveredExecutionPaths uncoveredExecutionPaths = new UncoveredExecutionPaths(parser, methods);
+            walker.walk(uncoveredExecutionPaths, tree);
+        }
+        catch(Exception ex){}
+        try {
+            NoMatchingActions noMatchingActions = new NoMatchingActions(parser, methods);
+            walker.walk(noMatchingActions, tree);
+        }
+        catch(Exception ex){}
+        try {
+            UnusedBindings unusedBindings = new UnusedBindings(parser);
+            walker.walk(unusedBindings, tree);
+        }
+        catch(Exception ex){}
     }
 }
