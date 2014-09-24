@@ -48,5 +48,12 @@ public class StaticAnalysis {
         catch(Exception ex){
             System.out.println("Error: There was an error performing 'Unused Bindings'");
         }
+        //try {
+            NondeterministicLoops nondeterministicLoops = new NondeterministicLoops(parser);
+            walker.walk(nondeterministicLoops, tree);
+        //}
+        //catch(Exception ex){
+        //    System.out.println("Error: There was an error performing 'Nondeterministic Loops'");
+        //}
     }
 }
