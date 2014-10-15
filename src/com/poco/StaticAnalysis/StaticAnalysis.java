@@ -48,12 +48,19 @@ public class StaticAnalysis {
         catch(Exception ex){
             System.out.println("Error: There was an error performing 'Unused Bindings'");
         }
-        //try {
+        try {
             NondeterministicLoops nondeterministicLoops = new NondeterministicLoops(parser);
             walker.walk(nondeterministicLoops, tree);
-        //}
-        //catch(Exception ex){
-        //    System.out.println("Error: There was an error performing 'Nondeterministic Loops'");
-        //}
+        }
+        catch(Exception ex){
+            System.out.println("Error: There was an error performing 'Nondeterministic Loops'");
+        }
+        try {
+            InfinitePositiveNoConcrete infinitePositiveNoConcrete = new InfinitePositiveNoConcrete(parser);
+            walker.walk(infinitePositiveNoConcrete, tree);
+        }
+        catch(Exception ex){
+            System.out.println("Error: There was an error performing 'Infinite Positive Result With No Concrete Events'");
+        }
     }
 }

@@ -210,7 +210,9 @@ public class NondeterministicLoops extends PoCoParserBaseListener {
         nextre = nextre.substring(0,nextre.length()-1);
         nextsegmentstring = segmentstring.substring(0,segmentstring.length()-1);
 
+        re = re.replaceAll("%", ".*");
         RegExp r1 = new RegExp(re);
+        nextre = nextre.replaceAll("%", ".*");
         RegExp r2 = new RegExp(nextre);
         Automaton a1 = r1.toAutomaton();
         Automaton a2 = r2.toAutomaton();
