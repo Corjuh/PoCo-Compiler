@@ -62,5 +62,12 @@ public class StaticAnalysis {
         catch(Exception ex){
             System.out.println("Error: There was an error performing 'Infinite Positive Result With No Concrete Events'");
         }
+        //try {
+            EmptyPositiveNegativeInput emptyPositiveNegativeInput = new EmptyPositiveNegativeInput(parser);
+            walker.walk(emptyPositiveNegativeInput, tree);
+        //}
+        //catch(Exception ex){
+        //    System.out.println("Error: There was an error performing 'Empty Positive with Negative Input'");
+        //}
     }
 }
