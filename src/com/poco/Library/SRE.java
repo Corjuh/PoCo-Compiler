@@ -14,7 +14,7 @@ public class SRE {
         if(sre.PLUS() != null)
         {
             String re = sre.re().getText();
-            re = re.replaceAll("%", ".*");
+            re = re.replace("%", ".*");
             RegExp r1 = new RegExp(re);
             Automaton a1 = r1.toAutomaton();
             return a1;
@@ -116,7 +116,7 @@ public class SRE {
         else if(sre.MINUS() != null || sre.NEUTRAL() != null)
         {
             String re = sre.re().getText();
-            re = re.replaceAll("%", ".*");
+            re = re.replace("%", ".*");
             RegExp r1 = new RegExp(re);
             Automaton a1 = r1.toAutomaton();
             return a1;

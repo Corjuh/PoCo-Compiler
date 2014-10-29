@@ -42,7 +42,7 @@ public class InfinitePositiveNoConcrete extends PoCoParserBaseListener {
             if(!a1.isFinite()) {
                 for (int j = 0; j < concreteEvents.size(); j++) {
                     String re = concreteEvents.get(j);
-                    re = re.replaceAll("%", ".*");
+                    re = re.replace("%", ".*");
                     RegExp r2 = new RegExp(re);
                     Automaton a2 = r2.toAutomaton();
                     Automaton a3 = a1.intersection(a2);
@@ -64,7 +64,7 @@ public class InfinitePositiveNoConcrete extends PoCoParserBaseListener {
         if(sre.PLUS() != null)
         {
             String re = sre.re().getText();
-            re = re.replaceAll("%", ".*");
+            re = re.replace("%", ".*");
             RegExp r1 = new RegExp(re);
             Automaton a1 = r1.toAutomaton();
             if(a1.isFinite())

@@ -43,7 +43,7 @@ public class EmptyPositiveNegativeInput extends PoCoParserBaseListener {
                 if(startire.get(i).re() != null && startire.get(i).re().size() > 0)
                 {
                     String re = startire.get(i).re().get(0).getText();
-                    re = re.replaceAll("%", ".*");
+                    re = re.replace("%", ".*");
                     RegExp input = new RegExp(re);
                     Automaton a = input.toAutomaton();
                     if(!a.intersection(negative).isEmpty())
@@ -64,7 +64,7 @@ public class EmptyPositiveNegativeInput extends PoCoParserBaseListener {
         if(sre.PLUS() != null)
         {
             String re = sre.re().getText();
-            re = re.replaceAll("%", ".*");
+            re = re.replace("%", ".*");
             RegExp r1 = new RegExp(re);
             Automaton a1 = r1.toAutomaton();
             if(a1.isFinite())

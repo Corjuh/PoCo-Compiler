@@ -17,7 +17,7 @@ public class StaticAnalysis {
     {
         Iterator<String> itr = possibleinputs.iterator();
         while (itr.hasNext()) {
-            String method = itr.next().replaceAll("\\(.*\\)", "");
+            String method = itr.next().replace("\\(.*\\)", "");
             method = method.substring(method.indexOf(' ') + 1);
             methods.add(method);
         }
