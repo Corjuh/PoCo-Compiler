@@ -56,19 +56,72 @@ public class NoMatchingActions extends PoCoParserBaseListener {
         return true;
     }
 
+    private String replaceBinding(PoCoParser.ReContext ctx)
+    {
+        String value = ctx.getText();
+
+        //standard variable (not function)
+        if(ctx.DOLLAR() != null) {
+            if (bindings.containsKey(ctx.qid().getText())) {
+                if (ctx.LPAREN() == null) {
+                    value = value.replace("$" + ctx.qid().getText(), bindings.get(ctx.qid().getText()));
+                } else {
+                    PoCoParser.OpparamlistContext opctx = ctx.opparamlist();
+                    List<String> res = new ArrayList<String>();
+                    while (opctx != null) {
+                        if (opctx.re() != null) {
+                            String opValue = opctx.re().getText();
+                            if (opctx.re().DOLLAR() != null) {
+                                opValue = replaceValues(opctx.re());
+                            }
+
+                            res.add(0, opValue);
+                        }
+                        opctx = opctx.opparamlist();
+                    }
+                    int i = 0;
+                    String re = bindings.get(ctx.qid().getText());
+                    while (re.contains("{" + i + "}")) {
+                        if (res.size() <= i) {
+                            break;
+                        }
+                        re = re.replace("{" + i + "}", res.get(i));
+                        i++;
+                    }
+
+                    value = re;
+                }
+            }
+        }
+
+        return value;
+    }
+
     @Override
     public void exitMacrodecl(PoCoParser.MacrodeclContext ctx) {
-        if(ctx.re() != null)
-        {
-            if(ctx.LPAREN() == null)
-            {
-                //standard macro (not function)
-                if(bindings.containsKey(ctx.id().getText()))
-                {
-                    bindings.remove(ctx.id().getText());
-                }
-                bindings.put(ctx.id().getText(), ctx.re().getText());
+        if(ctx.re() != null) {
+            if (bindings.containsKey(ctx.id().getText())) {
+                bindings.remove(ctx.id().getText());
             }
+            String value = replaceBinding(ctx.re());
+            if(ctx.LPAREN() != null) {
+                PoCoParser.IdlistContext idctx = ctx.idlist();
+                List<String> ids = new ArrayList<String>();
+                while (idctx != null) {
+                    if (idctx.id() != null) {
+                        ids.add(0, idctx.id().getText());
+                    }
+                    idctx = idctx.idlist();
+                }
+
+                Iterator<String> itr = ids.iterator();
+                int i = 0;
+                while (itr.hasNext()) {
+                    value = value.replace("$" + itr.next(), "{" + i + "}");
+                    i++;
+                }
+            }
+            bindings.put(ctx.id().getText(), value);
         }
     }
 
@@ -111,6 +164,43 @@ public class NoMatchingActions extends PoCoParserBaseListener {
         }
     }
 
+    private String replaceValues(PoCoParser.ReContext rectx)
+    {
+        String re = rectx.getText();
+        if(bindings.containsKey(rectx.qid().getText()))
+        {
+            String replace = "$" + rectx.qid().getText();
+            String value = bindings.get(rectx.qid().getText());
+
+            PoCoParser.OpparamlistContext opctx = rectx.opparamlist();
+            List<String> res = new ArrayList<String>();
+            while(opctx != null)
+            {
+                if(opctx.re() != null)
+                {
+                    String opValue = opctx.re().getText();
+                    if(opctx.re().DOLLAR() != null)
+                    {
+                        opValue = replaceValues(opctx.re());
+                    }
+
+                    res.add(0, opValue);
+                }
+                opctx = opctx.opparamlist();
+            }
+            int i = 0;
+            while (value.contains("{" + i + "}")) {
+                if(res.size() <= i)
+                {
+                    break;
+                }
+                value = value.replace("{" + i + "}", res.get(i));
+                i++;
+            }
+            re = re.replace(replace, value);
+        }
+        return re;
+    }
     @Override
     public void exitMatchs(PoCoParser.MatchsContext ctx) {
         String re = "";
@@ -119,15 +209,13 @@ public class NoMatchingActions extends PoCoParserBaseListener {
                 if (ctx.match().ire().re().size() > 0) {
                     //The first re is always the action
                     PoCoParser.ReContext rectx =  ctx.match().ire().re().get(0);
+                    while(rectx.AT() != null)
+                    {
+                        rectx = rectx.re().get(0);
+                    }
                     if(rectx.DOLLAR() != null)
                     {
-                        re = rectx.getText();
-                        if(bindings.containsKey(rectx.qid().getText()))
-                        {
-                            String replace = "$" + rectx.qid().getText();
-                            String value = bindings.get(rectx.qid().getText());
-                            re = re.replace(replace, value);
-                        }
+                        re = replaceValues(rectx);
                     }
                     else {
                         re = rectx.getText();
