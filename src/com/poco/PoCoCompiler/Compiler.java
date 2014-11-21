@@ -3,8 +3,10 @@ package com.poco.PoCoCompiler;
 
 import com.poco.Extractor.Extractor;
 import com.poco.Extractor.MethodSignaturesExtract;
+import com.poco.Extractor.PointCutExtractor;
 import com.poco.PoCoParser.PoCoLexer;
 import com.poco.PoCoParser.PoCoParser;
+import com.poco.Extractor.Closure;
 import com.poco.StaticAnalysis.StaticAnalysis;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
@@ -51,11 +53,18 @@ public class Compiler {
     private ParseTree parseTree = null;
     /** Regular expressions from PoCo policy */
     private ArrayList<String> extractedREs = null;
+    
+     /** pointcut info  from PoCo policy */
+    ArrayList<String> extractedPCs = new ArrayList<String>();
+    LinkedHashSet<LinkedHashSet<String>> extractedPtCuts = null;
+    
     /** All method signatures from files in scanFilePaths */
     private LinkedHashSet<String> extractedMethodSignatures = null;
     /** Each RE from the PoCo policy mapped to all matching methods */
-    private LinkedHashMap<String, ArrayList<String>> regexMethodMappings = null;
-
+    private LinkedHashMap<String, ArrayList<String>> regexMethodMappings = null; 
+    private LinkedHashMap<String, ArrayList<String>> pointcutMappings = null;
+    /** vars and marcos value will be saved in closure*/
+    private Closure closure;
 
     /**
      * Writes a Collection object to a file, separated by newlines.
@@ -189,6 +198,7 @@ public class Compiler {
     public void compile() {
         // Runs through the steps of compilation (parse, extract, mapping)
         this.doParse();
+        this.doGenerateClosure();
         this.doExtract();
         this.doStaticAnalysis();
 
@@ -227,6 +237,16 @@ public class Compiler {
         this.parseTree = parser.policy();
     }
 
+/**
+     * Extracts vars and macros that defined before executions,
+     * so that the Extractor will be able to get info for generating pointcut
+    */
+    private void doGenerateClosure() {
+        ExtractClosure extractClosure = new ExtractClosure(this.closure);
+        extractClosure.visit(parseTree);
+        closure =  extractClosure.getClosure();
+    }
+
     /**
      * Extracts the REs from the PoCo policy for use by the mapping functions. Also extracts all method signatures from
      * all to-be-instrumented files.
@@ -239,11 +259,17 @@ public class Compiler {
         Extractor regexExtractor = new Extractor();
         regexExtractor.visit(parseTree);
         this.extractedREs = regexExtractor.getMatchStrings();
+        PointCutExtractor pcExtractor = new PointCutExtractor(this.closure);
+        pcExtractor.visit(parseTree);
+        this.extractedPtCuts = pcExtractor.getgetPCStrings();
 
+        for(LinkedHashSet<String> entry: this.extractedPtCuts) {
+            extractedPCs.addAll(entry);
+        }
         // Write REs to a file
         Path policyExtractPath = outputDir.resolve(policyName + "_extracts.txt");
-        writeToFile(extractedREs, policyExtractPath);
-
+        //writeToFile(extractedREs, policyExtractPath);
+        writeToFile(extractedPCs, policyExtractPath);
         // Extract all method signatures from jar/class files
         vOut("Extracting method signatures from scan files...\n");
         this.extractedMethodSignatures = new LinkedHashSet<>();
@@ -283,7 +309,8 @@ public class Compiler {
     private void doMapping() {
         // Generate mappings from extracted REs -> method signatures
         vOut("Mapping REs from policy to method signatures...\n");
-        RegexMapper mapper = new RegexMapper(extractedREs, extractedMethodSignatures);
+        //RegexMapper mapper = new RegexMapper(extractedREs, extractedMethodSignatures);
+        RegexMapper mapper = new RegexMapper(extractedPCs, extractedMethodSignatures);
         mapper.mapRegexes();
         this.regexMethodMappings = mapper.getMappings();
 
@@ -318,7 +345,8 @@ public class Compiler {
         outAspectPrologue(aspectName, childPolicyName);
 
         int pointcutNum = 0;
-        for (Map.Entry<String, ArrayList<String>> entry : this.regexMethodMappings.entrySet()) {
+        //for (Map.Entry<String, ArrayList<String>> entry : this.regexMethodMappings.entrySet()) {
+        for(LinkedHashSet<String> entry: this.extractedPtCuts) {
             jOut(1, "pointcut PointCut%d():", pointcutNum);
 
                 /*
@@ -329,15 +357,15 @@ public class Compiler {
                         * Parse out object name from PoCo object syntax
                  */
 
-            LinkedHashSet<String> signatures = new LinkedHashSet<>();
+            /*LinkedHashSet<String> signatures = new LinkedHashSet<>();
             for (String signature : entry.getValue()) {
                 signatures.add(signature.substring(0, signature.indexOf('(')) + "(..)");
-            }
+            }*/
 
             int signatureCount = 0;
-            for (String signature : signatures) {
+            for (String signature : entry) {
                 signatureCount++;
-                if (signatureCount < signatures.size()) {
+                if (signatureCount < entry.size()) {
                     jOut(2, "execution(%s) ||", signature);
                 } else {
                     jOut(2, "execution(%s);\n", signature);
@@ -350,7 +378,8 @@ public class Compiler {
 
         // Generate advice
         pointcutNum = 0;
-        for (Map.Entry<String, ArrayList<String>> entry : this.regexMethodMappings.entrySet()) {
+        for(LinkedHashSet<String> entry: this.extractedPtCuts) {
+        //for (Map.Entry<String, ArrayList<String>> entry : this.regexMethodMappings.entrySet()) {
             outAdvicePrologue("PointCut" + pointcutNum);
             jOut(2, "root.queryAction(new Event(thisJoinPoint));");
             outAdviceEpilogue();
@@ -359,7 +388,7 @@ public class Compiler {
         }
 
         // Generate policy classes
-        PolicyVisitor pvisitor = new PolicyVisitor(aspectWriter, 1);
+        PolicyVisitor pvisitor = new PolicyVisitor(aspectWriter, 1, this.closure);
         pvisitor.visit(parseTree);
 
         outAspectEpilogue();
