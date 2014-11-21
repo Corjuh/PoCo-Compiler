@@ -9,13 +9,21 @@ import org.aspectj.lang.JoinPoint;
  */
 public class Event {
     private String signature;
+    public String eventType;
 
     /**
      * Construct an event from explicitly passed details. Used when testing.
+     *
      * @param signature method signature of event
      */
-    public Event(String signature) {
+    public Event(String eventType, String signature) {
+        this.eventType = eventType;
         this.signature = signature;
+    }
+
+    public Event(String eventType) {
+        this.eventType = eventType;
+        this.signature = "";
     }
 
     public Event(JoinPoint joinPoint) {
