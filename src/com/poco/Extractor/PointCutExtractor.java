@@ -84,6 +84,9 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                     visitChildren(ctx);
                     ptFromOpparamlist = false;
                 }
+                pointcutStrings.add(pointcutStr);
+                nodes.add(pointcutStrings);
+                pointcutStrings = new LinkedHashSet<String>();
             } else if (ctx.object() != null) {
                 pointcutStr = pointcutStr + ctx.object().qid().getText() + ".";
                 if (ctx.object().fieldlist() != null) {
