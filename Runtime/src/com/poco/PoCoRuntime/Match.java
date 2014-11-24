@@ -14,6 +14,10 @@ public class Match implements Matchable {
     private boolean isAction;
     private boolean isResult;
 
+    /**
+     * This constructor creates an Action match
+     * @param matchString
+     */
     public Match(String matchString) {
         // This constructor creates an Action match
         isAction = true;
@@ -23,6 +27,18 @@ public class Match implements Matchable {
         this.matchString = matchString;
     }
 
+    /**
+     * Constructor for Match when it is result instead of action
+     * @param matchString
+     */
+    public Match(String matchString, boolean isaction, boolean isresult) {
+
+        isAction = isaction;
+        isResult = isresult;
+
+        isWildcard = (matchString == "%");
+        this.matchString = matchString;
+    }
 
     @Override
     public boolean accepts(Event event) {
