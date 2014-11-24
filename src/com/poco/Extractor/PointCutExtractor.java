@@ -179,7 +179,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         if (ctx.map() != null) {
             visitSre(ctx.map().sre());
             pointcutStrings = new LinkedHashSet<String>();
-            pointcutStrings = null;
             visitExecution(ctx.map().execution());
         } else {
             visitChildren(ctx);
@@ -218,8 +217,17 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         return null;
     }
 
+    @Override
+    public Void visitMacrodecls(@NotNull PoCoParser.MacrodeclsContext ctx) {
+        return null;
+    }
 
     @Override
+    public Void visitVardecls(@NotNull PoCoParser.VardeclsContext ctx) {
+        return null;
+    }
+
+        @Override
     public Void visitIre(@NotNull PoCoParser.IreContext ctx) {
         if (ctx.ACTION() != null)
             visitChildren(ctx);
@@ -263,7 +271,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         }
         return null;
     }
-
 
     public LinkedHashSet<LinkedHashSet<String>> getgetPCStrings() {
         return new LinkedHashSet<LinkedHashSet<String>>(nodes);
