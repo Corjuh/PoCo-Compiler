@@ -129,18 +129,20 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 }
             } else if (ctx.object() != null) {
                 if (ctx.object().POUND() != null) {
-                    if (ctx.object().re() != null) {
-                        if (loadfmClosure == true)
-                            clousreAl.add("(..) ");
-                        else
-                            pointcutStr = pointcutStr + "(..) ";
-                        //visitChildren(ctx.object().re());
-                    } else { //fieldList
+                    if(ctx.object().qid().getText().equals("Integer")) {
+                        if(ctx.object().re() != null)
+                            visitRe(ctx.object().re());
+                    }
+                    else if(ctx.object().qid().getText().equals("String")) {
+                        if(ctx.object().re() != null)
+                            visitRe(ctx.object().re());
+                    }
+                    /* else { //fieldList
                         if (loadfmClosure == true)
                             clousreAl.add(pointcutStr + "(" + ctx.object().qid().getText() + ")");
                         else
                             pointcutStr = pointcutStr + "(" + ctx.object().qid().getText() + ")";
-                    }
+                    }*/
                 } else if (ctx.id() != null) {
                     if (loadfmClosure == true)
                         clousreAl.add("(" + ctx.id().getText() + ") ");
