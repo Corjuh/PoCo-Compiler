@@ -178,8 +178,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     public Void visitExecution(@NotNull PoCoParser.ExecutionContext ctx) {
         if (ctx.map() != null) {
             visitSre(ctx.map().sre());
-            pointcutStrings = new LinkedHashSet<String>();
-            visitExecution(ctx.map().execution());
+            //pointcutStrings = new LinkedHashSet<String>();
+            //visitExecution(ctx.map().execution());
         } else {
             visitChildren(ctx);
         }
