@@ -14,8 +14,28 @@ public class Match implements Matchable {
     private boolean isAction;
     private boolean isResult;
 
+    private boolean boolUop;
+    private String resultMatchStr; /* use to compare result*/
+
+
+    public String getMatchString() {
+        return matchString;
+    }
+
+    public void setMatchString(String matchString) {
+        this.matchString = matchString;
+    }
+
+    public Match () {
+        this.isAction    = true;
+        this.isResult    = false;
+        this.isWildcard  = false;
+
+        this.matchString = null;
+    }
+
     /**
-     * This constructor creates an Action match
+     * This constructor creates an Action match (assuming is action by default)
      * @param matchString
      */
     public Match(String matchString) {
@@ -27,17 +47,36 @@ public class Match implements Matchable {
         this.matchString = matchString;
     }
 
+    public boolean isAction() {
+        return isAction;
+    }
+
+    public void setAction(boolean isAction) {
+        this.isAction = isAction;
+    }
+
+    public boolean isResult() {
+        return isResult;
+    }
+
+    public void setResult(boolean isResult) {
+        this.isResult = isResult;
+    }
+
     /**
      * Constructor for Match when it is result instead of action
      * @param matchString
+     * @param isAction
+     * @param isResult
+     * @param resultMatchStr
      */
-    public Match(String matchString, boolean isaction, boolean isresult) {
-
-        isAction = isaction;
-        isResult = isresult;
-
+    public Match(String matchString, boolean isAction, boolean isResult, boolean boolUop,String resultMatchStr) {
+        this.matchString    = matchString;
+        this.isAction       = isAction;
+        this.isResult       = isResult;
+        this.boolUop        = boolUop;
+        this.resultMatchStr = resultMatchStr;
         isWildcard = (matchString == "%");
-        this.matchString = matchString;
     }
 
     @Override
