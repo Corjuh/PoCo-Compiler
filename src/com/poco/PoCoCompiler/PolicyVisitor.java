@@ -136,6 +136,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         outLine(1, "}");
         outLine(0, "}");
 
+        outLine(0, "%s policy1 = new %s();",policyName,policyName);
+        outLine(0, "root.setChild(policy1);");
+
         return null;
     }
 
@@ -191,7 +194,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             } else {
                 outLine(3, "%s.addChild(%s);", parentExecutionName, executionName);
             }*/
-            outLine(3, "root.addChild(%s);", executionName);
+            outLine(3, "rootExecution.addChild(%s);", executionName);
 
             // All children have been visited. Remove from stack.
             executionNames.pop();
