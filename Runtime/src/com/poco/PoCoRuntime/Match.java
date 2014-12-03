@@ -7,31 +7,18 @@ import java.util.regex.Pattern;
  * Single unit for matching a PoCo event or result.
  */
 public class Match implements Matchable {
-    private String matchString;
-
+    private String  matchString;
     private boolean isWildcard;
-
     private boolean isAction;
     private boolean isResult;
-
-    private boolean boolUop;
-    private String resultMatchStr; /* use to compare result*/
-
-
-    public String getMatchString() {
-        return matchString;
-    }
-
-    public void setMatchString(String matchString) {
-        this.matchString = matchString;
-    }
+    private String  resultMatchStr; /* use to compare result*/
 
     public Match () {
-        this.isAction    = true;
-        this.isResult    = false;
-        this.isWildcard  = false;
-
-        this.matchString = null;
+        this.isAction       = true;
+        this.isResult       = false;
+        this.isWildcard     = false;
+        this.matchString    = null;
+        this.resultMatchStr = null;
     }
 
     /**
@@ -42,25 +29,8 @@ public class Match implements Matchable {
         // This constructor creates an Action match
         isAction = true;
         isResult = false;
-
         isWildcard = (matchString == "%");
         this.matchString = matchString;
-    }
-
-    public boolean isAction() {
-        return isAction;
-    }
-
-    public void setAction(boolean isAction) {
-        this.isAction = isAction;
-    }
-
-    public boolean isResult() {
-        return isResult;
-    }
-
-    public void setResult(boolean isResult) {
-        this.isResult = isResult;
     }
 
     /**
@@ -74,10 +44,42 @@ public class Match implements Matchable {
         this.matchString    = matchString;
         this.isAction       = isAction;
         this.isResult       = isResult;
-        this.boolUop        = boolUop;
         this.resultMatchStr = resultMatchStr;
         isWildcard = (matchString == "%");
     }
+
+    public boolean isAction() {
+        return isAction;
+    }
+
+    public void    setAction(boolean isAction) {
+        this.isAction = isAction;
+    }
+
+    public boolean isResult() {
+        return isResult;
+    }
+
+    public void    setResult(boolean isResult) {
+        this.isResult = isResult;
+    }
+
+    public String getMatchString() {
+        return matchString;
+    }
+
+    public void setMatchString(String matchString) {
+        this.matchString = matchString;
+    }
+
+    public String getResultMatchStr() {
+        return resultMatchStr;
+    }
+
+    public void setResultMatchStr(String resultMatchStr) {
+        this.resultMatchStr = resultMatchStr;
+    }
+
 
     @Override
     public boolean accepts(Event event) {
