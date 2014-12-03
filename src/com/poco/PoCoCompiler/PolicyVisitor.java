@@ -36,14 +36,21 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
     private Closure closure;
 
-    private String currentAction;
     private int sreNum;
 
-    private int actionNum;
 
-    private boolean matchRHS    = false;
+    private boolean matchRHS = false;
     private boolean hasAsterisk = false;
-    private boolean hasPlus     = false;
+    private boolean hasPlus = false;
+
+    private boolean isSre = false;
+    private boolean isSrePos = false;
+    private String currentSre;
+
+    private boolean isIre    = false;
+    private boolean isAction = false;
+    private boolean isResult = false;
+    private boolean isResultMatch=false;
 
     /**
      * Constructor
@@ -73,11 +80,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         this.currentMatch = null;
 
         // Initialize SRE data structures
-        this.currentAction = null;
         this.sreNum = 0;
-
-        this.actionNum = 0;
-
         this.closure = closure1;
     }
 
@@ -136,7 +139,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         outLine(1, "}");
         outLine(0, "}");
 
-        outLine(0, "%s policy1 = new %s();",policyName,policyName);
+        outLine(0, "%s policy1 = new %s();", policyName, policyName);
         outLine(0, "root.setChild(policy1);");
 
         return null;
@@ -154,7 +157,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitExecution(@NotNull PoCoParser.ExecutionContext ctx) {
         // TODO: Support non-sequential executions
-        if(ctx.exch() == null) {
+        if (ctx.exch() == null) {
             // Get modifier of execution (i.e. + or *), if any
             if (ctx.ASTERISK() != null)
                 hasAsterisk = true;
@@ -162,11 +165,10 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 hasPlus = true;
             else {
                 hasAsterisk = false;
-                hasPlus     = false;
+                hasPlus = false;
             }
             visitChildren(ctx);
-        }
-        else if (ctx.exch() != null) {
+        } else if (ctx.exch() != null) {
             String executionName = "exec" + executionNum++;
             String parentExecutionName = executionNames.peek();
             String modifier = "none";
@@ -225,12 +227,15 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             visitSre(ctx.sre());
             matchRHS = false;
         }
-
-        // Visit children to flesh out the exchange object
-        //currentExchange = exchangeName;
-
-        if (!isWildcardMatch) {
-            visitChildren(ctx.matchs());
+        else if(ctx.matchs()!= null) {
+            String matchsName = "matchs" + matchsNum++;
+            // Create matchs object
+            outLine(3, "Matchs %s = new Matchs();", matchsName);
+            // Visit children
+            matchsNames.push(matchsName);
+            visitMatchs(ctx.matchs());
+            outLine(3, "%s.addMatcher(%s);", currentExchange, matchsName);
+            matchsNames.pop();
         }
 
         // Let the child SRE know it's a return value, so that it attaches itself to this exchange
@@ -249,35 +254,24 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitMatchs(@NotNull PoCoParser.MatchsContext ctx) {
         // If the child node is a Match object, this Matchs object is unnecessary
-        boolean hasMatch = (ctx.match() != null);
+        boolean hasBooluop = (ctx.BOOLUOP() != null);
+        boolean hasAnd     = false;
+        boolean hasOr      = false;
+        if(ctx.BOOLBOP()  != null) {
+            if(ctx.BOOLBOP().getText().equals("||"))
+                 hasOr     = true;
+            else
+                 hasAnd    = true;
+        }
+        boolean hasMatch   = (ctx.match() != null);
         if (!hasMatch) {
-            String matchsName = "matchs" + matchsNum++;
-
-            // Does this contain a &&, ||, or ! operator?
-            String operator = "";
-            if (ctx.BOOLBOP() != null) {
-                operator = ctx.BOOLBOP().getText();
-            } else if (ctx.BOOLUOP() != null) {
-                operator = ctx.BOOLUOP().getText();
-            }
-
-            // Create matchs object
-            outLine(3, "Matchs %s = new Matchs(%s);", matchsName, operator);
-
-            // Visit children
-            matchsNames.push(matchsName);
+            if(hasBooluop)
+                outLine(3, "%s.setNOT(true);", matchsNames.peek());
+            if(hasAnd)
+                outLine(3, "%s.setAND(true);", matchsNames.peek());
+            else if(hasOr)
+                outLine(3, "%s.setOR(true);", matchsNames.peek());
             visitChildren(ctx);
-            matchsNames.pop();
-
-            // Add to parent
-            if (matchsNames.empty()) {
-                // Add this object directly to the parent Exchange
-                outLine(3, "%s.addMatcher(%s);", currentExchange, matchsName);
-
-            } else {
-                // Add this object as a child to the parent matchs
-                outLine(3, "%s.addChild(%s);", matchsNames.peek(), matchsName);
-            }
         } else {
             // This matchs simply wraps a match object. No need to create a matchs object
             visitChildren(ctx);
@@ -291,7 +285,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         // Create match object
         String matchName = "match" + matchNum++;
         outLine(3, "Match %s = new Match();", matchName);
-
         // TODO: Handle case when something other than an ire is in a match object
         // Visit children
         currentMatch = matchName;
@@ -306,66 +299,25 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             // Add match object to parent matchs
             outLine(3, "%s.addChild(%s);", matchsNames.peek(), matchName);
         }
-
         return null;
     }
 
     @Override
     public Void visitIre(@NotNull PoCoParser.IreContext ctx) {
-
-        String actionresultname;
-        String reString;
-
-
-        boolean isAction = false;
-
+        isIre = true;
         if (ctx.ACTION() != null) {
             isAction = true;
-        } else {
+            isResult = false;
+            visitRe(ctx.re(0));
+        }else {
             isAction = false;  //is result
+            isResult = true;
+            visitRe(ctx.re(0));
+            isResultMatch = true;
+            visitRe(ctx.re(1));
+            isResultMatch = false;
         }
-
-        if (ctx.re(0) != null) {
-            if (ctx.re(0).qid() != null) {
-                reString = loadFromClosure(ctx.re(0).qid().getText());
-                if (reString == null)
-                    reString = ctx.re(0).qid().getText();
-            } else
-                reString = ctx.re(0).getText();
-
-            if (ctx.re(0).AT() != null) {
-                if (ctx.re(0).id() != null) {
-                    if (closure != null) {
-                        VarTypeVal val = closure.loadClosure(ctx.re(0).id().getText());
-                        val.setReContext(ctx.re(0));
-                        closure.updateClosure(ctx.re(0).id().getText(), val);
-
-                    }
-                } else
-                    throw new NullPointerException("No such var exist.");
-            }
-
-            if (isAction) {
-                outLine(3, "%s.setAction(true)",currentMatch);
-                outLine(3, "%s.setResult(false)",currentMatch);
-                outLine(3, "%s.setMatchString(\"%s\")", currentMatch, scrubString(reString));
-            } else {
-                String reString2 = null;
-                if (ctx.re(1).qid() != null) {
-                    reString2 = loadFromClosure(ctx.re(1).qid().getText());
-                    if (reString2 == null)
-                        reString2 = ctx.re(1).qid().getText();
-                } else
-                    reString2 = ctx.re(1).getText();
-
-
-                outLine(3, "%s.setAction(false)",currentMatch);
-                outLine(3, "%s.setResult(true)",currentMatch);
-                outLine(3, "%s.setMatchString(%s)",currentMatch, scrubString(reString2));
-            }
-            // Add this ire's action match string to the current Match object
-            //outLine(3, "%s.setMatchString(%s);", currentMatch, ctx.re(0).getText());
-        }
+        isIre = false;
         return null;
     }
 
@@ -383,7 +335,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 outLine(3, "Match %s = new Match(%s);", matchName, str);
                 outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
             }
-
         } else {
             if (ctx.NEUTRAL() != null) {
                 String sreName = "sre" + sreNum++;
@@ -391,18 +342,18 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 if (isReturnValue) {
                     outLine(3, "%s.setSRE(%s);", currentExchange, sreName);
                 }
-            } else {
-                boolean positive = (ctx.PLUS() != null);
+            } else if (ctx.PLUS() != null | ctx.MINUS() != null) {
                 String sreName = "sre" + sreNum++;
-                String content = ctx.re().getText();
-                if (positive) {
-                    outLine(3, "SRE %s = new SRE(\"%s\", null);", sreName, content);
-                } else {
-                    outLine(3, "SRE %s = new SRE(null, \"%s\");", sreName, content);
-                }
+                currentSre = sreName;
+                isSre = true;
+                isSrePos = (ctx.PLUS() != null);
+                visitRe(ctx.re());
+                isSre = false;
                 if (isReturnValue) {
                     outLine(3, "%s.setSRE(%s);", currentExchange, sreName);
                 }
+            } else {
+                //will need add other cases, $qid, $qid()....
             }
         }
         return null;
@@ -431,23 +382,49 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
         } else {
             if (ctx.rewild() != null) {
-                // will only need monitor the negative sre on the RHS
-            }
-            if (ctx.qid() != null) {
-                VarTypeVal val = closure.loadClosure(ctx.id().getText());
-                VarTypeVal.ClosureType varType = val.getVarType();
-            }
+                if(isResult)
+                    if(isResultMatch)
+                        outLine(3, "%s.setResultMatchStr(*);", currentMatch);
 
-            if (ctx.AT() != null) {
+
+            } else if (ctx.AT() != null) {
                 if (ctx.id() != null) {
                     if (closure != null) {
                         VarTypeVal val = closure.loadClosure(ctx.id().getText());
                         val.setReContext(ctx.re(0));
                         closure.updateClosure(ctx.id().getText(), val);
-
                     }
                 } else
                     throw new NullPointerException("No such var exist.");
+                visitRe(ctx.re(0));
+            } else {
+                String content;
+                if (ctx.DOLLAR() != null) {
+                    content = loadFromClosure(ctx.qid().getText());
+                    if (content == null)
+                        content = ctx.qid().getText();
+                } else
+                    content = ctx.getText();
+                if (isSre) {
+                    if (isSrePos)
+                        outLine(3, "SRE %s = new SRE(\"%s\", null);", currentSre, content);
+                    else
+                        outLine(3, "SRE %s = new SRE(null, \"%s\");", currentSre, content);
+                } else if (isIre) {
+                    if (isAction) {
+                        outLine(3, "%s.setAction(true);", currentMatch);
+                        outLine(3, "%s.setResult(false);", currentMatch);
+                        outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content);
+                    } else {
+                        outLine(3, "%s.setAction(false);", currentMatch);
+                        outLine(3, "%s.setResult(true);", currentMatch);
+                        if(isResultMatch)
+                            outLine(3, "%s.setResultMatchStr(%s);", currentMatch,content);
+                        else
+                            outLine(3, "%s.setMatchString(%s);", currentMatch, content);
+                    }
+                }
+
             }
         }
         return null;
@@ -456,7 +433,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     private static String scrubString(String input) {
         return input.replaceAll("(%|\\$[a-zA-Z0-9\\.\\-_]+)", "");
     }
-
 
     public String loadFromClosure(String varName) {
         String strval = null;
