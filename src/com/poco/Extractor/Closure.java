@@ -125,9 +125,9 @@ public class Closure {
                 System.out.println("Re : " +  loadClosure((String)varname).getReContext().getText());
 
             if (loadClosure((String)varname).getSreContext() ==null )
-                System.out.println("Re : null"  );
+                System.out.println("Sre : null"  );
             else
-                System.out.println("Re : " +  loadClosure((String)varname).getSreContext().getText());
+                System.out.println("Sre : " +  loadClosure((String)varname).getSreContext().getText());
         }
     }
 }
