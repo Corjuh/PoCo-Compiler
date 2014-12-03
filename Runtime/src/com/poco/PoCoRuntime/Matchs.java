@@ -14,6 +14,18 @@ public class Matchs implements Matchable {
     private boolean isOR = false;
     private boolean isNOT = false;
 
+    public void setAND(boolean isAND) {
+        this.isAND = isAND;
+    }
+
+    public void setOR(boolean isOR) {
+        this.isOR = isOR;
+    }
+
+    public void setNOT(boolean isNOT) {
+        this.isNOT = isNOT;
+    }
+
     /**
      * Constructs a Matchs object with given operator (if any).
      * @param operator modifier of execution (e.g. &&, ||, or !)
