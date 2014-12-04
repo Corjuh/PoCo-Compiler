@@ -39,21 +39,21 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     private int sreNum;
 
 
-    private boolean matchRHS = false;
-    private boolean hasAsterisk = false;
-    private boolean hasPlus = false;
+    private boolean matchRHS      = false;
+    private boolean hasAsterisk   = false;
+    private boolean hasPlus       = false;
 
-    private boolean isSre = false;
-    private boolean isSrePos = false;
+    private boolean isSre         = false;
+    private boolean isSrePos      = false;
     private String currentSre;
 
-    private boolean isIre    = false;
-    private boolean isAction = false;
-    private boolean isResult = false;
-    private boolean isResultMatch=false;
-    private boolean isMapExecute = false;
-    private boolean isMapSre =false;
-
+    private boolean isIre         = false;
+    private boolean isAction      = false;
+    private boolean isResult      = false;
+    private boolean isResultMatch = false;
+    private boolean isMapExecute  = false;
+    private boolean isMapSre      = false;
+    private boolean isAlternation = false;
 
     /**
      * Constructor
@@ -160,8 +160,46 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitExecution(@NotNull PoCoParser.ExecutionContext ctx) {
         // TODO: Support non-sequential executions
+        if (ctx.exch() == null) {
+            // Get modifier of execution (i.e. + or *), if any
+            if (ctx.ASTERISK() != null)
+                hasAsterisk = true;
+            else if (ctx.PLUS() != null)
+                hasPlus = true;
+            else {
+                hasAsterisk = false;
+                hasPlus = false;
+            }
+        }
+        if(ctx.BAR() != null) {
+            isAlternation = true;
+            String modifier = "none";
+            if (hasAsterisk)
+                modifier = "*";
+            else if (hasPlus)
+                modifier = "+";
+            String executionName = "exec" + executionNum++;
 
-        if(ctx.map()!=null) {
+            executionNames.push(executionName);
+            outLine(3, "AlternationExecution %s = new AlternationExecution(\"%s\");", executionName, modifier);
+
+            String seqExec1 = "exec" + executionNum++;
+            executionNames.push(seqExec1);
+            outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", seqExec1, modifier);
+            visitExecution(ctx.execution(0));
+            outLine(3, "%s.addSeqExec(%s);",executionName, seqExec1);
+            executionNames.pop();
+
+            String seqExec2 = "exec" + executionNum++;
+            executionNames.push(seqExec2);
+            outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", seqExec2, modifier);
+            visitExecution(ctx.execution(1));
+            outLine(3, "%s.addSeqExec(%s);",executionName, seqExec2);
+            executionNames.pop();
+            isAlternation=false;
+            executionNames.pop();
+            outLine(3, "%s.addChild(%s);", executionNames.peek(), executionName);
+        }else if(ctx.map()!=null) {
             isMapExecute= true;
             String modifier = "none";
             if (hasAsterisk)
@@ -178,55 +216,11 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             visitExecution(ctx.map().execution());
             isMapExecute = false;
             executionNames.pop();
-        }
-        else if (ctx.exch() == null) {
-            // Get modifier of execution (i.e. + or *), if any
-            if (ctx.ASTERISK() != null)
-                hasAsterisk = true;
-            else if (ctx.PLUS() != null)
-                hasPlus = true;
-            else {
-                hasAsterisk = false;
-                hasPlus = false;
-            }
-            visitChildren(ctx);
-        } else if (ctx.exch() != null) {
-            if (!isMapExecute) {
-                String executionName = "exec" + executionNum++;
-                String parentExecutionName = executionNames.peek();
-                String modifier = "none";
 
-                // Get modifier of execution (i.e. + or *), if any
-                if (hasAsterisk)
-                    modifier = "*";
-                else if (hasPlus)
-                    modifier = "+";
+            if (!isAlternation)
+                outLine(3, "%s.addChild(%s);", executionNames.peek(), executionName);
 
-                // This execution becomes the parent of all children
-                executionNames.push(executionName);
-
-                // CODE GENERATION:
-                // Declare new execution variable and initialize it
-
-                outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", executionName, modifier);
-
-                // Visit children, who will add themselves as children to this execution.
-                visitChildren(ctx);
-
-                // Add this execution as a child to the parent
-            /*if (parentExecutionName == "ROOT") {
-                outLine(3, "rootExecution = %s;", executionName);
-            } else {
-                outLine(3, "%s.addChild(%s);", parentExecutionName, executionName);
-            }*/
-                outLine(3, "rootExecution.addChild(%s);", executionName);
-
-                // All children have been visited. Remove from stack.
-                executionNames.pop();
-            }
-            else
-                visitChildren(ctx);
-        } else {
+        }  else {
             // Empty execution wrapping an exchange object
             visitChildren(ctx);
         }
@@ -240,7 +234,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         String exchangeName = "exch" + exchangeNum++;
         // Visit children to flesh out the exchange object
         currentExchange = exchangeName;
-
         outLine(3, "Exchange %s = new Exchange();", exchangeName);
 
         // The code for the match object is not generated here unless the match portion is a wildcard
@@ -438,6 +431,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                             outLine(3, "SRE %s = new SRE(\"%s\", null);", currentSre, content);
                         else
                             outLine(3, "SRE %s = new SRE(null, \"%s\");", currentSre, content);
+                        if (isReturnValue)
+                            outLine(3, "%s.setSRE(%s);", currentExchange, content);
+
                     }
                 } else if (isIre) {
                     if (isAction) {
