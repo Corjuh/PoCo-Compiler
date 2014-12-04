@@ -194,6 +194,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             executionNames.push(seqExec2);
             outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", seqExec2, modifier);
             visitExecution(ctx.execution(1));
+            System.out.println(ctx.execution(1).getText());
             outLine(3, "%s.addSeqExec(%s);",executionName, seqExec2);
             executionNames.pop();
             isAlternation=false;
@@ -221,8 +222,20 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 outLine(3, "%s.addChild(%s);", executionNames.peek(), executionName);
 
         }  else {
-            // Empty execution wrapping an exchange object
-            visitChildren(ctx);
+            if (!isMapExecute && ! isAlternation && ctx.exch() !=null) {
+                String modifier = "none";
+                if (hasAsterisk)
+                    modifier = "*";
+                else if (hasPlus)
+                    modifier = "+";
+                String executionName = "exec" + executionNum++;
+                executionNames.push(executionName);
+                outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", executionName, modifier);
+                visitChildren(ctx);
+                executionNames.pop();
+                outLine(3, "%s.addChild(%s);", executionNames.peek(), executionName);
+            } else
+                visitChildren(ctx);
         }
 
         return null;
@@ -266,7 +279,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
         // Add Exchange to containing execution
         outLine(3, "%s.addChild(%s);", executionNames.peek(), exchangeName);
-
         return null;
     }
 
