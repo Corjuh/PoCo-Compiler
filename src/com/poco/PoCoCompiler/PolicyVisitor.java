@@ -160,17 +160,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitExecution(@NotNull PoCoParser.ExecutionContext ctx) {
         // TODO: Support non-sequential executions
-        if (ctx.exch() == null) {
-            // Get modifier of execution (i.e. + or *), if any
-            if (ctx.ASTERISK() != null)
-                hasAsterisk = true;
-            else if (ctx.PLUS() != null)
-                hasPlus = true;
-            else {
-                hasAsterisk = false;
-                hasPlus = false;
-            }
-        }
         if(ctx.BAR() != null) {
             isAlternation = true;
             String modifier = "none";
@@ -194,7 +183,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             executionNames.push(seqExec2);
             outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", seqExec2, modifier);
             visitExecution(ctx.execution(1));
-            System.out.println(ctx.execution(1).getText());
             outLine(3, "%s.addSeqExec(%s);",executionName, seqExec2);
             executionNames.pop();
             isAlternation=false;
