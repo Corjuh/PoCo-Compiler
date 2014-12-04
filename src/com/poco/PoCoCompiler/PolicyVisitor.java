@@ -51,6 +51,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     private boolean isAction = false;
     private boolean isResult = false;
     private boolean isResultMatch=false;
+    private boolean isMapExecute = false;
+    private boolean isMapSre =false;
+
 
     /**
      * Constructor
@@ -157,7 +160,26 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitExecution(@NotNull PoCoParser.ExecutionContext ctx) {
         // TODO: Support non-sequential executions
-        if (ctx.exch() == null) {
+
+        if(ctx.map()!=null) {
+            isMapExecute= true;
+            String modifier = "none";
+            if (hasAsterisk)
+                modifier = "*";
+            else if (hasPlus)
+                modifier = "+";
+            String executionName = "exec" + executionNum++;
+            executionNames.push(executionName);
+            outLine(3, "MapExecution %s = new MapExecution(\"%s\");", executionName, modifier);
+            outLine(3, "%s.setOperator(\"%s\");", executionName, ctx.map().srebop().getText());
+            isMapSre = true;
+            visitSre(ctx.map().sre());
+            isMapSre = false;
+            visitExecution(ctx.map().execution());
+            isMapExecute = false;
+            executionNames.pop();
+        }
+        else if (ctx.exch() == null) {
             // Get modifier of execution (i.e. + or *), if any
             if (ctx.ASTERISK() != null)
                 hasAsterisk = true;
@@ -169,37 +191,41 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             }
             visitChildren(ctx);
         } else if (ctx.exch() != null) {
-            String executionName = "exec" + executionNum++;
-            String parentExecutionName = executionNames.peek();
-            String modifier = "none";
+            if (!isMapExecute) {
+                String executionName = "exec" + executionNum++;
+                String parentExecutionName = executionNames.peek();
+                String modifier = "none";
 
-            // Get modifier of execution (i.e. + or *), if any
-            if (hasAsterisk)
-                modifier = "*";
-            else if (hasPlus)
-                modifier = "+";
+                // Get modifier of execution (i.e. + or *), if any
+                if (hasAsterisk)
+                    modifier = "*";
+                else if (hasPlus)
+                    modifier = "+";
 
+                // This execution becomes the parent of all children
+                executionNames.push(executionName);
 
-            // This execution becomes the parent of all children
-            executionNames.push(executionName);
+                // CODE GENERATION:
+                // Declare new execution variable and initialize it
 
-            // CODE GENERATION:
-            // Declare new execution variable and initialize it
-            outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", executionName, modifier);
+                outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", executionName, modifier);
 
-            // Visit children, who will add themselves as children to this execution.
-            visitChildren(ctx);
+                // Visit children, who will add themselves as children to this execution.
+                visitChildren(ctx);
 
-            // Add this execution as a child to the parent
+                // Add this execution as a child to the parent
             /*if (parentExecutionName == "ROOT") {
                 outLine(3, "rootExecution = %s;", executionName);
             } else {
                 outLine(3, "%s.addChild(%s);", parentExecutionName, executionName);
             }*/
-            outLine(3, "rootExecution.addChild(%s);", executionName);
+                outLine(3, "rootExecution.addChild(%s);", executionName);
 
-            // All children have been visited. Remove from stack.
-            executionNames.pop();
+                // All children have been visited. Remove from stack.
+                executionNames.pop();
+            }
+            else
+                visitChildren(ctx);
         } else {
             // Empty execution wrapping an exchange object
             visitChildren(ctx);
@@ -338,9 +364,13 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         } else {
             if (ctx.NEUTRAL() != null) {
                 String sreName = "sre" + sreNum++;
-                outLine(3, "SRE %s = new SRE(null, null);", sreName);
-                if (isReturnValue) {
-                    outLine(3, "%s.setSRE(%s);", currentExchange, sreName);
+                if(isMapSre)
+                    outLine(3, "%s.setMatchSre(%s);", executionNames.peek(), sreName);
+                else {
+                    outLine(3, "SRE %s = new SRE(null, null);", sreName);
+                    if (isReturnValue) {
+                        outLine(3, "%s.setSRE(%s);", currentExchange, sreName);
+                    }
                 }
             } else if (ctx.PLUS() != null | ctx.MINUS() != null) {
                 String sreName = "sre" + sreNum++;
@@ -349,9 +379,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 isSrePos = (ctx.PLUS() != null);
                 visitRe(ctx.re());
                 isSre = false;
-                if (isReturnValue) {
-                    outLine(3, "%s.setSRE(%s);", currentExchange, sreName);
-                }
             } else {
                 //will need add other cases, $qid, $qid()....
             }
@@ -385,8 +412,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 if(isResult)
                     if(isResultMatch)
                         outLine(3, "%s.setResultMatchStr(*);", currentMatch);
-
-
             } else if (ctx.AT() != null) {
                 if (ctx.id() != null) {
                     if (closure != null) {
@@ -406,10 +431,14 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 } else
                     content = ctx.getText();
                 if (isSre) {
-                    if (isSrePos)
-                        outLine(3, "SRE %s = new SRE(\"%s\", null);", currentSre, content);
-                    else
-                        outLine(3, "SRE %s = new SRE(null, \"%s\");", currentSre, content);
+                    if(isMapSre) {
+                        outLine(3, "%s.setMatchSre(%s);", executionNames.peek(), content);
+                    } else {
+                        if (isSrePos)
+                            outLine(3, "SRE %s = new SRE(\"%s\", null);", currentSre, content);
+                        else
+                            outLine(3, "SRE %s = new SRE(null, \"%s\");", currentSre, content);
+                    }
                 } else if (isIre) {
                     if (isAction) {
                         outLine(3, "%s.setAction(true);", currentMatch);
