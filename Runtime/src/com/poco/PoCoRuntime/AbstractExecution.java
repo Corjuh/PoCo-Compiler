@@ -39,4 +39,8 @@ public abstract class AbstractExecution extends EventResponder implements Matcha
     public void addChild(EventResponder child) {
         children.add(child);
     }
+
+    public ArrayList<EventResponder> getChildren() {
+        return children;
+    }
 }

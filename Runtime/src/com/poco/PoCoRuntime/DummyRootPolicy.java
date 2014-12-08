@@ -14,6 +14,10 @@ public class DummyRootPolicy {
         this.child = child;
     }
 
+    public void setChild(Policy child) {
+        this.child = child;
+    }
+
     /**
      * AspectJ calls this method on any attempted action.
      * @param event security-relevant action caught by AspectJ
