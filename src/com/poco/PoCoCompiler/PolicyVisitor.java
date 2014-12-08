@@ -11,7 +11,7 @@ import java.sql.SQLSyntaxErrorException;
 import java.util.Stack;
 
 import com.poco.Extractor.VarTypeVal;
-import sun.jvm.hotspot.debugger.posix.elf.ELFSectionHeader;
+//import sun.jvm.hotspot.debugger.posix.elf.ELFSectionHeader;
 
 /**
  * Generates the Java code to create a PoCoPolicy object representing
