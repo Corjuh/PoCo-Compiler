@@ -27,13 +27,13 @@ public class StaticAnalysis {
         PoCoParser parser = new PoCoParser(tokens);
         ParserRuleContext tree = parser.policy(); // parse
         ParseTreeWalker walker = new ParseTreeWalker(); // create standard walker
-        //try {
+        try {
             UncoveredExecutionPaths uncoveredExecutionPaths = new UncoveredExecutionPaths(parser, methods);
             walker.walk(uncoveredExecutionPaths, tree);
-        //}
-        //catch(Exception ex){
-        //    System.out.println("Error: There was an error performing 'Uncovered Execution Paths'");
-        //}
+        }
+        catch(Exception ex){
+            System.out.println("Error: There was an error performing 'Uncovered Execution Paths'");
+        }
         try {
             NoMatchingActions noMatchingActions = new NoMatchingActions(parser, methods);
             walker.walk(noMatchingActions, tree);

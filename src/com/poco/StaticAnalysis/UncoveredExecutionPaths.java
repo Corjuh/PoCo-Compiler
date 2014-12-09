@@ -199,36 +199,63 @@ public class UncoveredExecutionPaths extends PoCoParserBaseListener {
             start.add("PLUS");
         }
         else if(ctx.children.size() == 2 && ctx.execution().size() == 2) {
-            int index = start.size();
-            if(start.get(start.size()-1) == "END GROUP" || (start.size() > 2 && (start.get(start.size()-2) == "CONCAT" || start.get(start.size()-2) == "BAR"))) {
-                for(int j = start.size()-1; j >0; j--)
+            int index = 1;
+            for(int j = start.size() - 2; j > 0; j--)
+            {
+                if((!start.get(j+1).equals("BAR") && !start.get(j+1).equals("CONCAT"))
+                        && (!start.get(j).equals("BAR") && !start.get(j).equals("CONCAT")))
                 {
-                    if(start.get(j) == "START GROUP")
-                    {
-                        index=j+1;
-                        break;
-                    }
+                    index=j+1;
+                    break;
                 }
             }
-            start.add(index - 1, "CONCAT");
+            start.add(index, "CONCAT");
         }
         else if(ctx.children.size() == 3 && ctx.BAR() != null) {
-            int index = start.size();
-            if(start.get(start.size()-1) == "END GROUP" || (start.size() > 2 && (start.get(start.size()-2) == "CONCAT" || start.get(start.size()-2) == "BAR"))) {
-                for(int j = start.size()-1; j >0; j--)
+            int index = 1;
+            for(int j = start.size() - 2; j > 0; j--)
+            {
+                if((!start.get(j+1).equals("BAR") && !start.get(j+1).equals("CONCAT"))
+                        && (!start.get(j).equals("BAR") && !start.get(j).equals("CONCAT")))
                 {
-                    if(start.get(j) == "START GROUP")
-                    {
-                        index=j+1;
-                        break;
+                    index=j+1;
+                    break;
+                }
+            }
+            start.add(index, "BAR");
+        }
+        else if(ctx.exch() != null && ctx.exch().matchs() != null)
+        {
+            PoCoParser.MatchsContext matchs = ctx.exch().matchs();
+            String re = "";
+            if(matchs.match() != null) {
+                if(matchs.match().ire() != null) {
+                    if (matchs.match().ire().re().size() > 0) {
+                        //The first re is always the action
+                        PoCoParser.ReContext rectx =  matchs.match().ire().re().get(0);
+                        while(rectx.AT() != null)
+                        {
+                            rectx = rectx.re().get(0);
+                        }
+                        if(rectx.DOLLAR() != null)
+                        {
+                            re = replaceValues(rectx);
+                        }
+                        else {
+                            re = rectx.getText();
+                        }
+                    } else {
+                        start.add(".*");
+                        return;
                     }
                 }
             }
-            start.add(index - 1, "BAR");
+            re = re.split("\\(")[0];
+            re = re.replace("%", ".*");
+            start.add(re);
         }
     }
 
-    //------------ new stuff
     private String replaceBinding(PoCoParser.ReContext ctx)
     {
         String value = ctx.getText();
@@ -380,31 +407,6 @@ public class UncoveredExecutionPaths extends PoCoParserBaseListener {
     }
     @Override
     public void exitMatchs(PoCoParser.MatchsContext ctx) {
-        String re = "";
-        if(ctx.match() != null) {
-            if(ctx.match().ire() != null) {
-                if (ctx.match().ire().re().size() > 0) {
-                    //The first re is always the action
-                    PoCoParser.ReContext rectx =  ctx.match().ire().re().get(0);
-                    while(rectx.AT() != null)
-                    {
-                        rectx = rectx.re().get(0);
-                    }
-                    if(rectx.DOLLAR() != null)
-                    {
-                        re = replaceValues(rectx);
-                    }
-                    else {
-                        re = rectx.getText();
-                    }
-                } else {
-                    start.add(".*");
-                    return;
-                }
-            }
-        }
-        re = re.split("\\(")[0];
-        re = re.replace("%", ".*");
-        start.add(re);
+
     }
 }
