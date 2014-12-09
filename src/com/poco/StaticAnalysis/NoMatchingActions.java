@@ -1,6 +1,7 @@
 package com.poco.StaticAnalysis;
 import java.util.*;
 
+import com.poco.Library.SRE;
 import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseListener;
 
@@ -56,54 +57,13 @@ public class NoMatchingActions extends PoCoParserBaseListener {
         return true;
     }
 
-    private String replaceBinding(PoCoParser.ReContext ctx)
-    {
-        String value = ctx.getText();
-
-        //standard variable (not function)
-        if(ctx.DOLLAR() != null) {
-            if (bindings.containsKey(ctx.qid().getText())) {
-                if (ctx.LPAREN() == null) {
-                    value = value.replace("$" + ctx.qid().getText(), bindings.get(ctx.qid().getText()));
-                } else {
-                    PoCoParser.OpparamlistContext opctx = ctx.opparamlist();
-                    List<String> res = new ArrayList<String>();
-                    while (opctx != null) {
-                        if (opctx.re() != null) {
-                            String opValue = opctx.re().getText();
-                            if (opctx.re().DOLLAR() != null) {
-                                opValue = replaceValues(opctx.re());
-                            }
-
-                            res.add(0, opValue);
-                        }
-                        opctx = opctx.opparamlist();
-                    }
-                    int i = 0;
-                    String re = bindings.get(ctx.qid().getText());
-                    while (re.contains("{" + i + "}")) {
-                        if (res.size() <= i) {
-                            break;
-                        }
-                        re = re.replace("{" + i + "}", res.get(i));
-                        i++;
-                    }
-
-                    value = re;
-                }
-            }
-        }
-
-        return value;
-    }
-
     @Override
     public void exitMacrodecl(PoCoParser.MacrodeclContext ctx) {
         if(ctx.re() != null) {
             if (bindings.containsKey(ctx.id().getText())) {
                 bindings.remove(ctx.id().getText());
             }
-            String value = replaceBinding(ctx.re());
+            String value = SRE.replaceBinding(ctx.re(), bindings);
             if(ctx.LPAREN() != null) {
                 PoCoParser.IdlistContext idctx = ctx.idlist();
                 List<String> ids = new ArrayList<String>();
@@ -164,43 +124,6 @@ public class NoMatchingActions extends PoCoParserBaseListener {
         }
     }
 
-    private String replaceValues(PoCoParser.ReContext rectx)
-    {
-        String re = rectx.getText();
-        if(bindings.containsKey(rectx.qid().getText()))
-        {
-            String replace = "$" + rectx.qid().getText();
-            String value = bindings.get(rectx.qid().getText());
-
-            PoCoParser.OpparamlistContext opctx = rectx.opparamlist();
-            List<String> res = new ArrayList<String>();
-            while(opctx != null)
-            {
-                if(opctx.re() != null)
-                {
-                    String opValue = opctx.re().getText();
-                    if(opctx.re().DOLLAR() != null)
-                    {
-                        opValue = replaceValues(opctx.re());
-                    }
-
-                    res.add(0, opValue);
-                }
-                opctx = opctx.opparamlist();
-            }
-            int i = 0;
-            while (value.contains("{" + i + "}")) {
-                if(res.size() <= i)
-                {
-                    break;
-                }
-                value = value.replace("{" + i + "}", res.get(i));
-                i++;
-            }
-            re = re.replace(replace, value);
-        }
-        return re;
-    }
     @Override
     public void exitMatchs(PoCoParser.MatchsContext ctx) {
         String re = "";
@@ -215,7 +138,7 @@ public class NoMatchingActions extends PoCoParserBaseListener {
                     }
                     if(rectx.DOLLAR() != null)
                     {
-                        re = replaceValues(rectx);
+                        re = SRE.replaceValues(rectx, bindings);
                     }
                     else {
                         re = rectx.getText();

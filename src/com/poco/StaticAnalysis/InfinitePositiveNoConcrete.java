@@ -7,10 +7,7 @@ import dk.brics.automaton.Automaton;
 import dk.brics.automaton.BasicAutomata;
 import dk.brics.automaton.RegExp;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
+import java.util.*;
 
 /**
  * Created by Danielle on 8/5/2014.
@@ -20,10 +17,12 @@ public class InfinitePositiveNoConcrete extends PoCoParserBaseListener {
     PoCoParser parser;
     List<PoCoParser.SreContext> start;
     boolean finalresult = true;
+    Map<String, String> bindings;
 
     public InfinitePositiveNoConcrete(PoCoParser parser) {
         this.parser = parser;
         this.start = new ArrayList<PoCoParser.SreContext>();
+        this.bindings = new HashMap<String, String>();
     }
     @Override
     public void exitPolicy(PoCoParser.PolicyContext ctx) {
@@ -38,7 +37,7 @@ public class InfinitePositiveNoConcrete extends PoCoParserBaseListener {
         for (int i = 0; i < list.size(); i++) {
             boolean result = false;
             List<String> concreteEvents = FinitePositiveSegments(list.get(i), new ArrayList<String>());
-            Automaton a1 = SRE.GetPositiveSet(list.get(i));
+            Automaton a1 = SRE.GetPositiveSet(list.get(i), bindings);
             if(!a1.isFinite()) {
                 for (int j = 0; j < concreteEvents.size(); j++) {
                     String re = concreteEvents.get(j);
@@ -63,7 +62,7 @@ public class InfinitePositiveNoConcrete extends PoCoParserBaseListener {
     {
         if(sre.PLUS() != null)
         {
-            String re = sre.re().getText();
+            String re = SRE.replaceValues(sre.re(), bindings);
             re = re.replace("%", ".*");
             RegExp r1 = new RegExp(re);
             Automaton a1 = r1.toAutomaton();
@@ -115,4 +114,73 @@ public class InfinitePositiveNoConcrete extends PoCoParserBaseListener {
             start.add(ctx.sre());
         }
     }
+
+    @Override
+    public void exitMacrodecl(PoCoParser.MacrodeclContext ctx) {
+        if(ctx.re() != null) {
+            if (bindings.containsKey(ctx.id().getText())) {
+                bindings.remove(ctx.id().getText());
+            }
+            String value = SRE.replaceBinding(ctx.re(), bindings);
+            if(ctx.LPAREN() != null) {
+                PoCoParser.IdlistContext idctx = ctx.idlist();
+                List<String> ids = new ArrayList<String>();
+                while (idctx != null) {
+                    if (idctx.id() != null) {
+                        ids.add(0, idctx.id().getText());
+                    }
+                    idctx = idctx.idlist();
+                }
+
+                Iterator<String> itr = ids.iterator();
+                int i = 0;
+                while (itr.hasNext()) {
+                    value = value.replace("$" + itr.next(), "{" + i + "}");
+                    i++;
+                }
+            }
+            bindings.put(ctx.id().getText(), value);
+        }
+    }
+
+    @Override
+    public void exitSrecase(PoCoParser.SrecaseContext ctx) {
+        if(ctx.AT() != null)
+        {
+            //standard macro (not function)
+            if(bindings.containsKey(ctx.id().getText()))
+            {
+                bindings.remove(ctx.id().getText());
+            }
+            bindings.put(ctx.id().getText(), ctx.re().getText());
+        }
+    }
+
+    @Override
+    public void exitMatch(PoCoParser.MatchContext ctx) {
+        if(ctx.AT() != null)
+        {
+            //standard macro (not function)
+            if(bindings.containsKey(ctx.id().getText()))
+            {
+                bindings.remove(ctx.id().getText());
+            }
+            bindings.put(ctx.id().getText(), ctx.re().getText());
+        }
+    }
+
+    @Override
+    public void exitRe(PoCoParser.ReContext ctx) {
+        if(ctx.AT() != null)
+        {
+            //standard macro (not function)
+            if(bindings.containsKey(ctx.id().getText()))
+            {
+                bindings.remove(ctx.id().getText());
+            }
+            bindings.put(ctx.id().getText(), ctx.re().get(0).getText());
+        }
+    }
+
+
 }
