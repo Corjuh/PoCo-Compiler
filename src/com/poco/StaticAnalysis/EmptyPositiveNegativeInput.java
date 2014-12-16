@@ -6,6 +6,8 @@ import com.poco.PoCoParser.PoCoParserBaseListener;
 import dk.brics.automaton.Automaton;
 import dk.brics.automaton.BasicAutomata;
 import dk.brics.automaton.RegExp;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.misc.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,11 +21,15 @@ public class EmptyPositiveNegativeInput extends PoCoParserBaseListener {
     List<PoCoParser.SreContext> start;
     List<PoCoParser.IreContext> startire;
     boolean finalresult = true;
+    List<PoCoParser.SreContext> mapSREs;
+    List<PoCoParser.SrebopContext> mapOps;
 
     public EmptyPositiveNegativeInput(PoCoParser parser) {
         this.parser = parser;
-        this.start = new ArrayList<PoCoParser.SreContext>();
-        this.startire = new ArrayList<PoCoParser.IreContext>();
+        this.start = new ArrayList<>();
+        this.startire = new ArrayList<>();
+        mapSREs = new ArrayList<>();
+        mapOps = new ArrayList<>();
     }
     @Override
     public void exitPolicy(PoCoParser.PolicyContext ctx) {
@@ -109,17 +115,43 @@ public class EmptyPositiveNegativeInput extends PoCoParserBaseListener {
     }
 
     @Override
+    public void enterMap(@NotNull PoCoParser.MapContext ctx)
+    {
+        if(ctx.srebop() != null) {
+            mapSREs.add(ctx.sre());
+            mapOps.add(ctx.srebop());
+        }
+    }
+
+    @Override
+    public void exitMap(@NotNull PoCoParser.MapContext ctx)
+    {
+        if(ctx.srebop() != null) {
+            mapSREs.remove(mapSREs.size() - 1);
+            mapOps.remove(mapOps.size() - 1);
+        }
+    }
+
+    @Override
     public void exitExch(PoCoParser.ExchContext ctx) {
         if(ctx.matchs() != null)
         {
             if(ctx.matchs().match() != null)
             {
-                //only handling limited cases right now
                 if(ctx.matchs().match().ire() != null) {
                     startire.add(ctx.matchs().match().ire());
                     if(ctx.sre() != null)
                     {
-                        start.add(ctx.sre());
+                        PoCoParser.SreContext sre = ctx.sre();
+                        for(int i = mapSREs.size() -1; i >= 0; i--)
+                        {
+                            PoCoParser.SreContext newsre = new PoCoParser.SreContext(new ParserRuleContext(), sre.invokingState);
+                            newsre.addChild(sre);
+                            newsre.addChild(mapSREs.get(i));
+                            newsre.addChild(mapOps.get(i));
+                            sre = newsre;
+                        }
+                        start.add(sre);
                     }
                 }
             }
