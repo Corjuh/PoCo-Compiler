@@ -70,6 +70,9 @@ public class InfinitePositiveNoConcrete extends PoCoParserBaseListener {
         {
             String re = SRE.replaceValues(sre.re(), bindings);
             re = re.replace("%", ".*");
+            re = re.replace("\\", "");
+            re = re.replace("<", "\\<");
+            re = re.replace(">", "\\>");
             RegExp r1 = new RegExp(re);
             Automaton a1 = r1.toAutomaton();
             if(a1.isFinite())

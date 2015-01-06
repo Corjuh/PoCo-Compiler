@@ -4,6 +4,7 @@ import com.poco.PoCoParser.PoCoParser;
 import dk.brics.automaton.Automaton;
 import dk.brics.automaton.BasicAutomata;
 import dk.brics.automaton.RegExp;
+import sun.misc.Regexp;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,6 +25,8 @@ public class SRE {
         {
             String re = SRE.replaceValues(sre.re(), bindings);
             re = re.replace("%", ".*");
+            re = re.replace("<", "\\<");
+            re = re.replace(">", "\\>");
             RegExp r1 = new RegExp(re);
             Automaton a1 = r1.toAutomaton();
             return a1;
@@ -121,15 +124,17 @@ public class SRE {
     }
     public static Automaton GetNegativeSet(PoCoParser.SreContext sre, Map<String, String> bindings)
     {
-        if(sre.PLUS() != null)
+        if(sre.PLUS() != null || sre.NEUTRAL() != null)
         {
-            //straight negative or neutral sre. not interested in it
+            //straight positive or neutral sre. not interested in it
             return BasicAutomata.makeEmpty();
         }
-        else if(sre.MINUS() != null || sre.NEUTRAL() != null)
+        else if(sre.MINUS() != null)
         {
             String re = sre.re().getText();
             re = re.replace("%", ".*");
+            re = re.replace("<", "\\<");
+            re = re.replace(">", "\\>");
             RegExp r1 = new RegExp(re);
             Automaton a1 = r1.toAutomaton();
             return a1;

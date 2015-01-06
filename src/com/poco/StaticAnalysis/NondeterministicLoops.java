@@ -4,6 +4,7 @@ import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseListener;
 import dk.brics.automaton.Automaton;
 import dk.brics.automaton.RegExp;
+import org.antlr.v4.runtime.misc.NotNull;
 
 import java.util.*;
 
@@ -124,7 +125,7 @@ public class NondeterministicLoops extends PoCoParserBaseListener {
                     }
                     else
                     {
-                        ProcessSegment(segment, nextsegment);
+                        ReduceGroup(group, i, segment);
                         break;
                     }
                 }
@@ -207,21 +208,26 @@ public class NondeterministicLoops extends PoCoParserBaseListener {
                 nextre += ")|";
             }
         }
-        nextre = nextre.substring(0,nextre.length()-1);
-        nextsegmentstring = nextsegmentstring.substring(0,nextsegmentstring.length()-1);
+        if(nextre.length() > 0) {
+            nextre = nextre.substring(0, nextre.length() - 1);
+            nextsegmentstring = nextsegmentstring.substring(0, nextsegmentstring.length() - 1);
 
-        re = re.replace("%", ".*");
-        RegExp r1 = new RegExp(re);
-        nextre = nextre.replace("%", ".*");
-        RegExp r2 = new RegExp(nextre);
-        Automaton a1 = r1.toAutomaton();
-        Automaton a2 = r2.toAutomaton();
-        Automaton a3 = a1.intersection(a2);
-        if(!a3.isEmpty())
-        {
-            finalresult = true;
-            errorsegment1 = segmentstring;
-            errorsegment2 = nextsegmentstring;
+            re = re.replace("%", ".*");
+            re = re.replace("<", "\\<");
+            re = re.replace(">", "\\>");
+            RegExp r1 = new RegExp(re);
+            nextre = nextre.replace("%", ".*");
+            nextre = nextre.replace("<", "\\<");
+            nextre = nextre.replace(">", "\\>");
+            RegExp r2 = new RegExp(nextre);
+            Automaton a1 = r1.toAutomaton();
+            Automaton a2 = r2.toAutomaton();
+            Automaton a3 = a1.intersection(a2);
+            if (!a3.isEmpty()) {
+                finalresult = true;
+                errorsegment1 = segmentstring;
+                errorsegment2 = nextsegmentstring;
+            }
         }
     }
 
@@ -286,6 +292,18 @@ public class NondeterministicLoops extends PoCoParserBaseListener {
     }
 
     @Override
+    public void enterMap(@NotNull PoCoParser.MapContext ctx)
+    {
+        start.add("START GROUP");
+    }
+
+    @Override
+    public void exitMap(@NotNull PoCoParser.MapContext ctx)
+    {
+        start.add("END GROUP");
+    }
+
+    @Override
     public void enterExecution(PoCoParser.ExecutionContext ctx) {
         if(ctx.children.get(0).getText().equals("(")) {
             start.add("START GROUP");
@@ -306,8 +324,8 @@ public class NondeterministicLoops extends PoCoParserBaseListener {
             int index = 1;
             for(int j = start.size() - 2; j > 0; j--)
             {
-                if((!start.get(j+1).equals("BAR") && !start.get(j+1).equals("CONCAT"))
-                        && (!start.get(j).equals("BAR") && !start.get(j).equals("CONCAT")))
+                if((!start.get(j+1).equals("BAR") && !start.get(j+1).equals("CONCAT") && !start.get(j+1).equals("END GROUP") && !start.get(j+1).equals("STAR"))
+                        && (!start.get(j).equals("BAR") && !start.get(j).equals("CONCAT") && !start.get(j).equals("START GROUP")))
                 {
                     index=j+1;
                     break;
@@ -319,8 +337,8 @@ public class NondeterministicLoops extends PoCoParserBaseListener {
             int index = 1;
             for(int j = start.size() - 2; j > 0; j--)
             {
-                if((!start.get(j+1).equals("BAR") && !start.get(j+1).equals("CONCAT"))
-                        && (!start.get(j).equals("BAR") && !start.get(j).equals("CONCAT")))
+                if((!start.get(j+1).equals("BAR") && !start.get(j+1).equals("CONCAT") && !start.get(j+1).equals("END GROUP") && !start.get(j+1).equals("STAR"))
+                        && (!start.get(j).equals("BAR") && !start.get(j).equals("CONCAT") && !start.get(j).equals("START GROUP")))
                 {
                     index=j+1;
                     break;
@@ -330,34 +348,74 @@ public class NondeterministicLoops extends PoCoParserBaseListener {
         }
         else if(ctx.exch() != null && ctx.exch().matchs() != null)
         {
-            PoCoParser.MatchsContext matchs = ctx.exch().matchs();
-            String re = "";
-            if(matchs.match() != null) {
-                if(matchs.match().ire() != null) {
-                    if (matchs.match().ire().re().size() > 0) {
-                        //The first re is always the action
-                        PoCoParser.ReContext rectx =  matchs.match().ire().re().get(0);
-                        while(rectx.AT() != null)
-                        {
-                            rectx = rectx.re().get(0);
-                        }
-                        if(rectx.DOLLAR() != null)
-                        {
-                            re = SRE.replaceValues(rectx,bindings);
-                        }
-                        else {
-                            re = rectx.getText();
-                        }
-                    } else {
-                        start.add(".*");
-                        return;
-                    }
-                }
-            }
-            re = re.split("\\(")[0];
-            re = re.replace("%", ".*");
+            String re = createRE(ctx.exch().matchs());
             start.add(re);
         }
+    }
+
+    private String createRE(PoCoParser.MatchsContext matchs)
+    {
+        String re = "";
+        if(matchs.match() != null) {
+            if(matchs.match().ire() != null) {
+                if (matchs.match().ire().re().size() > 0) {
+                    //The first re is always the action
+                    PoCoParser.ReContext rectx =  matchs.match().ire().re().get(0);
+                    while(rectx.AT() != null)
+                    {
+                        rectx = rectx.re().get(0);
+                    }
+                    if(rectx.DOLLAR() != null)
+                    {
+                        re = SRE.replaceValues(rectx,bindings);
+                    }
+                    else {
+                        re = rectx.getText();
+                    }
+                } else {
+                    return ".*";
+                }
+                re = re.split("\\(")[0];
+                re = re.replace("%", ".*");
+                return re;
+            }
+        }
+        else if(matchs.BOOLUOP() != null)
+        {
+            if(matchs.BOOLUOP().getText().equals("!") && matchs.matchs().size() > 0)
+            {
+                String re1 = createRE(matchs.matchs(0));
+                return "~(" + re1 + ")";
+            }
+        }
+        else if(matchs.BOOLBOP() != null)
+        {
+            if(matchs.BOOLBOP().getText().equals("&&") && matchs.matchs().size() > 0)
+            {
+                String re1 = createRE(matchs.matchs(0));
+                String re2 = createRE(matchs.matchs(1));
+                if(re1.isEmpty())
+                    return re2;
+                if(re2.isEmpty())
+                    return re1;
+                return "(" + re1 + ")&(" + re2 + ")";
+            }
+            if(matchs.BOOLBOP().getText().equals("||") && matchs.matchs().size() > 0)
+            {
+                String re1 = createRE(matchs.matchs(0));
+                String re2 = createRE(matchs.matchs(1));
+                if(re1.isEmpty())
+                    return re2;
+                if(re2.isEmpty())
+                    return re1;
+                return "(" + re1 + ")|(" + re2 + ")";
+            }
+        }
+        else if(matchs.matchs().size() == 1)
+        {
+            return createRE(matchs.matchs(0));
+        }
+        return re;
     }
 
     @Override
