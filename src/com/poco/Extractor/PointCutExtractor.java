@@ -1,17 +1,3 @@
-/*
-test case
-ConfirmAndAllowOnlyHTTP() :
-var call :RE
-@ports[`#Integer{80|443}'] :RE
-map (Union, -`$NetworkConnection($ports)',
-     <!Action(`$NetworkConnection($ports)') => Neutral>*
-     <Action(`@call[$NetworkConnection($ports)]') => +`$Confirm($message)'>
-     ( <Result(`$Confirm($message)', `#Integer{JOptionPane.OK_OPTION}') => +`$call'>
-               | <_ => Neutral>)
-)*
-
- */
-
 package com.poco.Extractor;
 
 import com.poco.PoCoParser.PoCoParser;
@@ -27,6 +13,8 @@ import java.util.LinkedHashSet;
  */
 public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     private LinkedHashSet<LinkedHashSet<String>> nodes = new LinkedHashSet<LinkedHashSet<String>>();
+    //use this to distinguish the result from the action for generating advices
+    private LinkedHashSet<LinkedHashSet<String>> nodes4Results = new LinkedHashSet<LinkedHashSet<String>>();
 
     private LinkedHashSet<String> pointcutStrings = new LinkedHashSet<>();
     private String pointcutStr;
@@ -37,6 +25,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     private boolean loadfmClosure = false;
     private ArrayList<String> clousreAl = null;
+
+    private boolean isResult = false;
 
 
     public PointCutExtractor(Closure closure) {
@@ -49,11 +39,10 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     @Override
     public Void visitRe(@NotNull PoCoParser.ReContext ctx) {
-        boolean isFound = false;
         if (ptFromOpparamlist == false) {
             pointcutStr = " * ";
             if (ctx.rewild() != null) {
-                pointcutStr = pointcutStr + " * (. .); ";
+                pointcutStr = pointcutStr + " * (..); ";
             } else if (ctx.qid() != null) {
                 /**load from closure */
                 clousreAl = new ArrayList<String>();
@@ -71,7 +60,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 } else {
                     pointcutStr = pointcutStr + "(..)";
                     pointcutStrings.add(pointcutStr);
-                    nodes.add(pointcutStrings);
+                    add2NodesNodes4Result(pointcutStrings);
+//                    nodes.add(pointcutStrings);
                     pointcutStrings = new LinkedHashSet<String>();
                 }
             } else if (ctx.function() != null) {
@@ -85,27 +75,44 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                     ptFromOpparamlist = false;
                 }
                 pointcutStrings.add(pointcutStr);
-                nodes.add(pointcutStrings);
+                add2NodesNodes4Result(pointcutStrings);
+//                nodes.add(pointcutStrings);
                 pointcutStrings = new LinkedHashSet<String>();
             } else if (ctx.object() != null) {
-                pointcutStr = pointcutStr + ctx.object().qid().getText() + ".";
+                pointcutStr = pointcutStr + ctx.object().qid().getText();
                 if (ctx.object().fieldlist() != null) {
-                    pointcutStr = pointcutStr + "&& (call (" + ctx.object().fieldlist() + "))";
+                    pointcutStr = pointcutStr + "(" + ctx.object().fieldlist().getText() + ")";
+                    pointcutStrings.add(pointcutStr);
+                    add2NodesNodes4Result(pointcutStrings);
+//                    nodes.add(pointcutStrings);
+                    pointcutStrings = new LinkedHashSet<String>();
                 } else if (ctx.re() != null) {
-                    // need handle re , not sure how yet, need to be modified
+                    pointcutStr = ctx.object().re().getText() + "(..)";
+                    pointcutStrings.add(pointcutStr);
+                    add2NodesNodes4Result(pointcutStrings);
+//                    nodes.add(pointcutStrings);
+                    pointcutStrings = new LinkedHashSet<String>();
                 }
             } else if (ctx.AT() != null) {
                 if (ctx.re(0) != null) {
                     visitRe(ctx.re(0));
                 }
+            } else {
+                pointcutStr = " * " + ctx.getText() + "(..)";
+                pointcutStrings.add(pointcutStr);
+                add2NodesNodes4Result(pointcutStrings);
+//                nodes.add(pointcutStrings);
+                pointcutStrings = new LinkedHashSet<String>();
             }
+
         } else {  //ptFromOpparamlist = true
             if (ctx.rewild() != null) {
                 //need fix later, not sure how to handle #String{%.class}
                 if (loadfmClosure == true)
                     clousreAl.add(pointcutStr + "( .. )");
-                else
+                else {
                     pointcutStr = pointcutStr + "( .. )";
+                }
             } else if (ctx.qid() != null) {
                 clousreAl = new ArrayList<String>();
                 loadFromClosure(ctx.qid().getText());
@@ -119,7 +126,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                     pointcutStr = pointcutStr + "(" + ctx.qid().getText() + ") ";
                     pointcutStrings.add(pointcutStr);
                 }
-                nodes.add(pointcutStrings);
+                add2NodesNodes4Result(pointcutStrings);
+//                nodes.add(pointcutStrings);
                 pointcutStrings = new LinkedHashSet<String>();
             } else if (ctx.AT() != null) {
                 if (loadfmClosure == true)
@@ -129,12 +137,11 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 }
             } else if (ctx.object() != null) {
                 if (ctx.object().POUND() != null) {
-                    if(ctx.object().qid().getText().equals("Integer")) {
-                        if(ctx.object().re() != null)
+                    if (ctx.object().qid().getText().equals("Integer")) {
+                        if (ctx.object().re() != null)
                             visitRe(ctx.object().re());
-                    }
-                    else if(ctx.object().qid().getText().equals("String")) {
-                        if(ctx.object().re() != null)
+                    } else if (ctx.object().qid().getText().equals("String")) {
+                        if (ctx.object().re() != null)
                             visitRe(ctx.object().re());
                     }
                     /* else { //fieldList
@@ -178,8 +185,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     public Void visitExecution(@NotNull PoCoParser.ExecutionContext ctx) {
         if (ctx.map() != null) {
             visitSre(ctx.map().sre());
-            //pointcutStrings = new LinkedHashSet<String>();
-            //visitExecution(ctx.map().execution());
+            pointcutStrings = new LinkedHashSet<String>();
+            visitExecution(ctx.map().execution());
         } else {
             visitChildren(ctx);
         }
@@ -227,12 +234,15 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         return null;
     }
 
-        @Override
+    @Override
     public Void visitIre(@NotNull PoCoParser.IreContext ctx) {
-        if (ctx.ACTION() != null)
+        if (ctx.ACTION() != null) {
             visitChildren(ctx);
-        else
+        } else {
+            isResult = true;
             visitRe(ctx.re(0));
+            isResult = false;
+        }
         return null;
     }
 
@@ -255,16 +265,21 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 pointcutStr = pointcutStr + ctx.qid().getText() + "(..)";
                 pointcutStrings.add(pointcutStr);
             }
-            nodes.add(pointcutStrings);
+            add2NodesNodes4Result(pointcutStrings);
+//            nodes.add(pointcutStrings);
             pointcutStrings = new LinkedHashSet<String>();
         } else if (ctx.srebop() != null) {
+
             visitChildren(ctx.sre(0));
             pointcutStrings.add(pointcutStr);
-            nodes.add(pointcutStrings);
+            //nodes.add(pointcutStrings);
+            add2NodesNodes4Result(pointcutStrings);
             pointcutStrings = new LinkedHashSet<String>();
+
             visitChildren(ctx.sre(1));
             pointcutStrings.add(pointcutStr);
-            nodes.add(pointcutStrings);
+            //nodes.add(pointcutStrings);
+            add2NodesNodes4Result(pointcutStrings);
             pointcutStrings = new LinkedHashSet<String>();
         } else {
             visitChildren(ctx);
@@ -272,8 +287,11 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         return null;
     }
 
-    public LinkedHashSet<LinkedHashSet<String>> getgetPCStrings() {
+    public LinkedHashSet<LinkedHashSet<String>> getPCStrings() {
         return new LinkedHashSet<LinkedHashSet<String>>(nodes);
+    }
+    public LinkedHashSet<LinkedHashSet<String>> getPCStrs4Results() {
+        return new LinkedHashSet<LinkedHashSet<String>>(nodes4Results);
     }
 
     public void loadFromClosure(String varName) {
@@ -290,5 +308,14 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 }
             }
         loadfmClosure = false;
+    }
+
+    public void add2NodesNodes4Result(LinkedHashSet<String> pointcutStrs) {
+        if (isResult) {
+            //if it is result, move the pointcut from the action
+            nodes.remove(pointcutStrs);
+            nodes4Results.add(pointcutStrs);
+        }else
+            nodes.add(pointcutStrs);
     }
 }
