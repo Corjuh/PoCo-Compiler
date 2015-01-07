@@ -1,17 +1,15 @@
 package com.poco.PoCoCompiler;
 
-
 import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseVisitor;
 import com.poco.Extractor.Closure;
 import org.antlr.v4.runtime.misc.NotNull;
-
 import java.io.PrintWriter;
 import java.sql.SQLSyntaxErrorException;
 import java.util.Stack;
-
 import com.poco.Extractor.VarTypeVal;
-//import sun.jvm.hotspot.debugger.posix.elf.ELFSectionHeader;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Generates the Java code to create a PoCoPolicy object representing
@@ -23,6 +21,11 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
     private int executionNum;
     private Stack<String> executionNames;
+    //use to record the current modifier for this execution,
+    //since one execution can only have one exchange as children,
+    //we will set the exchange has the same modifier
+    //this will only be used to set the modifier attribute for exchange
+    private String currentModifier;
 
     private int exchangeNum;
     private String currentExchange;
@@ -33,27 +36,33 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
     private int matchNum;
     private String currentMatch;
+    //use this flag for the match when it is the @id[`re'] case, we need know it is a match
+    private boolean isMatch = false;
 
     private Closure closure;
 
     private int sreNum;
+    private Stack<String> sreNames;
+    //set flag indicate this is a srebop case, sre0 & sre1 should be added as srebop's children
+    private boolean isSreBop1 = false; //child1
+    private boolean isSreBop2 = false; //child2
 
+    private boolean matchRHS = false;
+    private boolean hasAsterisk = false;
+    private boolean hasPlus = false;
 
-    private boolean matchRHS      = false;
-    private boolean hasAsterisk   = false;
-    private boolean hasPlus       = false;
+    private boolean isSre = false;
+    private boolean isSrePos = false;
 
-    private boolean isSre         = false;
-    private boolean isSrePos      = false;
-    private String currentSre;
-
-    private boolean isIre         = false;
-    private boolean isAction      = false;
-    private boolean isResult      = false;
+    private boolean isIre = false;
+    private boolean isAction = false;
+    //if the match for an exec is combined w/ &&| or, we will not skip the %(at least for now),
+    //and late automaton can deal with it such as <Action(`@act[%]') && @out[`$p'] => +`fopen($f)'>
+    private boolean isCombinedMatch = false;
+    private boolean isResult = false;
     private boolean isResultMatch = false;
-    private boolean isMapExecute  = false;
-    private boolean isMapSre      = false;
-    private boolean isAlternation = false;
+
+    private boolean isMapSre = false;
 
     /**
      * Constructor
@@ -85,6 +94,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         // Initialize SRE data structures
         this.sreNum = 0;
         this.closure = closure1;
+        this.sreNames = new Stack<>();
     }
 
     /**
@@ -131,9 +141,12 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         outLine(0, "class %s extends Policy {", policyName);
         outLine(1, "public %s() {", policyName);
         outLine(2, "try {");
-        executionNames.push("ROOT");
+        outLine(3, "SequentialExecution rootExec = new SequentialExecution(\"none\");");
+        executionNames.push("rootExec");
         visitChildren(ctx);
         executionNames.pop();
+        outLine(3, "rootExec.getCurrentChildModifier();");
+        outLine(3, "setRootExecution(rootExec);");
         outLine(2, "} catch (PoCoException pex) {");
         outLine(3, "System.out.println(pex.getMessage());");
         outLine(3, "pex.printStackTrace();");
@@ -142,8 +155,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         outLine(1, "}");
         outLine(0, "}");
 
-        outLine(0, "%s policy1 = new %s();", policyName, policyName);
-        outLine(0, "root.setChild(policy1);");
+        //outLine(0, "%s policy1 = new %s();", policyName, policyName);
+        //outLine(0, "root.setChild(policy1);");
 
         return null;
     }
@@ -151,51 +164,25 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitParamlist(@NotNull PoCoParser.ParamlistContext ctx) {
         // TODO: Support actual policy parameters (as references to policy objects)
-
         visitChildren(ctx);
-
         return null;
     }
 
     @Override
     public Void visitExecution(@NotNull PoCoParser.ExecutionContext ctx) {
         // TODO: Support non-sequential executions
-        if(ctx.BAR() != null) {
-            isAlternation = true;
-            String modifier = "none";
-            if (hasAsterisk)
-                modifier = "*";
-            else if (hasPlus)
-                modifier = "+";
-            String executionName = "exec" + executionNum++;
-
+        if (ctx.BAR() != null) { // will be the alternation execution(e.g.,  execution_1 |execution)
+            String modifier = getModifierFlag();
+            String executionName = "alterExec" + executionNum++;
             executionNames.push(executionName);
             outLine(3, "AlternationExecution %s = new AlternationExecution(\"%s\");", executionName, modifier);
-
-            String seqExec1 = "exec" + executionNum++;
-            executionNames.push(seqExec1);
-            outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", seqExec1, modifier);
             visitExecution(ctx.execution(0));
-            outLine(3, "%s.addSeqExec(%s);",executionName, seqExec1);
-            executionNames.pop();
-
-            String seqExec2 = "exec" + executionNum++;
-            executionNames.push(seqExec2);
-            outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", seqExec2, modifier);
             visitExecution(ctx.execution(1));
-            outLine(3, "%s.addSeqExec(%s);",executionName, seqExec2);
-            executionNames.pop();
-            isAlternation=false;
             executionNames.pop();
             outLine(3, "%s.addChild(%s);", executionNames.peek(), executionName);
-        }else if(ctx.map()!=null) {
-            isMapExecute= true;
-            String modifier = "none";
-            if (hasAsterisk)
-                modifier = "*";
-            else if (hasPlus)
-                modifier = "+";
-            String executionName = "exec" + executionNum++;
+        } else if (ctx.map() != null) {
+            String modifier = getModifierFlag();
+            String executionName = "mapExec" + executionNum++;
             executionNames.push(executionName);
             outLine(3, "MapExecution %s = new MapExecution(\"%s\");", executionName, modifier);
             outLine(3, "%s.setOperator(\"%s\");", executionName, ctx.map().srebop().getText());
@@ -203,29 +190,31 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             visitSre(ctx.map().sre());
             isMapSre = false;
             visitExecution(ctx.map().execution());
-            isMapExecute = false;
             executionNames.pop();
-
-            if (!isAlternation)
-                outLine(3, "%s.addChild(%s);", executionNames.peek(), executionName);
-
-        }  else {
-            if (!isMapExecute && ! isAlternation && ctx.exch() !=null) {
-                String modifier = "none";
-                if (hasAsterisk)
-                    modifier = "*";
-                else if (hasPlus)
-                    modifier = "+";
+            outLine(3, "%s.addChild(%s);", executionNames.peek(), executionName);
+        } else if (ctx.LPAREN() != null) {// && !isAlternation) {   //for grouped executions but not alternation
+            String modifier = getModifierFlag();
+            String seqExec = "groupedExec" + executionNum++;
+            executionNames.push(seqExec);
+            outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", seqExec, modifier);
+            visitChildren(ctx);
+            executionNames.pop();
+            outLine(3, "%s.addChild(%s);", executionNames.peek(), seqExec);
+        } else {
+            if (ctx.exch() != null) {
+                String modifier = getModifierFlag();
                 String executionName = "exec" + executionNum++;
                 executionNames.push(executionName);
                 outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", executionName, modifier);
+                currentModifier = modifier;
                 visitChildren(ctx);
                 executionNames.pop();
                 outLine(3, "%s.addChild(%s);", executionNames.peek(), executionName);
-            } else
+            } else {
+                setModifierFlag((ctx.ASTERISK() != null), (ctx.PLUS() != null));
                 visitChildren(ctx);
+            }
         }
-
         return null;
     }
 
@@ -236,7 +225,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         // Visit children to flesh out the exchange object
         currentExchange = exchangeName;
         outLine(3, "Exchange %s = new Exchange();", exchangeName);
-
+        currentModifier = "none";
         // The code for the match object is not generated here unless the match portion is a wildcard
         boolean isWildcardMatch = (ctx.INPUTWILD() != null);
         if (isWildcardMatch) {
@@ -246,8 +235,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             matchRHS = true;
             visitSre(ctx.sre());
             matchRHS = false;
-        }
-        else if(ctx.matchs()!= null) {
+        } else if (ctx.matchs() != null) {
             String matchsName = "matchs" + matchsNum++;
             // Create matchs object
             outLine(3, "Matchs %s = new Matchs();", matchsName);
@@ -257,14 +245,11 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             outLine(3, "%s.addMatcher(%s);", currentExchange, matchsName);
             matchsNames.pop();
         }
-
         // Let the child SRE know it's a return value, so that it attaches itself to this exchange
         isReturnValue = true;
         visitSre(ctx.sre());
         isReturnValue = false;
-
         currentExchange = null;
-
         // Add Exchange to containing execution
         outLine(3, "%s.addChild(%s);", executionNames.peek(), exchangeName);
         return null;
@@ -274,23 +259,30 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     public Void visitMatchs(@NotNull PoCoParser.MatchsContext ctx) {
         // If the child node is a Match object, this Matchs object is unnecessary
         boolean hasBooluop = (ctx.BOOLUOP() != null);
-        boolean hasAnd     = false;
-        boolean hasOr      = false;
-        if(ctx.BOOLBOP()  != null) {
-            if(ctx.BOOLBOP().getText().equals("||"))
-                 hasOr     = true;
+        boolean hasAnd = false;
+        boolean hasOr = false;
+
+        if (ctx.BOOLBOP() != null) {
+            if (ctx.BOOLBOP().getText().equals("||"))
+                hasOr = true;
             else
-                 hasAnd    = true;
+                hasAnd = true;
         }
-        boolean hasMatch   = (ctx.match() != null);
+        boolean hasMatch = (ctx.match() != null);
         if (!hasMatch) {
-            if(hasBooluop)
+            if (hasBooluop)
                 outLine(3, "%s.setNOT(true);", matchsNames.peek());
-            if(hasAnd)
+            if (hasAnd)
                 outLine(3, "%s.setAND(true);", matchsNames.peek());
-            else if(hasOr)
+            else if (hasOr)
                 outLine(3, "%s.setOR(true);", matchsNames.peek());
+
+            //set up the flag so the % case will not be skipped (e.g., <Action(`[%]')&&@out[`$p']=>+`fopen($f)'>)
+            if (hasBooluop || hasAnd || hasOr)
+                isCombinedMatch = true;
             visitChildren(ctx);
+            //reset the flag after done visit this match
+            isCombinedMatch = false;
         } else {
             // This matchs simply wraps a match object. No need to create a matchs object
             visitChildren(ctx);
@@ -307,9 +299,10 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         // TODO: Handle case when something other than an ire is in a match object
         // Visit children
         currentMatch = matchName;
+        isMatch = true; //set isMatch for ture, so match as @out[`$p'] case will be knowned as match
         visitChildren(ctx);
+        isMatch = false;
         currentMatch = null;
-
         // Add to parent
         if (matchsNames.empty()) {
             // Add match object to parent exchange
@@ -328,7 +321,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             isAction = true;
             isResult = false;
             visitRe(ctx.re(0));
-        }else {
+        } else {
             isAction = false;  //is result
             isResult = true;
             visitRe(ctx.re(0));
@@ -351,13 +344,13 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 if (str == null)
                     str = ctx.qid().getText();
                 String matchName = "match" + matchNum++;
-                outLine(3, "Match %s = new Match(%s);", matchName, str);
+                outLine(3, "Match %s = new Match(\"%s\");", matchName, scrubString(str));
                 outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
             }
         } else {
             if (ctx.NEUTRAL() != null) {
                 String sreName = "sre" + sreNum++;
-                if(isMapSre)
+                if (isMapSre)
                     outLine(3, "%s.setMatchSre(%s);", executionNames.peek(), sreName);
                 else {
                     outLine(3, "SRE %s = new SRE(null, null);", sreName);
@@ -365,15 +358,49 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                         outLine(3, "%s.setSRE(%s);", currentExchange, sreName);
                     }
                 }
-            } else if (ctx.PLUS() != null | ctx.MINUS() != null) {
+            } else if (ctx.PLUS() != null | ctx.MINUS() != null) { // (+|-)`re' case
                 String sreName = "sre" + sreNum++;
-                currentSre = sreName;
+                sreNames.push(sreName);
+                outLine(3, "SRE %s = new SRE(null, null);", sreName);
                 isSre = true;
                 isSrePos = (ctx.PLUS() != null);
                 visitRe(ctx.re());
                 isSre = false;
-            } else {
-                //will need add other cases, $qid, $qid()....
+                sreNames.pop();
+                if (isSreBop1)
+                    outLine(3, "%s.setSre1(%s);", sreNames.peek(), sreName);
+                if (isSreBop2)
+                    outLine(3, "%s.setSre2(%s);", sreNames.peek(), sreName);
+            } else if (ctx.srebop() != null) {  // srebop(sre0,sre1) case
+                //set flag indicate this is a srebop case, sre0 & sre1 should be added as srebop's children
+                String sreName = "bopSRE" + sreNum++;
+                outLine(3, "BopSRE %s = new BopSRE(%s,null, null);", sreName, ctx.srebop().getText());
+                sreNames.push(sreName);
+                isSreBop1 = true;
+                isSreBop2 = false;
+                visitSre(ctx.sre(0));
+                isSreBop1 = false;
+                isSreBop2 = true;
+                visitSre(ctx.sre(1));
+                isSreBop2 = false;
+                outLine(3, "%s.setSRE(%s);", currentExchange, sreNames.peek());
+                sreNames.pop();
+
+            } else if (ctx.sreuop() != null) {   // sreuop(sre0) case
+                visitChildren(ctx);
+            } else if (ctx.qid() != null) {   //$qid case
+                //for qid case, currently put the qid info in the positiveRE, so when
+                //SreUop is null, then we will check if it is pos or neg, when
+                //SreUop is not null, then we treat pos differently
+                String sreName = "sre" + sreNum++;
+                outLine(3, "SRE %s = new SRE(%s, null);", sreName, ctx.qid().getText());
+                if (isSreBop1)
+                    outLine(3, "%s.setSre1(%s);", sreNames.peek(), sreName);
+                if (isSreBop2)
+                    outLine(3, "%s.setSre2(%s);", sreNames.peek(), sreName);
+
+            } else if (ctx.LPAREN() != null) {  //() case
+                visitChildren(ctx);
             }
         }
         return null;
@@ -397,15 +424,20 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitRe(@NotNull PoCoParser.ReContext ctx) {
         if (matchRHS == true) {
+            String matchStr = null;
+            if (ctx.function() != null) {
+                matchStr = ctx.function().fxnname().getText();
+                if (ctx.function().arglist().re().rewild() == null)
+                    matchStr += "(" + ctx.function().arglist().getText() + ")";
+            } else {
+                matchStr = scrubString(ctx.getText());
+            }
             String matchName = "match" + matchNum++;
-            outLine(3, "Match %s = new Match(%s);", matchName, ctx.getText());
+            outLine(3, "Match %s = new Match(\"%s\");", matchName, matchStr);
             outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
+
         } else {
-            if (ctx.rewild() != null) {
-                if(isResult)
-                    if(isResultMatch)
-                        outLine(3, "%s.setResultMatchStr(*);", currentMatch);
-            } else if (ctx.AT() != null) {
+            if (ctx.AT() != null) {
                 if (ctx.id() != null) {
                     if (closure != null) {
                         VarTypeVal val = closure.loadClosure(ctx.id().getText());
@@ -415,44 +447,114 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 } else
                     throw new NullPointerException("No such var exist.");
                 visitRe(ctx.re(0));
+            } else if (ctx.rewild() != null) {
+                if (isResult) {//it is the re case for ire result
+                    if (isResultMatch)
+                        outLine(3, "%s.setResultMatchStr(\".\");", scrubString(currentMatch));
+                } else if (isAction && isCombinedMatch) {
+                    //System.out.println(ctx.getText());
+                    outLine(3, "%s.setMatchString(\".\");", currentMatch);
+                }
             } else {
                 String content;
                 if (ctx.DOLLAR() != null) {
                     content = loadFromClosure(ctx.qid().getText());
-                    if (content == null)
+                    if (content == null) {
                         content = ctx.qid().getText();
-                } else
-                    content = ctx.getText();
-                if (isSre) {
-                    if(isMapSre) {
-                        outLine(3, "%s.setMatchSre(%s);", executionNames.peek(), content);
-                    } else {
-                        if (isSrePos)
-                            outLine(3, "SRE %s = new SRE(\"%s\", null);", currentSre, content);
-                        else
-                            outLine(3, "SRE %s = new SRE(null, \"%s\");", currentSre, content);
-                        if (isReturnValue)
-                            outLine(3, "%s.setSRE(%s);", currentExchange, content);
-
                     }
+                } else {
+                    if (ctx.object() != null)
+                        content = parseObject(ctx.getText());
+                    else
+                        content = ctx.getText();
+                }
+
+                if (isSre) {
+                    if (isSrePos)
+                        outLine(3, "%s.setPositiveRE(\"%s\");", sreNames.peek(), scrubString(content));
+                    else
+                        outLine(3, "%s.setNegativeRE(\"%s\");", sreNames.peek(), scrubString(content));
+
+                    if (isMapSre)
+                        outLine(3, "%s.setMatchSre(%s);", executionNames.peek(), sreNames.peek());
+                    //if it is Bopsre case, we will need postpone setSRE till pop to the right Sre
+                    if (isReturnValue && !isSreBop2 && !isSreBop1)
+                        outLine(3, "%s.setSRE(%s);", currentExchange, sreNames.peek());
                 } else if (isIre) {
                     if (isAction) {
-                        outLine(3, "%s.setAction(true);", currentMatch);
-                        outLine(3, "%s.setResult(false);", currentMatch);
-                        outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content);
+                        outLine(3, "%s.setAsAction();", currentMatch);
+                        outLine(3, "%s.setMatchString(\"%s\");", currentMatch, scrubString(content));
                     } else {
-                        outLine(3, "%s.setAction(false);", currentMatch);
-                        outLine(3, "%s.setResult(true);", currentMatch);
-                        if(isResultMatch)
-                            outLine(3, "%s.setResultMatchStr(%s);", currentMatch,content);
-                        else
-                            outLine(3, "%s.setMatchString(%s);", currentMatch, content);
+                        if (!isResultMatch) {
+                            outLine(3, "%s.setAsResult();", currentMatch);
+                            outLine(3, "%s.setMatchString(\"%s\");", currentMatch, scrubString(content));
+                        } else
+                            outLine(3, "%s.setResultMatchStr(\"%s\");", currentMatch, scrubString(content));
                     }
+                } else if (isMatch) {
+                    outLine(3, "%s.setMatchString(\"%s\");", currentMatch, scrubString(content));
                 }
 
             }
         }
         return null;
+    }
+
+    /**
+     * use to get the last seen modifier and reset the flags of the modifiers to false
+     */
+    public String getModifierFlag() {
+        String result = "none";
+        if (hasAsterisk)
+            result = "*";
+        else if (hasPlus)
+            result = "+";
+        hasAsterisk = false;
+        hasPlus = false;
+        return result;
+    }
+
+    /**
+     * use to set the modifier flag
+     *
+     * @param asterisk if the execution has asterisk
+     * @param plus     if the execution has plus
+     */
+    public void setModifierFlag(boolean asterisk, boolean plus) {
+        hasAsterisk = asterisk;
+        hasPlus = plus;
+    }
+
+    /**
+     * This method use to track the value from object format
+     */
+    private String parseObject(String input) {
+        Pattern objPat = Pattern.compile("#(.*)\\{(.*)\\}");
+        Matcher objMatcher = objPat.matcher(input);
+        if (objMatcher.find()) {
+            String str = objMatcher.group(1);
+            switch (str) {
+                case "Integer":
+                    return getIntVal(objMatcher.group(2));
+                default:
+                    return input;
+
+            }
+        } else
+            return input;
+    }
+
+    private String getIntVal(String input) {
+        int result = -99;
+        switch (input) {
+            case "JOptionPane.OK_OPTION":
+                result = 0;
+                break;
+            case "JOptionPane.NO_OPTION":
+                result = 1;
+                break;
+        }
+        return Integer.toString(result);
     }
 
     private static String scrubString(String input) {
