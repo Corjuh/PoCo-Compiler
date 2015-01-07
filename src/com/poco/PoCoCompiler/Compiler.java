@@ -57,7 +57,8 @@ public class Compiler {
      /** pointcut info  from PoCo policy */
     ArrayList<String> extractedPCs = new ArrayList<String>();
     LinkedHashSet<LinkedHashSet<String>> extractedPtCuts = null;
-    
+    //add this in order to generate the different kinds of advices for pointcuts
+    LinkedHashSet<LinkedHashSet<String>> extractedPtCuts4Results = null;
     /** All method signatures from files in scanFilePaths */
     private LinkedHashSet<String> extractedMethodSignatures = null;
     /** Each RE from the PoCo policy mapped to all matching methods */
@@ -262,8 +263,12 @@ public class Compiler {
         PointCutExtractor pcExtractor = new PointCutExtractor(this.closure);
         pcExtractor.visit(parseTree);
         this.extractedPtCuts = pcExtractor.getgetPCStrings();
+        this.extractedPtCuts4Results = pcExtractor.getPCStrs4Results();
 
         for(LinkedHashSet<String> entry: this.extractedPtCuts) {
+            extractedPCs.addAll(entry);
+        }
+         for (LinkedHashSet<String> entry : this.extractedPtCuts4Results) {
             extractedPCs.addAll(entry);
         }
         // Write REs to a file
@@ -371,13 +376,35 @@ public class Compiler {
                     jOut(2, "execution(%s);\n", signature);
                 }
             }
+            outAdvicePrologue("PointCut" + pointcutNum);
+            jOut(2, "root.queryAction(new Event(thisJoinPoint));");
+            outAdviceEpilogue();
+            pointcutNum++; 
+        }
+        
+        for (LinkedHashSet<String> entry : this.extractedPtCuts4Results) {
+            jOut(1, "pointcut PointCut%d():", pointcutNum);
+            int signatureCount = 0;
+            for (String signature : entry) {
+                signatureCount++;
+                if (signatureCount < entry.size()) {
+                    jOut(2, "execution(%s) ||", signature);
+                } else {
+                    jOut(2, "execution(%s);\n", signature);
+                }
+            }
 
+            outAdvicePrologue4Result("PointCut" + pointcutNum);
+            jOut(2, "Event event = new Event(thisJoinPoint);");
+            jOut(2, "event.setResult(ret);");
+            jOut(2, "root.queryAction(event);");
+            outAdviceEpilogue4Result();
 
             pointcutNum++;
         }
-
+        
         // Generate advice
-        pointcutNum = 0;
+        /*pointcutNum = 0;
         for(LinkedHashSet<String> entry: this.extractedPtCuts) {
         //for (Map.Entry<String, ArrayList<String>> entry : this.regexMethodMappings.entrySet()) {
             outAdvicePrologue("PointCut" + pointcutNum);
@@ -385,7 +412,7 @@ public class Compiler {
             outAdviceEpilogue();
 
             pointcutNum++;
-        }
+        }*/
 
         // Generate policy classes
         PolicyVisitor pvisitor = new PolicyVisitor(aspectWriter, 1, this.closure);
@@ -415,7 +442,17 @@ public class Compiler {
         jOut(2, "return proceed();");
         jOut(1, "}\n");
     }
+    
+    private void outAdvicePrologue4Result(String pointcutName) {
+        jOut(1, "Object around() : %s() {", pointcutName);
+        jOut(2, "Object ret = proceed();");
+    }
 
+    private void outAdviceEpilogue4Result() {
+        jOut(2, "return ret;");
+        jOut(1, "}\n");
+    }
+    
     public static void main(String[] args) {
         Compiler compiler = new Compiler(args);
         compiler.compile();
