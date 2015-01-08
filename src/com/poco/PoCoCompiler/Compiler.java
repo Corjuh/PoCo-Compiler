@@ -262,7 +262,7 @@ public class Compiler {
         this.extractedREs = regexExtractor.getMatchStrings();
         PointCutExtractor pcExtractor = new PointCutExtractor(this.closure);
         pcExtractor.visit(parseTree);
-        this.extractedPtCuts = pcExtractor.getgetPCStrings();
+        this.extractedPtCuts = pcExtractor.getPCStrings();
         this.extractedPtCuts4Results = pcExtractor.getPCStrs4Results();
 
         for(LinkedHashSet<String> entry: this.extractedPtCuts) {
