@@ -4,8 +4,8 @@ package com.poco.PoCoRuntime;
  * Created by cjuhlin on 8/23/14.
  */
 public class SequentialExecution extends AbstractExecution implements Queryable, Matchable {
-    private int currentCursor = 0;
-    private boolean exhausted = false;
+    protected int currentCursor = 0;
+    protected boolean exhausted = false;
 
     public SequentialExecution(String modifier) throws PoCoException {
         super(modifier);
