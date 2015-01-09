@@ -31,7 +31,7 @@ public class Exchange extends EventResponder implements Matchable, Queryable {
         }
         return null;
     }
-    
+
     @Override
     public String toString() {
         return "Exchange [matcher=" + matcher + ", returnSRE=" + returnSRE
