@@ -5,12 +5,16 @@ import java.util.ArrayList;
 /**
  * Created by caoyan on 12/3/14.
  */
-public class MapExecution extends SequentialExecution implements Queryable, Matchable
-{
-    private String operator;
-    private SRE    matchSre = null;
 
-    public MapExecution(String modifier, String operator, SRE matchSre) throws PoCoException {
+public class MapExecution extends SequentialExecution implements Queryable,
+        Matchable {
+    private String operator;
+    private SRE matchSre = null;
+    private Boolean resultBool = false;
+    private SRE resultSRE = null;
+
+    public MapExecution(String modifier, String operator, SRE matchSre)
+            throws PoCoException {
         super(modifier);
         this.operator = operator;
         this.matchSre = matchSre;
@@ -28,14 +32,75 @@ public class MapExecution extends SequentialExecution implements Queryable, Matc
         super(modifier);
     }
 
+    // use to set the current modifier for the first child before start query,
+    // and later update modifier while advance cursor
+    public boolean getCurrentChildModifier(String str) {
+        if (currentCursor < children.size()) {
+            if (str.equals("isZeroPlus"))
+                return ((AbstractExecution) this.children.get(currentCursor))
+                        .isZeroPlus();
+            else
+                return ((AbstractExecution) this.children.get(currentCursor))
+                        .isOnePlus();
+        } else
+            return false;
+    }
+
+    private void advanceCursor() {
+        if (isZeroPlus || isOnePlus)
+            currentCursor = (currentCursor + 1) % children.size();
+        else
+            currentCursor++;
+        if (currentCursor >= children.size())
+            exhausted = true;
+    }
+
     @Override
     public SRE query(Event event) {
-        return super.query(event);
+        if (children.size() == 0 || exhausted){
+            return null;
+        }
+        if (!resultBool) {
+            EventResponder currentChild = children.get(currentCursor);
+            if (currentChild.accepts(event)) {
+                resultBool = true;
+                if (!getCurrentChildModifier("isZeroPlus")
+                        && !getCurrentChildModifier("isOnePlus")) {
+                    advanceCursor();
+                }
+                SRE result = currentChild.query(event);
+                resultSRE = result;
+                resultSRE = SRELib.PerformOPs("Union",matchSre, result);
+                return resultSRE;
+            } else { // not accepting
+                if (getCurrentChildModifier("isZeroPlus")) {
+                    // We can skip a zero-plus (*) modifier
+                    advanceCursor();
+                    this.query(event);
+                } else {
+                    // CurrentChild doesn't accept and can't be skipped
+                    resultBool = false;
+                    return null;
+                }
+            }
+        }
+        else {
+            SRE temp = resultSRE;
+            resultBool = false;
+            return temp;
+        }
+        return null;
     }
 
     @Override
     public boolean accepts(Event event) {
-        return super.accepts(event);
+        if (children.size() == 0) {
+            return false;
+        }
+        // The first child of a sequential execution must accept for its parent
+        // to accept
+        this.query(event);
+        return resultBool;
     }
 
     @Override
@@ -48,4 +113,10 @@ public class MapExecution extends SequentialExecution implements Queryable, Matc
         return super.getChildren();
     }
 
+    @Override
+    public String toString() {
+        return "MapExecution [operator=" + operator + ", matchSre=" + matchSre
+                + ", isZeroPlus=" + isZeroPlus + ", isOnePlus=" + isOnePlus
+                + ", children=" + children + "]\n";
+    }
 }
