@@ -7,6 +7,14 @@ package com.poco.PoCoRuntime;
 public abstract class Policy extends EventResponder implements Queryable, Matchable {
     protected AbstractExecution rootExecution;
 
+    public AbstractExecution getRootExecution() {
+        return rootExecution;
+    }
+
+    public void setRootExecution(AbstractExecution rootExecution) {
+        this.rootExecution = rootExecution;
+    }
+
     @Override
     public boolean accepts(Event event) {
         return rootExecution.accepts(event);
