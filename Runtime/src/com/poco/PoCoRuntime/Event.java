@@ -1,5 +1,4 @@
 package com.poco.PoCoRuntime;
-
 import org.aspectj.lang.JoinPoint;
 
 /**
@@ -10,6 +9,16 @@ import org.aspectj.lang.JoinPoint;
 public class Event {
     private String signature;
     public String eventType;
+
+    private Object result = null;
+
+    public Object getResult() {
+        return result;
+    }
+
+    public void setResult(Object result) {
+        this.result = result;
+    }
 
     /**
      * Construct an event from explicitly passed details. Used when testing.
@@ -32,5 +41,11 @@ public class Event {
 
     public String getSignature() {
         return signature;
+    }
+
+    @Override
+    public String toString() {
+        return "Event [signature=" + signature + ", eventType=" + eventType
+                + ", result=" + result + "]";
     }
 }
