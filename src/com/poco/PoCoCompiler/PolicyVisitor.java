@@ -536,6 +536,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             switch (str) {
                 case "Integer":
                     return getIntVal(objMatcher.group(2));
+                //will add more case here
                 default:
                     return input;
 
