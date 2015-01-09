@@ -4,10 +4,13 @@ import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseVisitor;
 import com.poco.Extractor.Closure;
 import org.antlr.v4.runtime.misc.NotNull;
+
 import java.io.PrintWriter;
 import java.sql.SQLSyntaxErrorException;
 import java.util.Stack;
+
 import com.poco.Extractor.VarTypeVal;
+
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -464,7 +467,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                     }
                 } else {
                     if (ctx.object() != null)
-                        content = parseObject(ctx.getText());
+                        content = parseObject(ctx.object().qid().getText(),ctx.object().re().getText());
                     else
                         content = ctx.getText();
                 }
@@ -528,21 +531,14 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     /**
      * This method use to track the value from object format
      */
-    private String parseObject(String input) {
-        Pattern objPat = Pattern.compile("#(.*)\\{(.*)\\}");
-        Matcher objMatcher = objPat.matcher(input);
-        if (objMatcher.find()) {
-            String str = objMatcher.group(1);
-            switch (str) {
-                case "Integer":
-                    return getIntVal(objMatcher.group(2));
-                //will add more case here
-                default:
-                    return input;
-
-            }
-        } else
-            return input;
+    private String parseObject(String type, String value) {
+        switch (type) {
+            case "Integer":
+                return getIntVal(value);
+            //will add more case here
+            default:
+                return value;
+        }
     }
 
     private String getIntVal(String input) {
