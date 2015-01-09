@@ -43,4 +43,11 @@ public abstract class AbstractExecution extends EventResponder implements Matcha
     public ArrayList<EventResponder> getChildren() {
         return children;
     }
+    public boolean isZeroPlus() {
+        return isZeroPlus;
+    }
+
+    public boolean isOnePlus() {
+        return isOnePlus;
+    }
 }
