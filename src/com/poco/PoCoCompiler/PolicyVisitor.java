@@ -377,7 +377,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             } else if (ctx.srebop() != null) {  // srebop(sre0,sre1) case
                 //set flag indicate this is a srebop case, sre0 & sre1 should be added as srebop's children
                 String sreName = "bopSRE" + sreNum++;
-                outLine(3, "BopSRE %s = new BopSRE(%s,null, null);", sreName, ctx.srebop().getText());
+                outLine(3, "BopSRE %s = new BopSRE(\"%s\",null, null);", sreName, ctx.srebop().getText());
                 sreNames.push(sreName);
                 isSreBop1 = true;
                 isSreBop2 = false;
