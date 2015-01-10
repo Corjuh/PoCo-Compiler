@@ -5,7 +5,6 @@ import java.util.ArrayList;
 /**
  * Created by caoyan on 12/3/14.
  */
-
 public class MapExecution extends SequentialExecution implements Queryable,
         Matchable {
     private String operator;
@@ -70,7 +69,7 @@ public class MapExecution extends SequentialExecution implements Queryable,
                 }
                 SRE result = currentChild.query(event);
                 resultSRE = result;
-                resultSRE = SRELib.PerformOPs("Union",matchSre, result);
+                resultSRE = SRELib.PerformBOPs("Union",matchSre, result);
                 return resultSRE;
             } else { // not accepting
                 if (getCurrentChildModifier("isZeroPlus")) {
