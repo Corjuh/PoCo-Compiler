@@ -31,11 +31,15 @@ public class InfinitePositiveNoConcrete extends PoCoParserBaseListener {
         this.mapOps = new ArrayList<PoCoParser.SrebopContext>();
     }
     @Override
-    public void exitPolicy(PoCoParser.PolicyContext ctx) {
+    public void exitPocopol(PoCoParser.PocopolContext ctx) {
         finalresult = InfinitePositiveNoConcrete(start);
         if(finalresult) {
-            System.out.println("Warning: The policy '" + ctx.ppol().pocopol().id().getText() + "' has infinite positive results that do not suggest a specific action. This can cause unexpected behavior");
+            System.out.println("Warning: The policy '" + ctx.id().getText() + "' has infinite positive results that do not suggest a specific action. This can cause unexpected behavior");
         }
+        this.start = new ArrayList<PoCoParser.SreContext>();
+        this.bindings = new HashMap<String, String>();
+        this.mapSREs = new ArrayList<PoCoParser.SreContext>();
+        this.mapOps = new ArrayList<PoCoParser.SrebopContext>();
     }
 
     private boolean InfinitePositiveNoConcrete(List<PoCoParser.SreContext> list)

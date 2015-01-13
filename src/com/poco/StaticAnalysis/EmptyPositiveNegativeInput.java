@@ -32,11 +32,15 @@ public class EmptyPositiveNegativeInput extends PoCoParserBaseListener {
         mapOps = new ArrayList<>();
     }
     @Override
-    public void exitPolicy(PoCoParser.PolicyContext ctx) {
+    public void exitPocopol(PoCoParser.PocopolContext ctx) {
         finalresult = EmptyPositiveNegativeInput(start, startire);
         if(finalresult) {
-            System.out.println("Warning: The policy '" + ctx.ppol().pocopol().id().getText() + "' has empty positive results and might disallow the input action. This can cause unexpected behavior");
+            System.out.println("Warning: The policy '" + ctx.id().getText() + "' has empty positive results and might disallow the input action. This can cause unexpected behavior");
         }
+        this.start = new ArrayList<>();
+        this.startire = new ArrayList<>();
+        mapSREs = new ArrayList<>();
+        mapOps = new ArrayList<>();
     }
 
     private boolean EmptyPositiveNegativeInput(List<PoCoParser.SreContext> list, List<PoCoParser.IreContext> listire)

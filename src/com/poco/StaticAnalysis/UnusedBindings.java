@@ -21,7 +21,7 @@ public class UnusedBindings extends PoCoParserBaseListener {
         this.parser = parser;
     }
     @Override
-    public void exitPolicy(PoCoParser.PolicyContext ctx) {
+    public void exitPocopol(PoCoParser.PocopolContext ctx) {
         for(String binding : errorbindings)
             System.out.println("Warning: The binding '" + binding + "' is not used.");
     }

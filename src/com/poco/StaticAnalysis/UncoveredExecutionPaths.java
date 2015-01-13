@@ -27,11 +27,14 @@ public class UncoveredExecutionPaths extends PoCoParserBaseListener {
         this.bindings = new HashMap<String, String>();
     }
     @Override
-    public void exitPolicy(PoCoParser.PolicyContext ctx) {
+    public void exitPocopol(PoCoParser.PocopolContext ctx) {
         UncoveredExecutionPaths(start);
         if(!finalresult) {
             System.out.println("Warning: There are uncovered execution paths in segment '" + errorsegment + "'. This may cause unexpected behavior.");
         }
+        this.start = new ArrayList<String>();
+        this.possibleinputs = possibleinputs;
+        this.bindings = new HashMap<String, String>();
     }
 
     private boolean UncoveredExecutionPaths(List<String> list)

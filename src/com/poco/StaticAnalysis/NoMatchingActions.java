@@ -24,11 +24,14 @@ public class NoMatchingActions extends PoCoParserBaseListener {
         this.bindings = new HashMap<String, String>();
     }
     @Override
-    public void exitPolicy(PoCoParser.PolicyContext ctx) {
+    public void exitPocopol(PoCoParser.PocopolContext ctx) {
         NoMatchingActions(start);
         if(!finalresult) {
             System.out.println("Warning: The exchange '" + errorsegment + "' does not match any possible input actions.");
         }
+        this.start = new ArrayList<String>();
+        this.possibleinputs = possibleinputs;
+        this.bindings = new HashMap<String, String>();
     }
 
     private boolean NoMatchingActions(List<String> list)

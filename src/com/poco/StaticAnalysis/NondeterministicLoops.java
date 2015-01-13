@@ -28,11 +28,14 @@ public class NondeterministicLoops extends PoCoParserBaseListener {
         this.bindings = new HashMap<String, String>();
     }
     @Override
-    public void exitPolicy(PoCoParser.PolicyContext ctx) {
+    public void exitPocopol(PoCoParser.PocopolContext ctx) {
         NondeterministicLoops(start);
         if(finalresult) {
             System.out.println("Warning: The loop '" + errorsegment1 + "' followed by '" + errorsegment2 + "' is nondeterministic. This may cause unexpected behavior.");
         }
+        this.start = new ArrayList<String>();
+        this.possibleinputs = possibleinputs;
+        this.bindings = new HashMap<String, String>();
     }
 
     private boolean NondeterministicLoops(List<String> list)

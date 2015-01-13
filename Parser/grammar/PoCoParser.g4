@@ -9,10 +9,11 @@ options { tokenVocab=PoCoLexer; }
 policy:     pimports macrodecls ppol |
             pimports ppol |
             macrodecls ppol |
-            ppol ;
+            ppol;
 
 ppol:       metapol |
-            pocopol ;
+            pocopol |
+            pocopol ppol;
 
 
 pocopol:    id LPAREN paramlist RPAREN COLON vardecls macrodecls execution transactionlist |
