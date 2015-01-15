@@ -19,7 +19,7 @@ public class BopSRE extends SRE {
         return sre1;
     }
 
-    public void setSre1(SRE sre1) {
+    public void setSRE1(SRE sre1) {
         this.sre1 = sre1;
     }
 
@@ -27,7 +27,7 @@ public class BopSRE extends SRE {
         return sre2;
     }
 
-    public void setSre2(SRE sre2) {
+    public void setSRE2(SRE sre2) {
         this.sre2 = sre2;
     }
 
