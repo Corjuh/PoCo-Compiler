@@ -17,7 +17,7 @@ public class UopSRE extends SRE {
         return sre;
     }
 
-    public void setSre(SRE sre) {
+    public void setSRE(SRE sre) {
         this.sre = sre;
     }
 
