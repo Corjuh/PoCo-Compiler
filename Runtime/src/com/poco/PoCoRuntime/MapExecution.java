@@ -9,14 +9,17 @@ public class MapExecution extends SequentialExecution implements Queryable,
         Matchable {
     private String operator;
     private SRE matchSre = null;
+
+    private Boolean isQueried = false;
     private Boolean resultBool = false;
-    private SRE resultSRE = null;
+    private SRE operatedSRE = null;
 
     public MapExecution(String modifier, String operator, SRE matchSre)
             throws PoCoException {
         super(modifier);
         this.operator = operator;
         this.matchSre = matchSre;
+        this.operatedSRE = matchSre;
     }
 
     public void setOperator(String operator) {
@@ -25,6 +28,7 @@ public class MapExecution extends SequentialExecution implements Queryable,
 
     public void setMatchSre(SRE matchSre) {
         this.matchSre = matchSre;
+        this.operatedSRE = matchSre;
     }
 
     public MapExecution(String modifier) throws PoCoException {
@@ -56,21 +60,20 @@ public class MapExecution extends SequentialExecution implements Queryable,
 
     @Override
     public SRE query(Event event) {
-        if (children.size() == 0 || exhausted){
+        if (children.size() == 0 || exhausted) {
             return null;
         }
-        if (!resultBool) {
+        if (!isQueried) {
             EventResponder currentChild = children.get(currentCursor);
             if (currentChild.accepts(event)) {
+                isQueried = true;
                 resultBool = true;
                 if (!getCurrentChildModifier("isZeroPlus")
                         && !getCurrentChildModifier("isOnePlus")) {
                     advanceCursor();
                 }
-                SRE result = currentChild.query(event);
-                resultSRE = result;
-                resultSRE = SRELib.PerformBOPs("Union",matchSre, result);
-                return resultSRE;
+                operatedSRE = SRELib.PerformBOPs(operator, operatedSRE, currentChild.query(event));
+                return operatedSRE;
             } else { // not accepting
                 if (getCurrentChildModifier("isZeroPlus")) {
                     // We can skip a zero-plus (*) modifier
@@ -82,14 +85,13 @@ public class MapExecution extends SequentialExecution implements Queryable,
                     return null;
                 }
             }
-        }
-        else {
-            SRE temp = resultSRE;
-            resultBool = false;
-            return temp;
+        } else {
+            isQueried= false;
+            return operatedSRE;
         }
         return null;
     }
+
 
     @Override
     public boolean accepts(Event event) {
