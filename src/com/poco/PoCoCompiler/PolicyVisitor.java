@@ -296,23 +296,44 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
     @Override
     public Void visitMatch(@NotNull PoCoParser.MatchContext ctx) {
-        // Create match object
-        String matchName = "match" + matchNum++;
-        outLine(3, "Match %s = new Match();", matchName);
-        // TODO: Handle case when something other than an ire is in a match object
-        // Visit children
-        currentMatch = matchName;
-        isMatch = true; //set isMatch for ture, so match as @out[`$p'] case will be knowned as match
-        visitChildren(ctx);
-        isMatch = false;
-        currentMatch = null;
-        // Add to parent
-        if (matchsNames.empty()) {
-            // Add match object to parent exchange
-            outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
+        if (ctx.INFINITE() != null) {
+            String matchName = "otherMatch" + matchNum++;
+            outLine(3, "OtherMatch %s = new OtherMatch(\"Infinite\", null, null);", matchName);
+            currentMatch = matchName;
+            isMatch = true; //set isMatch for ture, so match as @out[`$p'] case will be knowned as match
+            visitChildren(ctx);
+            isMatch = false;
+            currentMatch = null;
+
+            if (matchsNames.empty()) {
+                // Add match object to parent exchange
+                outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
+            } else {
+                System.out.println("I am here");
+                // Add match object to parent matchs
+                outLine(3, "%s.addChild(%s);", matchsNames.peek(), matchName);
+            }
+        } else if (ctx.SUBSET() != null || ctx.SREEQUALS() != null) {
+
         } else {
-            // Add match object to parent matchs
-            outLine(3, "%s.addChild(%s);", matchsNames.peek(), matchName);
+            // Create match object
+            String matchName = "match" + matchNum++;
+            outLine(3, "Match %s = new Match();", matchName);
+            // TODO: Handle case when something other than an ire is in a match object
+            // Visit children
+            currentMatch = matchName;
+            isMatch = true; //set isMatch for ture, so match as @out[`$p'] case will be knowned as match
+            visitChildren(ctx);
+            isMatch = false;
+            currentMatch = null;
+            // Add to parent
+            if (matchsNames.empty()) {
+                // Add match object to parent exchange
+                outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
+            } else {
+                // Add match object to parent matchs
+                outLine(3, "%s.addChild(%s);", matchsNames.peek(), matchName);
+            }
         }
         return null;
     }
@@ -370,10 +391,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 visitRe(ctx.re());
                 isSre = false;
                 sreNames.pop();
-                if (isSreBop1)
-                    outLine(3, "%s.setSre1(%s);", sreNames.peek(), sreName);
-                if (isSreBop2)
-                    outLine(3, "%s.setSre2(%s);", sreNames.peek(), sreName);
+                if (!sreNames.empty())
+                    setSREvalue(sreNames.peek(), sreName);
             } else if (ctx.srebop() != null) {  // srebop(sre0,sre1) case
                 //set flag indicate this is a srebop case, sre0 & sre1 should be added as srebop's children
                 String sreName = "bopSRE" + sreNum++;
@@ -382,26 +401,51 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 isSreBop1 = true;
                 isSreBop2 = false;
                 visitSre(ctx.sre(0));
+
                 isSreBop1 = false;
                 isSreBop2 = true;
                 visitSre(ctx.sre(1));
                 isSreBop2 = false;
-                outLine(3, "%s.setSRE(%s);", currentExchange, sreNames.peek());
                 sreNames.pop();
-
+                if (!sreNames.empty())
+                    setSREvalue(sreNames.peek(), sreName);
+                else {
+                    if (isMatch) {
+                        if(currentMatch.contains("otherMatch"))
+                            outLine(3, "%s.SetSRE1(%s);", currentMatch, sreName);
+                    }
+                }
+                //outLine(3, "%s.setSRE1();", matchName);
             } else if (ctx.sreuop() != null) {   // sreuop(sre0) case
-                visitChildren(ctx);
+                String sreuopStr = null;
+                if (ctx.sreuop().srecomp() != null)
+                    sreuopStr = "Complement";
+                else if (ctx.sreuop().sreactions() != null)
+                    sreuopStr = "Actions";
+                else if (ctx.sreuop().sreresults() != null)
+                    sreuopStr = "Results";
+                else if (ctx.sreuop().srepos() != null)
+                    sreuopStr = "Positive";
+                else //if(ctx.sreuop().sreneg() != null)
+                    sreuopStr = "Negative";
+
+                String sreName = "uopSRE" + sreNum++;
+                outLine(3, "UopSRE %s = new UopSRE(\"%s\", null);", sreName, sreuopStr);
+                sreNames.push(sreName);
+                visitSre(ctx.sre(0));
+                sreNames.pop();
+                if (!sreNames.empty())
+                    setSREvalue(sreNames.peek(), sreName);
             } else if (ctx.qid() != null) {   //$qid case
                 //for qid case, currently put the qid info in the positiveRE, so when
                 //SreUop is null, then we will check if it is pos or neg, when
                 //SreUop is not null, then we treat pos differently
                 String sreName = "sre" + sreNum++;
                 outLine(3, "SRE %s = new SRE(%s, null);", sreName, ctx.qid().getText());
-                if (isSreBop1)
-                    outLine(3, "%s.setSre1(%s);", sreNames.peek(), sreName);
-                if (isSreBop2)
-                    outLine(3, "%s.setSre2(%s);", sreNames.peek(), sreName);
-
+                if (!sreNames.empty())
+                    setSREvalue(sreNames.peek(), sreName);
+                else
+                    outLine(3, "%s.setSRE(%s);", currentExchange,sreName);
             } else if (ctx.LPAREN() != null) {  //() case
                 visitChildren(ctx);
             }
@@ -467,7 +511,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                     }
                 } else {
                     if (ctx.object() != null)
-                        content = parseObject(ctx.object().qid().getText(),ctx.object().re().getText());
+                        content = parseObject(ctx.object().qid().getText(), ctx.object().re().getText());
                     else
                         content = ctx.getText();
                 }
@@ -526,6 +570,18 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     public void setModifierFlag(boolean asterisk, boolean plus) {
         hasAsterisk = asterisk;
         hasPlus = plus;
+    }
+
+
+    public void setSREvalue(String fieldName, String sreName) {
+        if (fieldName.contains("uopSRE"))
+            outLine(3, "%s.setSRE(%s);", fieldName, sreName);
+        else if (fieldName.contains("bopSRE")) {
+            if (isSreBop1)
+                outLine(3, "%s.setSRE1(%s);", fieldName, sreName);
+            if (isSreBop2)
+                outLine(3, "%s.setSRE2(%s);", fieldName, sreName);
+        }
     }
 
     /**
