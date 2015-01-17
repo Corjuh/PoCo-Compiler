@@ -396,6 +396,7 @@ public class Compiler {
 
             outAdvicePrologue4Result("PointCut" + pointcutNum);
             jOut(2, "Event event = new Event(thisJoinPoint);");
+            jOut(2, "event.eventType = \"Result\";");
             jOut(2, "event.setResult(ret);");
             jOut(2, "root.queryAction(event);");
             outAdviceEpilogue4Result();
