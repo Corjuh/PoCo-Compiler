@@ -37,11 +37,11 @@ public class OtherMatch extends Match {
     public boolean accepts(Event event) {
         switch (operator) {
             case "Infinite":
-                return SRELib.isInfinite(SRELib.GetBaseSRE(sre1));
+                return SREUtil.isInfinite(SREUtil.getBaseSRE(sre1));
             case "Subset":
-                return SRELib.isSubSet(sre1,sre2);
+                return SREUtil.isSubSet(sre1, sre2);
             case "Equals":
-                return SRELib.isEquals(sre1,sre2);
+                return SREUtil.isEquals(sre1, sre2);
             default:
                 break;
         }

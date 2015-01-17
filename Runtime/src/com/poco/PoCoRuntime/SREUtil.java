@@ -7,7 +7,7 @@ import dk.brics.automaton.RegExp;
  * Created by caoyan on 1/8/15.
  */
 
-public class SRELib {
+public class SREUtil {
     /**
      * This function is used to perform Binary Set Operations on SRES
      *
@@ -20,7 +20,7 @@ public class SRELib {
      *            It is the second SRE value
      * @return the result SRE
      */
-    public static SRE PerformBOPs(String operator, SRE sre1, SRE sre2) {
+    public static SRE performBOPs(String operator, SRE sre1, SRE sre2) {
         if (isEmpty(sre1) && isEmpty(sre2))
             return null;
 
@@ -66,7 +66,7 @@ public class SRELib {
                 negativeRE = operate("InterSection", sre1.negativeRE(), sre2.negativeRE());
                 positiveRE = operate("Union", positiveRE, negativeRE);
                 //nes = % - pos
-                negativeRE = PerformUOPs("Complement",new SRE(positiveRE, null)).getNegativeRE();
+                negativeRE = performUOPs("Complement", new SRE(positiveRE, null)).getNegativeRE();
                 break;
             default:
                 break;
@@ -84,7 +84,7 @@ public class SRELib {
      *            It is the first SRE value
      * @return the result SRE
      */
-    public static SRE PerformUOPs(String operator, SRE sre) {
+    public static SRE performUOPs(String operator, SRE sre) {
         if (isEmpty(sre))
             return null;
 
@@ -105,20 +105,20 @@ public class SRELib {
         }
     }
 
-    public static SRE GetBaseSRE(SRE sre) {
+    public static SRE getBaseSRE(SRE sre) {
         Class<BopSRE> classBS = BopSRE.class;
         Class<UopSRE> classUS = UopSRE.class;
         Class<? extends SRE> classChild = sre.getClass();
         if (classBS.isAssignableFrom(classChild)) { // BopSRE
             BopSRE bopSre = (BopSRE) sre;
-            SRE result = SRELib.PerformBOPs(bopSre.getSrebop(),
-                    GetBaseSRE(bopSre.sre1), GetBaseSRE(bopSre.sre2));
+            SRE result = SREUtil.performBOPs(bopSre.getSrebop(),
+                    getBaseSRE(bopSre.sre1), getBaseSRE(bopSre.sre2));
             // System.out.println(result);
             return result;
         } else if (classUS.isAssignableFrom(classChild)) { // UopSRE
             UopSRE uopSre = (UopSRE) sre;
-            SRE result = SRELib.PerformUOPs(uopSre.getSreuop(),
-                    GetBaseSRE(uopSre.sre));
+            SRE result = SREUtil.performUOPs(uopSre.getSreuop(),
+                    getBaseSRE(uopSre.sre));
             // System.out.println(result);
             return result;
         } else

@@ -72,7 +72,7 @@ public class MapExecution extends SequentialExecution implements Queryable,
                         && !getCurrentChildModifier("isOnePlus")) {
                     advanceCursor();
                 }
-                operatedSRE = SRELib.PerformBOPs(operator, operatedSRE, currentChild.query(event));
+                operatedSRE = SREUtil.performBOPs(operator, operatedSRE, currentChild.query(event));
                 return operatedSRE;
             } else { // not accepting
                 if (getCurrentChildModifier("isZeroPlus")) {
