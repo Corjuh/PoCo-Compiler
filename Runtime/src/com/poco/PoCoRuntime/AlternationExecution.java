@@ -1,19 +1,14 @@
 package com.poco.PoCoRuntime;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-
 /**
  * Created by caoyan on 12/4/14.
  */
+
 public class AlternationExecution extends SequentialExecution
 {
-    ArrayList<SequentialExecution> execs;
-
-    public void addSeqExec(SequentialExecution se) {
-        execs.add(se);
-    }
-
+    private Boolean isQueried = false;
+    private Boolean resultBool = false;
+    private SRE resultSRE = null;
 
     public AlternationExecution(String modifier) throws PoCoException {
         super(modifier);
@@ -21,16 +16,35 @@ public class AlternationExecution extends SequentialExecution
 
     @Override
     public SRE query(Event event) {
-        return super.query(event);
+        if (children.size() == 0){
+            return null;
+        }
+
+        if (!isQueried) {
+            isQueried = true;
+            if (children.get(0).accepts(event))  {
+                resultBool = true;
+                resultSRE = children.get(0).query(event);
+            }
+            else  {
+                resultBool = children.get(1).accepts(event);
+                resultSRE = children.get(1).query(event);
+            }
+            return resultSRE;
+        }
+        else {
+            return resultSRE;
+        }
     }
 
     @Override
     public boolean accepts(Event event) {
-        for(Iterator<SequentialExecution> it = execs.iterator(); it.hasNext();) {
-            SequentialExecution se = (SequentialExecution) it;
-            if (se.accepts(event))
-                return true;
+        if (children.size() == 0) {
+            return false;
         }
-        return false;
+        // The first child of a sequential execution must accept for its parent
+        // to accept
+        this.query(event);
+        return resultBool;
     }
 }
