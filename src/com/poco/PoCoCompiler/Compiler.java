@@ -418,12 +418,89 @@ public class Compiler {
         // Generate policy classes
         PolicyVisitor pvisitor = new PolicyVisitor(aspectWriter, 1, this.closure);
         pvisitor.visit(parseTree);
+        
+        if (pvisitor.hasTransation()) {
+            createTransUtil(pvisitor.getTransactions());
+        }
+
 
         outAspectEpilogue();
 
         aspectWriter.close();
         aspectWriter = null;
     }
+    
+    private void createTransUtil(String str) {
+        String fileName = policyName + "_Utils";
+        Path path = outputDir.resolve(fileName+".java");
+
+        StringBuffer stringBuffer = new StringBuffer();
+        //write the package info
+        ArrayList<String> packs = getUtilPackages(str);
+        if(packs != null) {
+            for (Iterator<String> it = packs.iterator();it.hasNext();){
+                stringBuffer = stringBuffer.append(it.next());
+                stringBuffer = stringBuffer.append(System.getProperty("line.separator"));
+            }
+            stringBuffer = stringBuffer.append(System.getProperty("line.separator"));
+        }
+        //write the class name
+        stringBuffer = stringBuffer.append("public class " +fileName + "{");
+        stringBuffer = stringBuffer.append(System.getProperty("line.separator"));
+        //add methods
+        ArrayList<String> methods = getUtilMethods(str);
+        if(methods != null) {
+            for (Iterator<String> it = methods.iterator();it.hasNext();){
+                stringBuffer = stringBuffer.append(it.next());
+                stringBuffer = stringBuffer.append(System.getProperty("line.separator"));
+            }
+        }
+        stringBuffer = stringBuffer.append("}");
+        //write into "policyName_Utils.java"
+        try {
+            FileWriter fw = new FileWriter(path.toString());
+            fw.write(stringBuffer.toString());
+            fw.flush();
+            fw.close();
+        }catch (Exception ex){
+            ex.printStackTrace();
+        }
+    }
+
+    private ArrayList<String> getUtilPackages(String str) {
+        ArrayList<String> packages = new ArrayList<>();
+        String reg = "\\s*import\\s+(.+);";
+        Pattern pattern = Pattern.compile(reg);
+        Matcher matcher = pattern.matcher(str);
+        while(matcher.find()) {
+            packages.add("import " + matcher.group(1).trim() + ";");
+        }
+        return packages;
+    }
+
+    private ArrayList<String> getUtilMethods(String str) {
+        ArrayList<Integer> methodIndex = new ArrayList<>();
+        ArrayList<String> methods = new ArrayList<>();
+        String  reg = "\\s*(public\\s+(static)?\\s+\\w+\\s+\\w+\\s*\\(.*?\\))\\s*";
+        Pattern pattern = Pattern.compile(reg);
+        Matcher matcher = pattern.matcher(str);
+        while(matcher.find())
+            methodIndex.add(matcher.start());
+
+        if(methodIndex.size()>0) {
+            int firstIndex = methodIndex.get(0);
+            methodIndex.remove(0);
+            for(Iterator<Integer> it = methodIndex.iterator();it.hasNext();) {
+                int nextIndex = it.next();
+                methods.add("\t"+str.substring(firstIndex, nextIndex).trim());
+                firstIndex = nextIndex;
+            }
+            methods.add("\t"+str.substring(firstIndex, str.length()).trim());
+        }
+
+        return methods;
+    }
+
 
     private void outAspectPrologue(String aspectName, String childName) {
         jOut(0, "import com.poco.PoCoRuntime.*;\n");
