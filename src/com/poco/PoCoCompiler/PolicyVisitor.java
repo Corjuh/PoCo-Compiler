@@ -1,18 +1,15 @@
 package com.poco.PoCoCompiler;
 
+import com.poco.Extractor.Closure;
+import com.poco.Extractor.VarTypeVal;
 import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseVisitor;
-import com.poco.Extractor.Closure;
 import org.antlr.v4.runtime.misc.NotNull;
 
 import java.io.PrintWriter;
-import java.sql.SQLSyntaxErrorException;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Stack;
-
-import com.poco.Extractor.VarTypeVal;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Generates the Java code to create a PoCoPolicy object representing
@@ -66,6 +63,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     private boolean isResultMatch = false;
 
     private boolean isMapSre = false;
+
+    //use to save the transactions that need to be added into Util
+    private String transactions = null;
 
     /**
      * Constructor
@@ -411,7 +411,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                     setSREvalue(sreNames.peek(), sreName);
                 else {
                     if (isMatch) {
-                        if(currentMatch.contains("otherMatch"))
+                        if (currentMatch.contains("otherMatch"))
                             outLine(3, "%s.SetSRE1(%s);", currentMatch, sreName);
                     }
                 }
@@ -445,7 +445,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 if (!sreNames.empty())
                     setSREvalue(sreNames.peek(), sreName);
                 else
-                    outLine(3, "%s.setSRE(%s);", currentExchange,sreName);
+                    outLine(3, "%s.setSRE(%s);", currentExchange, sreName);
             } else if (ctx.LPAREN() != null) {  //() case
                 visitChildren(ctx);
             }
@@ -546,6 +546,22 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         }
         return null;
     }
+
+    /*@Override
+    public Void visitTransaction(@NotNull PoCoParser.TransactionContext ctx) {
+        transactions=ctx.transbody().getText();
+        return null;
+    }
+
+    public boolean hasTransation() {
+        if(transactions != null)
+            return true;
+        return false;
+    }
+
+    public String getTransactions() {
+        return transactions;
+    }*/
 
     /**
      * use to get the last seen modifier and reset the flags of the modifiers to false
