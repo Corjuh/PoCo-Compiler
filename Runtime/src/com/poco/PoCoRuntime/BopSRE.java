@@ -19,7 +19,7 @@ public class BopSRE extends SRE {
         return sre1;
     }
 
-    public void setSre1(SRE sre1) {
+    public void setSRE1(SRE sre1) {
         this.sre1 = sre1;
     }
 
@@ -27,16 +27,16 @@ public class BopSRE extends SRE {
         return sre2;
     }
 
-    public void setSre2(SRE sre2) {
+    public void setSRE2(SRE sre2) {
         this.sre2 = sre2;
     }
 
     @Override
     protected SRE genSRE() {
         if (srebop != null) {
-            SRE tempSRE1 = SRELib.GetBaseSRE(this.sre1);
-            SRE tempSRE2 = SRELib.GetBaseSRE(this.sre2);
-            return SRELib.PerformBOPs(srebop, tempSRE1, tempSRE2);
+            SRE tempSRE1 = SREUtil.getBaseSRE(this.sre1);
+            SRE tempSRE2 = SREUtil.getBaseSRE(this.sre2);
+            return SREUtil.performBOPs(srebop, tempSRE1, tempSRE2);
         } else
             return null;
     }

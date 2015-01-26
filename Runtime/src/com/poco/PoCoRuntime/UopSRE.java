@@ -17,7 +17,7 @@ public class UopSRE extends SRE {
         return sre;
     }
 
-    public void setSre(SRE sre) {
+    public void setSRE(SRE sre) {
         this.sre = sre;
     }
 
@@ -28,7 +28,7 @@ public class UopSRE extends SRE {
     @Override
     protected SRE genSRE() {
         if (sreuop != null)
-            return SRELib.PerformUOPs(sreuop, SRELib.GetBaseSRE(this.sre));
+            return SREUtil.performUOPs(sreuop, SREUtil.getBaseSRE(this.sre));
         else
             return null;
     }

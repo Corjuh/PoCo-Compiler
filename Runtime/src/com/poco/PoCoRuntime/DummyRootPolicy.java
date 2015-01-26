@@ -5,6 +5,7 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -19,12 +20,12 @@ import java.util.regex.Pattern;
  * parse/codegen tree-defining policies.
  */
 public class DummyRootPolicy {
-    private ArrayList<String> monitorEvents;
+    private Stack<String> monitoringEvents;
     private Policy child;
 
     public DummyRootPolicy(Policy child) {
         this.child = child;
-        this.monitorEvents = new ArrayList<String>();
+        this.monitoringEvents = new Stack<>();
     }
 
     public void setChild(Policy child) {
@@ -34,20 +35,24 @@ public class DummyRootPolicy {
     /**
      * AspectJ calls this method on any attempted action.
      *
-     * @param event security-relevant action caught by AspectJ
+     * @param event
+     *            security-relevant action caught by AspectJ
      */
     public void queryAction(Event event) {
         // TODO: Do more than allow an action or halt
-        monitorEvents.add(event.getSignature());
         SRE result = child.query(event);
 
+        monitoringEvents.push(event.getSignature());
+
+        //when accept is false, the returned SRE value is NULL
         if (result == null) {
+            monitoringEvents.pop();
             System.exit(-1);
 //			return;
         }
 
         // For debugging purposes:
-        /*
+		/*
 		 * System.out.format("Root policy queried with event: \"%s\"\n",
 		 * event.getSignature()); if (result.getPositiveRE() != null)
 		 * System.out.format("Child policy returned +`%s'\n",
@@ -60,18 +65,22 @@ public class DummyRootPolicy {
         boolean negMatch = false;
 
         if (result.positiveRE().length() > 0) {
-            posMatch = true;
+            posMatch=true;
             boolean promoted = false;
-            for (Iterator<String> it = monitorEvents.iterator(); it.hasNext(); ) {
-                String x = it.next().toString();
-                if (x.contains(result.positiveRE().toString())) {
-                    promoted = true;
-                    break;
-                }
+
+            //if the monitoringEvent is Result, it should be popped on the stack,
+            //since we already get the result
+            if(!monitoringEvents.empty())
+                if(event.eventType!= null && event.eventType.equals("Result"))
+                    monitoringEvents.pop();
+
+            if(monitoringEvents.peek().contains(result.positiveRE().toString())) {
+                promoted = true;
             }
 
             if (promoted) {
                 System.out.println("the action is allowed");
+                monitoringEvents.pop();
             } else {
                 System.out.println("should promote "
                         + result.positiveRE().toString());
@@ -88,14 +97,11 @@ public class DummyRootPolicy {
         }
 
         if (result.negativeRE().length() > 0) {
-
             // if already on stack, show System.exit(-1);
-
             Pattern negPat = Pattern.compile(result.negativeRE());
             Matcher negMatcher = negPat.matcher(event.getSignature());
             negMatch = negMatcher.find();
         }
-
 
         if (posMatch) {
             return;

@@ -36,7 +36,7 @@ public class SRE {
     }
 
     protected SRE genSRE() {
-        return SRELib.GetBaseSRE(this);
+        return SREUtil.getBaseSRE(this);
 
     }
 

@@ -7,7 +7,7 @@ import dk.brics.automaton.RegExp;
  * Created by caoyan on 1/8/15.
  */
 
-public class SRELib {
+public class SREUtil {
     /**
      * This function is used to perform Binary Set Operations on SRES
      *
@@ -20,7 +20,7 @@ public class SRELib {
      *            It is the second SRE value
      * @return the result SRE
      */
-    public static SRE PerformBOPs(String operator, SRE sre1, SRE sre2) {
+    public static SRE performBOPs(String operator, SRE sre1, SRE sre2) {
         if (isEmpty(sre1) && isEmpty(sre2))
             return null;
 
@@ -60,10 +60,13 @@ public class SRELib {
 
             // Positive where SREs match in sign
             case "Equals":
-                if (isEqual(sre1.positiveRE(), sre2.positiveRE())
-                        && isEqual(sre1.negativeRE(), sre2.negativeRE()))
-                    positiveRE = operate("Union", sre1.positiveRE(),
-                            sre1.negativeRE());
+                //pos = (pos1 n pos2) U (neg1 n neg2);
+                positiveRE = operate("InterSection", sre1.positiveRE(),
+                        sre2.positiveRE());
+                negativeRE = operate("InterSection", sre1.negativeRE(), sre2.negativeRE());
+                positiveRE = operate("Union", positiveRE, negativeRE);
+                //nes = % - pos
+                negativeRE = performUOPs("Complement", new SRE(positiveRE, null)).getNegativeRE();
                 break;
             default:
                 break;
@@ -77,11 +80,11 @@ public class SRELib {
      * @param operator
      *            It defines the set operator, which can be Complement, action,
      *            result, positive and negative
-     * @param sre1
+     * @param sre
      *            It is the first SRE value
      * @return the result SRE
      */
-    public static SRE PerformUOPs(String operator, SRE sre) {
+    public static SRE performUOPs(String operator, SRE sre) {
         if (isEmpty(sre))
             return null;
 
@@ -102,20 +105,20 @@ public class SRELib {
         }
     }
 
-    public static SRE GetBaseSRE(SRE sre) {
+    public static SRE getBaseSRE(SRE sre) {
         Class<BopSRE> classBS = BopSRE.class;
         Class<UopSRE> classUS = UopSRE.class;
         Class<? extends SRE> classChild = sre.getClass();
         if (classBS.isAssignableFrom(classChild)) { // BopSRE
             BopSRE bopSre = (BopSRE) sre;
-            SRE result = SRELib.PerformBOPs(bopSre.getSrebop(),
-                    GetBaseSRE(bopSre.sre1), GetBaseSRE(bopSre.sre2));
+            SRE result = SREUtil.performBOPs(bopSre.getSrebop(),
+                    getBaseSRE(bopSre.sre1), getBaseSRE(bopSre.sre2));
             // System.out.println(result);
             return result;
         } else if (classUS.isAssignableFrom(classChild)) { // UopSRE
             UopSRE uopSre = (UopSRE) sre;
-            SRE result = SRELib.PerformUOPs(uopSre.getSreuop(),
-                    GetBaseSRE(uopSre.sre));
+            SRE result = SREUtil.performUOPs(uopSre.getSreuop(),
+                    getBaseSRE(uopSre.sre));
             // System.out.println(result);
             return result;
         } else
@@ -167,6 +170,65 @@ public class SRELib {
             }
         }
         return returnRe;
+    }
+
+    /**
+     * This function is used to check if the given SRE is Infinite or not.
+     * @param sre
+     * @return it returns ture if either positiveRE or negativeRE is Infinite
+     */
+    public static boolean isInfinite(SRE sre) {
+        if (isEmpty(sre))
+            return false;
+
+        RegExp rePos = new RegExp(sre.getPositiveRE().replace("%", ".*"));
+        RegExp reNeg = new RegExp(sre.getNegativeRE().replace("%", ".*"));
+        Automaton amPos = rePos.toAutomaton();
+        Automaton amNeg = reNeg.toAutomaton();
+        if(!amPos.isFinite() || !amNeg.isFinite())
+            return true;
+        else
+            return false;
+    }
+
+    public static boolean isSubSet(SRE sre1, SRE sre2) {
+        if (isEmpty(sre1))
+            return true;
+
+        RegExp rePos1    = new RegExp(sre1.getPositiveRE().replace("%", ".*"));
+        RegExp reNeg1    = new RegExp(sre1.getNegativeRE().replace("%", ".*"));
+        Automaton amPos1 = rePos1.toAutomaton();
+        Automaton amNeg1 = reNeg1.toAutomaton();
+
+        RegExp rePos2    = new RegExp(sre2.getPositiveRE().replace("%", ".*"));
+        RegExp reNeg2    = new RegExp(sre2.getNegativeRE().replace("%", ".*"));
+        Automaton amPos2 = rePos2.toAutomaton();
+        Automaton amNeg2 = reNeg2.toAutomaton();
+
+        if(amPos1.subsetOf(amPos2) && amNeg1.subsetOf(amNeg2))
+            return true;
+        else
+            return false;
+    }
+
+    public static boolean isEquals(SRE sre1, SRE sre2) {
+        if (isEmpty(sre1) && isEmpty(sre2))
+            return true;
+
+        RegExp rePos1    = new RegExp(sre1.getPositiveRE().replace("%", ".*"));
+        RegExp reNeg1    = new RegExp(sre1.getNegativeRE().replace("%", ".*"));
+        Automaton amPos1 = rePos1.toAutomaton();
+        Automaton amNeg1 = reNeg1.toAutomaton();
+
+        RegExp rePos2    = new RegExp(sre2.getPositiveRE().replace("%", ".*"));
+        RegExp reNeg2    = new RegExp(sre2.getNegativeRE().replace("%", ".*"));
+        Automaton amPos2 = rePos2.toAutomaton();
+        Automaton amNeg2 = reNeg2.toAutomaton();
+
+        if(amPos1.equals(amPos2) && amNeg1.equals(amNeg2))
+            return true;
+        else
+            return false;
     }
 
     private static String unionOP(Automaton am1, Automaton am2) {

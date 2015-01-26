@@ -21,6 +21,8 @@ public class Exchange extends EventResponder implements Matchable, Queryable {
 
     @Override
     public boolean accepts(Event event) {
+        if(matcher == null) //_ case
+            return true;
         return matcher.accepts(event);
     }
 
