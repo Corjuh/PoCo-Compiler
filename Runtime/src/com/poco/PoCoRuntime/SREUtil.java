@@ -144,8 +144,8 @@ public class SREUtil {
         String returnRe = null;
         if (!sre1.trim().equals("")) { // sre1pos is not empty
             if (!sre2.trim().equals("")) { // case both positive is not empty
-                RegExp re1 = new RegExp(sre1.replace("%", ".*"));
-                RegExp re2 = new RegExp(sre2.replace("%", ".*"));
+                RegExp re1 = new RegExp(validateStr(sre1));
+                RegExp re2 = new RegExp(validateStr(sre2));
                 Automaton am1 = re1.toAutomaton();
                 Automaton am2 = re2.toAutomaton();
                 switch (op) {
@@ -273,5 +273,9 @@ public class SREUtil {
             return true;
         else
             return false;
+    }
+    private static String validateStr(String str) {
+        return str.replaceAll("(%|\\$[a-zA-Z0-9\\.\\-_]+)", "").replaceAll(
+                "#|\\{|\\}", "");
     }
 }
