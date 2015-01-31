@@ -547,7 +547,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         return null;
     }
 
-    /*@Override
+    @Override
     public Void visitTransaction(@NotNull PoCoParser.TransactionContext ctx) {
         transactions=ctx.transbody().getText();
         return null;
@@ -561,7 +561,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
     public String getTransactions() {
         return transactions;
-    }*/
+    }
 
     /**
      * use to get the last seen modifier and reset the flags of the modifiers to false
