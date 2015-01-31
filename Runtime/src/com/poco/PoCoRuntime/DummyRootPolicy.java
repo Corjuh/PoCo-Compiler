@@ -65,7 +65,6 @@ public class DummyRootPolicy {
         boolean negMatch = false;
 
         if (result.positiveRE().length() > 0) {
-            posMatch=true;
             boolean promoted = false;
 
             //if the monitoringEvent is Result, it should be popped on the stack,
@@ -77,21 +76,14 @@ public class DummyRootPolicy {
             if(monitoringEvents.peek().contains(result.positiveRE().toString())) {
                 promoted = true;
             }
-
             if (promoted) {
                 System.out.println("the action is allowed");
                 monitoringEvents.pop();
             } else {
-                System.out.println("should promote "
-                        + result.positiveRE().toString());
-                // should promoting the sre
-                Pattern posPat = Pattern.compile("(.+)\\.(.+)\\((.*)\\)");
-                Matcher posMatcher = posPat.matcher(result.positiveRE());
-                if (posMatcher.find()) {
-                    String className = posMatcher.group(1);
-                    String methodName = posMatcher.group(2);
-                    String[] params = posMatcher.group(3).split(",");
-                    promoteAction(className, methodName, params);
+                try {
+                    Promoter.Reflect(result.positiveRE());
+                } catch (Exception ex) {
+                    ex.printStackTrace();
                 }
             }
         }
@@ -102,106 +94,13 @@ public class DummyRootPolicy {
             Matcher negMatcher = negPat.matcher(event.getSignature());
             negMatch = negMatcher.find();
         }
-
         if (posMatch) {
             return;
         }
-
         if (negMatch) {
             System.exit(-1);
         }
-
         // Placeholder for promoting a different action other than triggering
         // event
-    }
-
-    public void promoteAction(String className, String methodName, String[] args) {
-        // find all the methods, match them with name first, then parameters
-        try {
-            boolean isfound = false;
-            Class cls1 = Class.forName(className);
-            Method[] methods = cls1.getMethods();
-            Method theMethod = null;
-
-            for (Method method : methods) {
-                // if find the method name
-                if (method.getName().equals(methodName)) {
-                    Type[] types = method.getGenericParameterTypes();
-                    if (types.length == args.length) {
-                        isfound = true;
-                        for (int i = 0; i < types.length; i++) {
-                            String paramType = args[i].split(":")[0].trim();
-                            if (!types[i].toString().equals(paramType)) {
-                                isfound = false;
-                                break;
-                            }
-                        }
-                    }
-                }
-                if (isfound) {
-                    theMethod = method;
-                    break;
-                }
-            }
-            // found the right method that is we wanted
-            if (isfound) {
-                // System.out.println("the Method's name: " +
-                // theMethod.getName());
-                if (args.length >= 1) {
-                    Object[] objs = new Object[args.length];
-                    for (int i = 0; i < args.length; i++) {
-                        String clsName = args[i].split(":")[0].trim();
-                        String value = args[i].split(":")[1].trim();
-                        if (!value.equalsIgnoreCase("null"))
-                            objs[i] = newInstance4Param(clsName, value);
-                    }
-                    // need check static or not
-                    if (Modifier.isStatic(theMethod.getModifiers())) {
-                        theMethod.invoke(null, objs);
-                    } else {
-                        theMethod.invoke(cls1.newInstance(), objs);
-                    }
-                }
-            } else {
-                System.out
-                        .println("Sorry, cannot find the right method to pomote, "
-                                + "please check the policy definition!");
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-    }
-
-    public static Object newInstance4Param(String type, String val) {
-        Object obj = null;
-        if (type.length() > 6 && type.substring(0, 5).equals("class")) {
-            try {
-
-                String clsName = type.substring(6, type.length());
-                switch (clsName) {
-                    case "java.lang.String":
-                        obj = new String(new StringBuffer(val));
-                        break;
-                    case "java.lang.Object":
-                        // obj = Class.forName(clsName).newInstance();
-                        obj = new String(val);
-                        break;
-                    default:
-                        break;
-                }
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        } else { // is not a class
-            switch (type) {
-                case "int":
-                    obj = new Integer(val);
-                    break;
-                default:
-                    break;
-            }
-
-        }
-        return obj;
     }
 }
