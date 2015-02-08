@@ -549,7 +549,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
     @Override
     public Void visitTransaction(@NotNull PoCoParser.TransactionContext ctx) {
-        transactions=ctx.transbody().getText();
+        String transaction = ctx.transbody().getText();
+        transactions=transaction.substring(0, transaction.length()-15);
         return null;
     }
 

@@ -19,22 +19,23 @@ public class PoCoParser extends Parser {
 	public static final int
 		DOLLAR=33, SREUNION=37, RETYPE=36, MAIN=19, SRECONJ=38, LBRACE=26, ID=52, 
 		ACTION=49, SYM=54, LPAREN=24, ASTERISK=5, TRANS=17, BOOLBOP=2, AT=30, 
-		LBRACKET=32, RPAREN=25, IMPORT=21, SREPOS=45, TREE=22, COMMA=29, LTICK=34, 
-		SRERESULTS=44, PLUS=14, VAR=20, APOSTROPHE=55, RBRACKET=31, DOT=23, BOOLUOP=3, 
-		SRECOMP=42, RBRACE=27, POUND=16, SREACTIONS=43, NULL=4, RESULT=50, INFINITE=48, 
-		SREDISJ=39, MINUS=15, NEUTRAL=18, EQUALSIGN=11, INPUTWILD=13, COLON=7, 
-		OPEN=8, SRENEG=46, REWILD=56, WS=1, SUBSET=47, QUESTION=6, CLOSE=9, SREEQUALS=40, 
-		SREPUNION=41, MAP=28, ARROW=10, TRANSCONTENT=57, SRETYPE=35, INIT=53, 
-		BAR=12, FOLD=51;
+		LBRACKET=32, RPAREN=25, IMPORT=21, ENDTRANS=57, SREPOS=45, TREE=22, COMMA=29, 
+		LTICK=34, SRERESULTS=44, PLUS=14, VAR=20, APOSTROPHE=55, RBRACKET=31, 
+		DOT=23, BOOLUOP=3, SRECOMP=42, RBRACE=27, POUND=16, QUOTEDCONTENT=58, 
+		SREACTIONS=43, NULL=4, RESULT=50, INFINITE=48, SREDISJ=39, MINUS=15, NEUTRAL=18, 
+		EQUALSIGN=11, INPUTWILD=13, COLON=7, OPEN=8, SRENEG=46, REWILD=56, WS=1, 
+		SUBSET=47, QUESTION=6, CLOSE=9, SREEQUALS=40, SREPUNION=41, MAP=28, ARROW=10, 
+		TRANSCONTENT=59, SRETYPE=35, INIT=53, BAR=12, FOLD=51;
 	public static final String[] tokenNames = {
 		"<INVALID>", "WS", "BOOLBOP", "BOOLUOP", "'null'", "ASTERISK", "QUESTION", 
 		"COLON", "'<'", "'>'", "'=>'", "'='", "BAR", "'_'", "PLUS", "'-'", "'#'", 
-		"TRANS", "'Neutral'", "'Main'", "'var'", "'import'", "'tree'", "DOT", 
-		"LPAREN", "RPAREN", "LBRACE", "RBRACE", "'map'", "COMMA", "'@'", "RBRACKET", 
-		"LBRACKET", "'$'", "'`'", "'SRE'", "'RE'", "'Union'", "'Conjunction'", 
+		"'transaction'", "'Neutral'", "'Main'", "'var'", "'import'", "'tree'", 
+		"DOT", "LPAREN", "RPAREN", "LBRACE", "RBRACE", "'map'", "COMMA", "'@'", 
+		"RBRACKET", "LBRACKET", "'$'", "'`'", "'SRE'", "'RE'", "'Union'", "'Conjunction'", 
 		"'Disjunction'", "'Equals'", "'Punion'", "'Complement'", "'Actions'", 
 		"'Results'", "'Positive'", "'Negative'", "'Subset'", "'Infinite'", "'Action'", 
-		"'Result'", "'fold'", "ID", "'<init>'", "SYM", "'''", "'%'", "TRANSCONTENT"
+		"'Result'", "'fold'", "ID", "'<init>'", "SYM", "'''", "'%'", "'end transaction'", 
+		"QUOTEDCONTENT", "TRANSCONTENT"
 	};
 	public static final int
 		RULE_policy = 0, RULE_ppol = 1, RULE_pocopol = 2, RULE_metapol = 3, RULE_pimport = 4, 
@@ -4457,7 +4458,7 @@ public class PoCoParser extends Parser {
 	}
 
 	public static final String _serializedATN =
-		"\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\3;\u0359\4\2\t\2\4"+
+		"\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\3=\u0359\4\2\t\2\4"+
 		"\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n\4\13\t"+
 		"\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22"+
 		"\4\23\t\23\4\24\t\24\4\25\t\25\4\26\t\26\4\27\t\27\4\30\t\30\4\31\t\31"+
@@ -4587,7 +4588,7 @@ public class PoCoParser extends Parser {
 		"\2\u0119\u011a\5\30\r\2\u011a\u011f\3\2\2\2\u011b\u011c\f\3\2\2\u011c"+
 		"\u011e\5\30\r\2\u011d\u011b\3\2\2\2\u011e\u0121\3\2\2\2\u011f\u011d\3"+
 		"\2\2\2\u011f\u0120\3\2\2\2\u0120\27\3\2\2\2\u0121\u011f\3\2\2\2\u0122"+
-		"\u0123\7\23\2\2\u0123\u0124\5\32\16\2\u0124\31\3\2\2\2\u0125\u0126\7;"+
+		"\u0123\7\23\2\2\u0123\u0124\5\32\16\2\u0124\31\3\2\2\2\u0125\u0126\7="+
 		"\2\2\u0126\33\3\2\2\2\u0127\u0128\b\17\1\2\u0128\u0129\5\36\20\2\u0129"+
 		"\u012e\3\2\2\2\u012a\u012b\f\3\2\2\u012b\u012d\5\36\20\2\u012c\u012a\3"+
 		"\2\2\2\u012d\u0130\3\2\2\2\u012e\u012c\3\2\2\2\u012e\u012f\3\2\2\2\u012f"+

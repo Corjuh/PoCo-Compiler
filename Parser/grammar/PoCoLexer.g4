@@ -125,5 +125,9 @@ OBJLBRACE:  '{' -> type(LBRACE), popMode ;
 
 mode TRANSACTIONS;
 
-TRANSMARKER:    'transaction' -> type(TRANS) ;
-TRANSCONTENT:   .+;
+//TRANSMARKER:    'transaction' -> type(TRANS), pushMode(TRANSACTIONS) ;
+ENDTRANS:      'end transaction';
+QUOTEDCONTENT:  '"' ( '\\"' | . )*? '"' ;
+TRANSCONTENT:   ((~('"')) | QUOTEDCONTENT)+? ENDTRANS -> popMode;
+
+
