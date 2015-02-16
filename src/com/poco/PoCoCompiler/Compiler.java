@@ -351,6 +351,14 @@ public class Compiler {
 
         outAspectPrologue(aspectName, childPolicyName);
 
+        //add this paragraph for generate pointcut for reflection calls
+        //only reflection calls can be made is thru PoCo
+        jOut(1, "pointcut PC4Reflection():");
+        jOut(2, "call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);\n");
+        jOut(1, "Object around(): PC4Reflection()   { ");
+        jOut(2, "return new SRE(null,\".\"); ");
+        jOut(1, "}\n");
+
         int pointcutNum = 0;
         //for (Map.Entry<String, ArrayList<String>> entry : this.regexMethodMappings.entrySet()) {
         for(LinkedHashSet<String> entry: this.extractedPtCuts) {
@@ -505,7 +513,8 @@ public class Compiler {
 
 
     private void outAspectPrologue(String aspectName, String childName) {
-        jOut(0, "import com.poco.PoCoRuntime.*;\n");
+        jOut(0, "import com.poco.PoCoRuntime.*;");
+        jOut(0, "import java.lang.reflect.Method;\n");
         jOut(0, "public aspect %s {", aspectName);
         jOut(1, "private DummyRootPolicy root = new DummyRootPolicy( new %s() );\n", childName);
     }
