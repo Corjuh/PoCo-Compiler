@@ -353,7 +353,7 @@ public class Compiler {
 
         //add this paragraph for generate pointcut for reflection calls
         //only reflection calls can be made is thru PoCo
-        jOut(1, "pointcut PC4Reflection:");
+        jOut(1, "pointcut PC4Reflection():");
         jOut(2, "call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);\n");
         jOut(1, "Object around(): PC4Reflection()   { ");
         jOut(2, "return new SRE(null,\".\"); ");
