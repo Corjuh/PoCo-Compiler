@@ -71,6 +71,7 @@ transaction private static Boolean IsTrustedPackage(stacktrace)
 {
       //[java.|javax.|org.apache.|com.sun.|sun.] in stacktrace
 }
+end transaction
 
 =================================================================================
 
