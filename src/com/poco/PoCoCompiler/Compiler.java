@@ -513,7 +513,8 @@ public class Compiler {
 
 
     private void outAspectPrologue(String aspectName, String childName) {
-        jOut(0, "import com.poco.PoCoRuntime.*;\n");
+        jOut(0, "import com.poco.PoCoRuntime.*;");
+        jOut(0, "import java.lang.reflect.Method;\n");
         jOut(0, "public aspect %s {", aspectName);
         jOut(1, "private DummyRootPolicy root = new DummyRootPolicy( new %s() );\n", childName);
     }
