@@ -44,16 +44,29 @@ public class UncoveredExecutionPaths extends PoCoParserBaseListener {
             if(list.get(i) == "START GROUP")
             {
                 List<String> group = new ArrayList<String>();
+                int startcount = 0;
                 for (i=++i; i < list.size(); i++)
                 {
-                    if(list.get(i) != "END GROUP")
+                    if(list.get(i) == "START GROUP")
+                    {
+                        startcount++;
+                        group.add(list.get(i));
+                    }
+                    else if(list.get(i) != "END GROUP")
                     {
                         group.add(list.get(i));
                     }
                     else
                     {
-                        ReduceGroup(group, i, segment);
-                        break;
+                        if(startcount == 0) {
+                            ReduceGroup(group, i, segment);
+                            break;
+                        }
+                        else
+                        {
+                            group.add(list.get(i));
+                            startcount--;
+                        }
                     }
                 }
             }
@@ -137,17 +150,30 @@ public class UncoveredExecutionPaths extends PoCoParserBaseListener {
             if(group.get(i) == "START GROUP")
             {
                 List<String> subgroup = new ArrayList<String>();
+                int startcount = 0;
                 for (i=++i; i < group.size(); i++)
                 {
-                    if(subgroup.get(i) != "END GROUP")
+                    if(group.get(i) == "START GROUP")
+                    {
+                        startcount++;
+                        subgroup.add(group.get(i));
+                    }
+                    else if(group.get(i) != "END GROUP")
                     {
                         subgroup.add(group.get(i));
                     }
                     else
                     {
-                        ReduceGroup(subgroup, i, segment);
-                        i++;
-                        break;
+                        if(startcount == 0) {
+                            ReduceGroup(subgroup, i, segment);
+                            i++;
+                            break;
+                        }
+                        else
+                        {
+                            startcount--;
+                            subgroup.add(group.get(i));
+                        }
                     }
                 }
             }

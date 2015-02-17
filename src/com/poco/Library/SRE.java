@@ -27,6 +27,10 @@ public class SRE {
             re = re.replace("%", ".*");
             re = re.replace("<", "\\<");
             re = re.replace(">", "\\>");
+            re = re.replace("{", "\\{");
+            re = re.replace("}", "\\}");
+            re = re.replace("#", "\\#");
+            re = re.replace("@", "\\@");
             RegExp r1 = new RegExp(re);
             Automaton a1 = r1.toAutomaton();
             return a1;
