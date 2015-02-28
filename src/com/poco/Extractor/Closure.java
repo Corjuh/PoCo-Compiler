@@ -11,7 +11,6 @@ import java.util.Iterator;
  */
 public class Closure {
 
-
     private Hashtable closures;
     // Should have reference to parent symbol table
     Closure parent;
@@ -51,8 +50,8 @@ public class Closure {
         this.parent = null;
     }
 
-    public boolean hasParent(){
-        if(this.parent == null)
+    public boolean hasParent() {
+        if (this.parent == null)
             return false;
         else
             return true;
@@ -109,25 +108,78 @@ public class Closure {
             throw new NullPointerException("Can't put a null symbol in SymbolTable.");
         if (closures.containsKey(varName))
             return true;
-        else
-            return false;
+        else {
+            /**
+             * need to check the parents policy's closure
+             */
+            Closure parent = this.parent;
+            while (parent != null) {
+                if (parent.closures.containsKey(varName))
+                    return true;
+                else
+                    parent = parent.parent;
+            }
+        }
+        return false;
     }
 
+
+    public String getContext(String varName) {
+        if (varName == null)
+            throw new NullPointerException("Can't put a null symbol in SymbolTable.");
+        if (closures.containsKey(varName)) {
+            VarTypeVal vals = (VarTypeVal)closures.get(varName);
+            return vals.getVarContext();
+        }
+        else {
+            /**
+             * need to check the parents policy's closure
+             */
+            Closure parent = this.parent;
+            while (parent != null) {
+                if (parent.closures.containsKey(varName)) {
+                    VarTypeVal vals = (VarTypeVal)parent.closures.get(varName);
+                    return vals.getVarContext();
+                }
+                else
+                    parent = parent.parent;
+            }
+        }
+        return null;
+    }
+
+    public void updateLinkedVal(String text, String objVal) {
+        if (closures != null) {
+            for (Object varName : closures.keySet()) {
+                String id = (String) varName;
+                if(!id.equals(text)) {
+                    VarTypeVal vals = (VarTypeVal) closures.get(id);
+                    if(vals.getVarLink() != null && vals.getVarLink().getText().contains("$"+text)) {
+                        if(objVal.indexOf('(') != -1)
+                            objVal = objVal.substring(0, objVal.indexOf('('));
+                        String context =  vals.getVarContext().replace("$"+text,objVal);
+                        closures.put(varName, new VarTypeVal(vals.getVarType(),vals.getVarLink(),context));
+                    }
+                }
+
+            }
+        }
+    }
     /**
      * just for debug
      */
     public void printClosure() {
-        for(Object varname: closures.keySet()) {
-            System.out.println(varname +": ");
-            if (loadClosure((String)varname).getReContext() ==null )
-                System.out.println("Re : null"  );
-            else
-                System.out.println("Re : " +  loadClosure((String)varname).getReContext().getText());
-
-            if (loadClosure((String)varname).getSreContext() ==null )
-                System.out.println("Sre : null"  );
-            else
-                System.out.println("Sre : " +  loadClosure((String)varname).getSreContext().getText());
+        if (closures != null) {
+            for (Object varname : closures.keySet()) {
+                System.out.println(varname + ": ");
+                System.out.println("Type    : " + loadClosure((String) varname).getVarType());
+                if(loadClosure((String) varname).getVarLink()!= null)
+                    System.out.println("Link    : " + loadClosure((String) varname).getVarLink().getText());
+                else
+                    System.out.println("Link    : NULL");
+                System.out.println("Context : " + loadClosure((String) varname).getVarContext());
+                System.out.println("==========================================================");
+            }
         }
     }
 }
