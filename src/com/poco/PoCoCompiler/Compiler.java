@@ -58,9 +58,9 @@ public class Compiler {
     
      /** pointcut info  from PoCo policy */
     ArrayList<String> extractedPCs = new ArrayList<String>();
-    LinkedHashSet<LinkedHashSet<String>> extractedPtCuts = null;
+    LinkedHashSet<String> extractedPtCuts = null;
     //add this in order to generate the different kinds of advices for pointcuts
-    LinkedHashSet<LinkedHashSet<String>> extractedPtCuts4Results = null;
+    LinkedHashSet<String> extractedPtCuts4Results = null;
     /** All method signatures from files in scanFilePaths */
     private LinkedHashSet<String> extractedMethodSignatures = null;
     /** Each RE from the PoCo policy mapped to all matching methods */
@@ -210,7 +210,7 @@ public class Compiler {
             return;
         }
 
-        this.doMapping();
+        //this.doMapping();
         this.doGenerateAspectJ();
     }
 
@@ -336,7 +336,6 @@ public class Compiler {
         String aspectName = "Aspect" + policyName;
         vOut("Generating AspectJ file %s ...\n", poincutPath.getFileName());
 
-
         // Open up the AspectJ file for writing
         try {
             aspectWriter = new PrintWriter(poincutPath.toFile());
@@ -345,10 +344,8 @@ public class Compiler {
             System.out.println(ex.getMessage());
             System.exit(-1);
         }
-
         // Create some class names
         String childPolicyName = policyName;
-
         outAspectPrologue(aspectName, childPolicyName);
 
         //add this paragraph for generate pointcut for reflection calls
@@ -358,109 +355,167 @@ public class Compiler {
         jOut(1, "Object around(): PC4Reflection()   { ");
         jOut(2, "return new SRE(null,\".\"); ");
         jOut(1, "}\n");
-
         int pointcutNum = 0;
-        //for (Map.Entry<String, ArrayList<String>> entry : this.regexMethodMappings.entrySet()) {
-        for(LinkedHashSet<String> entry: this.extractedPtCuts) {
-            jOut(1, "pointcut PointCut%d():", pointcutNum);
+        for (String entry : this.extractedPtCuts) {
+            //argTypeList:  Integer, String
+            String argList4PC = "";
+            //argList4PC :  Integer value0, String value1
+            String argList4Call = "";
+            //argList4Call: value0, value1
+            String argTypeList = "";
+            //aspect will only monitor the values that matches
+            String monitorVals = "";
+            String[] argsList = getArgsLstArray(entry);
+            if (argsList != null) {
+                int count = 0;
+                for (int i = 0; i < argsList.length; i++) {
+                    String str = getArgsType(argsList[i], 1);
+                    if (!str.contains("..")) {
+                        argTypeList += getArgsType(argsList[i], 1);
+                        argList4PC += getArgsType(argsList[i], 1) + " value" + count;
+                        if (getArgsMatchVal(argsList[i]) != null) {
+                            monitorVals += argList4PC + getArgsMatchVal(argsList[i]);
+                            if (i != argsList.length - 1) monitorVals += ",";
+                        }
+                        argList4Call += "value" + count++;
 
-                /*
-                Generating Pointcuts:
-                    - RE doesn't care about arguments (like `method(%)')
-                        * Replace argument list with '..' and place each signature in a set to remove duplicates
-                    - RE does care about arguments (like `method(#String{Hello})')
-                        * Parse out object name from PoCo object syntax
-                 */
-
-            /*LinkedHashSet<String> signatures = new LinkedHashSet<>();
-            for (String signature : entry.getValue()) {
-                signatures.add(signature.substring(0, signature.indexOf('(')) + "(..)");
-            }*/
-
-            int signatureCount = 0;
-            for (String signature : entry) {
-                signatureCount++;
-                if (signatureCount < entry.size()) {
-                    jOut(2, "execution(%s) ||", signature);
-                } else {
-                    jOut(2, "execution(%s);\n", signature);
+                        if (i != argsList.length - 1) {
+                            argTypeList += ",";
+                            argList4PC += ",";
+                            argList4Call += ",";
+                        }
+                    }
                 }
+                argTypeList = trimLastPunctuation(argTypeList, ",");
+                argList4PC = trimLastPunctuation(argList4PC, ",");
+                argList4Call = trimLastPunctuation(argList4Call, ",");
+                monitorVals = trimLastPunctuation(monitorVals, ",");
             }
-            outAdvicePrologue("PointCut" + pointcutNum);
-            jOut(2, "root.queryAction(new Event(thisJoinPoint));");
-            outAdviceEpilogue();
-            pointcutNum++; 
-        }
-        
-        for (LinkedHashSet<String> entry : this.extractedPtCuts4Results) {
-            jOut(1, "pointcut PointCut%d():", pointcutNum);
-            int signatureCount = 0;
-            for (String signature : entry) {
-                signatureCount++;
-                if (signatureCount < entry.size()) {
-                    jOut(2, "execution(%s) ||", signature);
-                } else {
-                    jOut(2, "execution(%s);\n", signature);
+            //if argTypeList is empty then no need for define arugment for pointcut
+            if (argTypeList != null) {
+                jOut(1, "pointcut PointCut%d(%s):", pointcutNum, argList4PC);
+                String callStr = getPCMethodName(entry);
+                if (callStr.substring(0,2).equals("$$")) {
+                    if (closure.getContext(callStr.substring(2, callStr.length())) != null)
+                        callStr = closure.getContext(callStr.substring(2, callStr.length()));
                 }
+                if (argTypeList != "") {
+                    callStr += "(" + argTypeList + ")";
+                    jOut(2, "call(%s) && args(%s);\n", callStr, argList4Call);
+                } else {
+                    if (entry.contains("(..)")) {
+                        jOut(2, "call(%s);\n", callStr + "(..)");
+                    } else {
+                        jOut(2, "call(%s);\n", callStr);
+                    }
+                }
+                outAdvicePrologue("PointCut" + pointcutNum, argList4PC, argList4Call, monitorVals);
+                pointcutNum++;
+            } else {
+                jOut(1, "pointcut PointCut%d():", pointcutNum);
+                String callStr = getPCMethodName(entry);
+                jOut(2, "call(%s(..));\n", callStr);
+                outAdvicePrologue("PointCut" + pointcutNum, argList4PC, argList4Call, monitorVals);
+                pointcutNum++;
             }
-
-            outAdvicePrologue4Result("PointCut" + pointcutNum);
-            jOut(2, "Event event = new Event(thisJoinPoint);");
-            jOut(2, "event.eventType = \"Result\";");
-            jOut(2, "event.setResult(ret);");
-            jOut(2, "root.queryAction(event);");
-            outAdviceEpilogue4Result();
-
-            pointcutNum++;
         }
-        
-        // Generate advice
-        /*pointcutNum = 0;
-        for(LinkedHashSet<String> entry: this.extractedPtCuts) {
-        //for (Map.Entry<String, ArrayList<String>> entry : this.regexMethodMappings.entrySet()) {
-            outAdvicePrologue("PointCut" + pointcutNum);
-            jOut(2, "root.queryAction(new Event(thisJoinPoint));");
-            outAdviceEpilogue();
 
-            pointcutNum++;
-        }*/
-
+        for (String entry : this.extractedPtCuts4Results) {
+            String argList4PC = "";
+            String argList4Call = "";
+            String argTypeList = "";
+            String monitorVals = "";
+            String[] argsList = getArgsLstArray(entry);
+            if (argsList != null) {
+                int count = 0;
+                for (int i = 0; i < argsList.length; i++) {
+                    String str = getArgsType(argsList[i], 1);
+                    if (!str.contains("..")) {
+                        argTypeList += getArgsType(argsList[i], 1);
+                        argList4PC += getArgsType(argsList[i], 1) + " value" + count;
+                        if (getArgsMatchVal(argsList[i]) != null) {
+                            monitorVals += argList4PC + getArgsMatchVal(argsList[i]);
+                            if (i != argsList.length - 1) monitorVals += ",";
+                        }
+                        argList4Call += "value" + count++;
+                        if (i != argsList.length - 1) {
+                            argTypeList += ",";
+                            argList4PC += ",";
+                            argList4Call += ",";
+                        }
+                    }
+                }
+                argTypeList = trimLastPunctuation(argTypeList, ",");
+                argList4PC = trimLastPunctuation(argList4PC, ",");
+                argList4Call = trimLastPunctuation(argList4Call, ",");
+                monitorVals = trimLastPunctuation(monitorVals, ",");
+            }
+            //if argTypeList is empty then no need for define arugment for pointcut
+            if (argTypeList != null) {
+                jOut(1, "pointcut PointCut%d(%s):", pointcutNum, argList4PC);
+                String callStr = getPCMethodName(entry);
+                if (argTypeList != "") {
+                    callStr += "(" + argTypeList + ")";
+                    jOut(2, "call(%s) && args(%s);\n", callStr, argList4Call);
+                } else {
+                    jOut(2, "call(%s);\n", callStr);
+                }
+                outAdvicePrologue4Result("PointCut" + pointcutNum, argList4PC, argList4Call, monitorVals);
+                pointcutNum++;
+            } else {
+                jOut(1, "pointcut PointCut%d():", pointcutNum);
+                String callStr = getPCMethodName(entry);
+                jOut(2, "call(%s(..));\n", callStr);
+                outAdvicePrologue4Result("PointCut" + pointcutNum, argList4PC, argList4Call, monitorVals);
+                pointcutNum++;
+            }
+        }
         // Generate policy classes
         PolicyVisitor pvisitor = new PolicyVisitor(aspectWriter, 1, this.closure);
         pvisitor.visit(parseTree);
-        
+
         if (pvisitor.hasTransation()) {
             createTransUtil(pvisitor.getTransactions());
         }
-
-
         outAspectEpilogue();
-
         aspectWriter.close();
         aspectWriter = null;
     }
-    
+
+    private String trimLastPunctuation(String str, String punctuation) {
+        while (str.length() > 1) {
+            int x = str.length() - punctuation.length();
+            if (x > 0 && str.substring(x, str.length()).contains(punctuation))
+                str = str.substring(0, x);
+            else if (x == 0)
+                return "";
+            else
+                break;
+        }
+        return str;
+    }
+
     private void createTransUtil(String str) {
         String fileName = policyName + "_Utils";
-        Path path = outputDir.resolve(fileName+".java");
+        Path path = outputDir.resolve(fileName + ".java");
 
         StringBuffer stringBuffer = new StringBuffer();
         //write the package info
         ArrayList<String> packs = getUtilPackages(str);
-        if(packs != null) {
-            for (Iterator<String> it = packs.iterator();it.hasNext();){
+        if (packs != null) {
+            for (Iterator<String> it = packs.iterator(); it.hasNext(); ) {
                 stringBuffer = stringBuffer.append(it.next());
                 stringBuffer = stringBuffer.append(System.getProperty("line.separator"));
             }
             stringBuffer = stringBuffer.append(System.getProperty("line.separator"));
         }
         //write the class name
-        stringBuffer = stringBuffer.append("public class " +fileName + "{");
+        stringBuffer = stringBuffer.append("public class " + fileName + "{");
         stringBuffer = stringBuffer.append(System.getProperty("line.separator"));
         //add methods
         ArrayList<String> methods = getUtilMethods(str);
-        if(methods != null) {
-            for (Iterator<String> it = methods.iterator();it.hasNext();){
+        if (methods != null) {
+            for (Iterator<String> it = methods.iterator(); it.hasNext(); ) {
                 stringBuffer = stringBuffer.append(it.next());
                 stringBuffer = stringBuffer.append(System.getProperty("line.separator"));
             }
@@ -472,7 +527,7 @@ public class Compiler {
             fw.write(stringBuffer.toString());
             fw.flush();
             fw.close();
-        }catch (Exception ex){
+        } catch (Exception ex) {
             ex.printStackTrace();
         }
     }
@@ -482,7 +537,7 @@ public class Compiler {
         String reg = "\\s*import\\s+(.+);";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(str);
-        while(matcher.find()) {
+        while (matcher.find()) {
             packages.add("import " + matcher.group(1).trim() + ";");
         }
         return packages;
@@ -491,26 +546,25 @@ public class Compiler {
     private ArrayList<String> getUtilMethods(String str) {
         ArrayList<Integer> methodIndex = new ArrayList<>();
         ArrayList<String> methods = new ArrayList<>();
-        String  reg = "\\s*(public\\s+(static)?\\s+\\w+\\s+\\w+\\s*\\(.*?\\))\\s*";
+        String reg = "\\s*(public\\s+(static)?\\s+\\w+\\s+\\w+\\s*\\(.*?\\))\\s*";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(str);
-        while(matcher.find())
+        while (matcher.find())
             methodIndex.add(matcher.start());
 
-        if(methodIndex.size()>0) {
+        if (methodIndex.size() > 0) {
             int firstIndex = methodIndex.get(0);
             methodIndex.remove(0);
-            for(Iterator<Integer> it = methodIndex.iterator();it.hasNext();) {
+            for (Iterator<Integer> it = methodIndex.iterator(); it.hasNext(); ) {
                 int nextIndex = it.next();
-                methods.add("\t"+str.substring(firstIndex, nextIndex).trim());
+                methods.add("\t" + str.substring(firstIndex, nextIndex).trim());
                 firstIndex = nextIndex;
             }
-            methods.add("\t"+str.substring(firstIndex, str.length()).trim());
+            methods.add("\t" + str.substring(firstIndex, str.length()).trim());
         }
 
         return methods;
     }
-
 
     private void outAspectPrologue(String aspectName, String childName) {
         jOut(0, "import com.poco.PoCoRuntime.*;");
@@ -523,27 +577,237 @@ public class Compiler {
         jOut(0, "}");
     }
 
-    private void outAdvicePrologue(String pointcutName) {
-        jOut(1, "Object around(): %s() {", pointcutName);
+    private void outAdvicePrologue(String pointcutName, String aroundlist, String arglist, String monitorVal) {
+         /* aroundlist: String value0,int value1; arglist: value0,value1; monitorVal String value0$*.class$*/
+        if (monitorVal != null && monitorVal.length() > 0)
+            jOut(1, "Object around(%s): %s(%s) {", aroundlist, pointcutName, arglist);
+        else
+            jOut(1, "Object around(): %s() {", pointcutName);
+
+        if (monitorVal != null && monitorVal.length() > 0) {
+            String conditionState = genCoditionStatements(monitorVal);
+            if (conditionState != null && conditionState.length() > 0) {
+                jOut(2, "if (" + conditionState + ") {");
+                jOut(3, "root.queryAction(new Event(thisJoinPoint));");
+                jOut(3, "return proceed(%s);", arglist);
+                jOut(2, "}");
+                jOut(2, "else");
+                jOut(3, "return proceed(%s);", arglist);
+                jOut(1, "}\n");
+            } else {
+                jOut(2, "root.queryAction(new Event(thisJoinPoint));");
+                jOut(2, "return proceed(%s);", arglist);
+                jOut(1, "}\n");
+            }
+        } else {
+            jOut(2, "root.queryAction(new Event(thisJoinPoint));");
+            jOut(2, "return proceed();");
+            jOut(1, "}\n");
+        }
     }
 
-    private void outAdviceEpilogue() {
-        jOut(2, "return proceed();");
-        jOut(1, "}\n");
+    private String genCoditionStatements(String matchStrs) {
+        if (matchStrs == null || matchStrs.equals(""))
+            return null;
+        else {
+            String returnStr = "";
+            String[] typeValArray = matchStrs.split(",");
+            if (typeValArray != null) {
+                String reg1 = "(.+)\\$\\$(.+)\\$\\$";
+                String reg2 = "(.+)\\$\\$(.+)";
+                Pattern pattern1 = Pattern.compile(reg1);
+                Pattern pattern2 = Pattern.compile(reg2);
+                Matcher matcher1;
+                Matcher matcher2;
+                //String value0$*.class$ ||String value0.$ip ||String value0 ||String value0$*.class$, int value1$aa$
+                for (int i = 0; i < typeValArray.length; i++) {
+                    matcher1 = pattern1.matcher(typeValArray[i]);
+                    matcher2 = pattern2.matcher(typeValArray[i]);
+                    if (matcher1.find()) {
+                        String[] typValName = matcher1.group(1).toString().trim().split(" ");
+                        String typ = typValName[0];
+                        String valName = typValName[1];
+                        String temp = genCoditionStatement(typ, valName, matcher1.group(2).toString());
+                        if (temp != null)
+                            returnStr += temp + " && ";
+                    } else if (matcher2.find()) {
+                        String[] typValName = matcher2.group(1).toString().trim().split(" ");
+                        String typ = typValName[0];
+                        String valName = typValName[1];
+                        //closure.getContext(matcher1.group(2).toString());
+                        String str = closure.getContext(matcher2.group(2).toString());
+                        if (str != null && str.equals("%"))
+                            str = "\\.*";
+                        String temp = genCoditionStatement(typ, valName, str);
+                        if (temp != null)
+                            returnStr += temp + " && ";
+                    } else if (typeValArray[i].contains(" ")) {
+                        String typ = typeValArray[i].substring(0, typeValArray[i].indexOf(' '));
+                        String val = typeValArray[i].substring(typeValArray[i].indexOf(' ') + 1);
+
+                        String valName = getArgsType(val, 1);
+                        String matchVal = getArgsType(val, 2);
+                        String temp =  genCoditionStatement(typ, valName, matchVal);
+                        if (temp != null)
+                            returnStr += temp + " && ";
+                    }
+                }
+            }
+            return trimLastPunctuation(returnStr, " && ");
+        }
     }
-    
-    private void outAdvicePrologue4Result(String pointcutName) {
-        jOut(1, "Object around() : %s() {", pointcutName);
-        jOut(2, "Object ret = proceed();");
+
+    private String genCoditionStatement(String type, String valName, String matchVal) {
+        if (matchVal != null && matchVal.length() > 0) {
+            String str = "";
+            switch (type) {
+                case "int":
+                case "short":
+                    str = "new Integer(" + valName + ").toString()";
+                    break;
+                case "long":
+                case "double":
+                    str = "String.valueOf(" + valName + ")";
+                    break;
+                case "float":
+                    str = "Float.toString(" + valName + ")";
+                    break;
+                case "boolean":
+                    str = "Boolean.toString(" + valName + ")";
+                    break;
+                case "char":
+                    str = "Character.toString(" + valName + ")";
+                    break;
+                default:
+                    str = "String.valueOf(" + valName + ")";
+            }
+            return "StringMatch(" + str + ", \"" + matchVal + "\")";
+        }
+        return null;
+    }
+
+    private void outAdvicePrologue4Result(String pointcutName, String aroundlist, String arglist, String monitorVal) {
+        if (monitorVal != null && monitorVal.length() > 0)
+            jOut(1, "Object around(%s): %s(%s) {", aroundlist, pointcutName, arglist);
+        else
+            jOut(1, "Object around(): %s() {", pointcutName);
+        if (monitorVal != null && monitorVal.length() > 0) {
+            String conditionState = genCoditionStatements(monitorVal);
+            if (conditionState.length() > 0) {
+                jOut(2, "if (" + conditionState + " ) {");
+                jOut(3, "Object ret = proceed(%s);", arglist);
+                jOut(3, "Event event = new Event(thisJoinPoint);");
+                jOut(3, "event.eventType = \"Result\";");
+                jOut(3, "event.setResult(ret);");
+                jOut(3, "root.queryAction(event);");
+                jOut(3, "return ret;");
+                jOut(2, "}");
+                jOut(2, "else");
+                jOut(3, "return proceed(%s);", arglist);
+                jOut(1, "}\n");
+            } else {
+                jOut(2, "Object ret = proceed(%s);", arglist);
+                outAdviceEpilogue4Result();
+            }
+        } else {
+            jOut(2, "Object ret = proceed();");
+            outAdviceEpilogue4Result();
+        }
     }
 
     private void outAdviceEpilogue4Result() {
+        jOut(2, "Event event = new Event(thisJoinPoint);");
+        jOut(2, "event.eventType = \"Result\";");
+        jOut(2, "event.setResult(ret);");
+        jOut(2, "root.queryAction(event);");
         jOut(2, "return ret;");
         jOut(1, "}\n");
     }
-    
+
+
     public static void main(String[] args) {
         Compiler compiler = new Compiler(args);
         compiler.compile();
+    }
+
+    private String getPCMethodName(String str) {
+        int index = str.indexOf('(');
+        if (index == -1)
+            return str;
+        else {
+            return str.substring(0, index);
+        }
+    }
+
+    private String[] getArgsLstArray(String str) {
+        // File.new(String$*.class$)(int$1$)
+        String argList = "";
+        int index = str.indexOf('(', 0);
+        while (index != -1) {
+            int index2 = str.indexOf(')', 0);
+            if (index2 > index) {
+                argList += str.substring(index + 1, index2) + ",";
+                if (index2 + 1 < str.length()) {
+                    str = str.substring(index2 + 1, str.length());
+                    index = str.indexOf('(', 0);
+                } else
+                    break;
+            } else
+                break;
+        }
+        if (argList.length() > 0)
+            return argList.split(",");
+        else return null;
+    }
+
+    private String getArgsType(String str, int index) {
+        //String$*.class$ || int$1$ || String$ip ||String
+        String reg = "(.+)(\\$\\$(.+)\\$\\$)";
+        Pattern pattern = Pattern.compile(reg);
+        Matcher matcher = pattern.matcher(str);
+        if (matcher.find())
+            return matcher.group(index).toString().trim();
+        else {
+            reg = "(.+)(\\$$.+)";
+            pattern = Pattern.compile(reg);
+            matcher = pattern.matcher(str);
+            if (matcher.find()) {
+                return matcher.group(index).toString().trim();
+            }
+        }
+        if (index == 1)
+            return str;
+        else
+            return null;
+    }
+
+    private String getArgsMatchVal(String str) {
+        //String$*.class$ || int$1$ || String$ip ||String
+        String reg = "(.+)(\\$\\$(.+)\\$\\$)";
+        Pattern pattern = Pattern.compile(reg);
+        Matcher matcher = pattern.matcher(str);
+        //Static match
+        if (str != null) {
+            if (matcher.find()) {
+                return matcher.group(2).toString().trim();
+            } else {
+                reg = "(.+)(\\$.+)";
+                pattern = Pattern.compile(reg);
+                matcher = pattern.matcher(str);
+                if (matcher.find()) {
+                    return matcher.group(2).toString().trim();
+                }
+            }
+        }
+        return null;
+    }
+
+    private String getArgType(String str) {
+        int index = str.indexOf(':');
+        if (index == -1)
+            return null;
+        else {
+            return str.substring(0, index);
+        }
     }
 }
