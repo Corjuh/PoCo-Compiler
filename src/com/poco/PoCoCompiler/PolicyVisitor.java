@@ -10,6 +10,8 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Stack;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Generates the Java code to create a PoCoPolicy object representing
@@ -231,10 +233,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         currentModifier = "none";
         // The code for the match object is not generated here unless the match portion is a wildcard
         boolean isWildcardMatch = (ctx.INPUTWILD() != null);
-        if (isWildcardMatch) {
-            //String matchName = "match" + matchNum++;
-            //outLine(3, "Match %s = new Match(%s);", matchName, "\"%\"");
-            //outLine(3, "%s.addMatcher(%s);", exchangeName, matchName);
+        if (isWildcardMatch) { 
             matchRHS = true;
             visitSre(ctx.sre());
             matchRHS = false;
@@ -308,8 +307,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             if (matchsNames.empty()) {
                 // Add match object to parent exchange
                 outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
-            } else {
-                System.out.println("I am here");
+            } else { 
                 // Add match object to parent matchs
                 outLine(3, "%s.addChild(%s);", matchsNames.peek(), matchName);
             }
@@ -474,22 +472,29 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             String matchStr = null;
             if (ctx.function() != null) {
                 matchStr = ctx.function().fxnname().getText();
-                if (ctx.function().arglist().re().rewild() == null)
-                    matchStr += "(" + ctx.function().arglist().getText() + ")";
+                //when match new, do not need .new key word. e.g., java.io.File(String)
+                if (ctx.function().INIT() != null)
+                    matchStr = matchStr.substring(0,matchStr.length()-1);
             } else {
                 matchStr = scrubString(ctx.getText());
             }
             String matchName = "match" + matchNum++;
             outLine(3, "Match %s = new Match(\"%s\");", matchName, matchStr);
             outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
-
         } else {
             if (ctx.AT() != null) {
                 if (ctx.id() != null) {
                     if (closure != null) {
                         VarTypeVal val = closure.loadClosure(ctx.id().getText());
-                        val.setReContext(ctx.re(0));
-                        closure.updateClosure(ctx.id().getText(), val);
+                        if (val != null && ctx.re(0) != null) {
+                            if (ctx.re(0).getText().contains("$"))
+                                val.setVarLink(ctx.re(0));
+                            else {
+                                if (!ctx.re(0).getText().equals("%"))
+                                    val.setVarContext(ctx.re(0).getText());
+                            }
+                            closure.updateClosure(ctx.id().getText(), val);
+                        }
                     }
                 } else
                     throw new NullPointerException("No such var exist.");
@@ -510,10 +515,22 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                         content = ctx.qid().getText();
                     }
                 } else {
-                    if (ctx.object() != null)
+                    if (ctx.object() != null) {
                         content = parseObject(ctx.object().qid().getText(), ctx.object().re().getText());
-                    else
+                    } else if (ctx.function() != null) {
+                        content = ctx.function().fxnname().getText();
+                        if (ctx.function().INIT() != null)
+                            //content = content.substring(0,content.length()-1);
+                            content += "new";
+                        if (ctx.function().arglist() != null) {
+                            if (ctx.function().arglist().re() != null && ctx.function().arglist().re().rewild() == null) {
+                                String str = ctx.function().arglist().getText();
+                                String[] argLists = str.split(",");
+                            }
+                        }
+                    } else {
                         content = ctx.getText();
+                    }
                 }
 
                 if (isSre) {
@@ -521,7 +538,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                         outLine(3, "%s.setPositiveRE(\"%s\");", sreNames.peek(), scrubString(content));
                     else
                         outLine(3, "%s.setNegativeRE(\"%s\");", sreNames.peek(), scrubString(content));
-
                     if (isMapSre)
                         outLine(3, "%s.setMatchSre(%s);", executionNames.peek(), sreNames.peek());
                     //if it is Bopsre case, we will need postpone setSRE till pop to the right Sre
@@ -541,7 +557,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 } else if (isMatch) {
                     outLine(3, "%s.setMatchString(\"%s\");", currentMatch, scrubString(content));
                 }
-
             }
         }
         return null;
@@ -632,16 +647,23 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     }
 
     public String loadFromClosure(String varName) {
-        String strval = null;
         if (closure != null)
-            if (closure.loadClosure(varName) != null)
-                if (closure.loadClosure(varName).getVarType() == VarTypeVal.ClosureType.RE_TYPE &&
-                        closure.loadClosure(varName).getReContext() != null)
-                    strval = closure.loadClosure(varName).getReContext().getText();
-                else if (closure.loadClosure(varName).getVarType() == VarTypeVal.ClosureType.SRE_TYPE &&
-                        closure.loadClosure(varName).getSreContext() != null)
-                    strval = closure.loadClosure(varName).getSreContext().getText();
+            if (closure.loadClosure(varName) != null) {
+                if (closure.loadClosure(varName).getVarContext() != null)
+                    return closure.loadClosure(varName).getVarContext();
+                else
+                    return closure.loadClosure(varName).getVarLink().getText();
+            }
+        return null;
+    }
 
-        return strval;
+    private static String getObjTyp(String str) {
+        String reg = "#(.+)\\{(.+)\\}";
+        Pattern pattern = Pattern.compile(reg);
+        Matcher matcher = pattern.matcher(str);
+        if (matcher.find())
+            return matcher.group(1).toString().trim();
+        else
+            return null;
     }
 }
