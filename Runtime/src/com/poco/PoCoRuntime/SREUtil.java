@@ -278,4 +278,13 @@ public class SREUtil {
         return str.replaceAll("(%|\\$[a-zA-Z0-9\\.\\-_]+)", "").replaceAll(
                 "#|\\{|\\}", "");
     }
+    
+    public static boolean StringMatch(String matchingVal, String matchingRegex) {
+        String  regex = matchingRegex;
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(matchingVal);
+        if(matcher.find())
+            return true;
+        return false;
+    }
 }
