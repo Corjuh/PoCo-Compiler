@@ -267,11 +267,11 @@ public class Compiler {
         this.extractedPtCuts = pcExtractor.getPCStrings();
         this.extractedPtCuts4Results = pcExtractor.getPCStrs4Results();
 
-        for(LinkedHashSet<String> entry: this.extractedPtCuts) {
-            extractedPCs.addAll(entry);
+        for (String entry : this.extractedPtCuts) {
+            extractedPCs.add(entry);
         }
-         for (LinkedHashSet<String> entry : this.extractedPtCuts4Results) {
-            extractedPCs.addAll(entry);
+        for (String entry : this.extractedPtCuts4Results) {
+            extractedPCs.add(entry);
         }
         // Write REs to a file
         Path policyExtractPath = outputDir.resolve(policyName + "_extracts.txt");
