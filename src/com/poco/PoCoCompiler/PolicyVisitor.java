@@ -452,21 +452,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     }
 
     @Override
-    public Void visitVardecl(@NotNull PoCoParser.VardeclContext ctx) {
-        if (ctx.id() != null) {
-            VarTypeVal varTyCal;
-            if (ctx.RETYPE() != null) {
-                varTyCal = new VarTypeVal(VarTypeVal.ClosureType.RE_TYPE, null, null);
-            } else {
-                varTyCal = new VarTypeVal(VarTypeVal.ClosureType.SRE_TYPE, null, null);
-            }
-            closure.addClosure(ctx.id().getText(), varTyCal);
-        }
-
-        return null;
-    }
-
-    @Override
     public Void visitRe(@NotNull PoCoParser.ReContext ctx) {
         if (matchRHS == true) {
             String matchStr = null;
