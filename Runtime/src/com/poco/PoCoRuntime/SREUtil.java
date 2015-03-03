@@ -3,6 +3,9 @@ package com.poco.PoCoRuntime;
 import dk.brics.automaton.Automaton;
 import dk.brics.automaton.RegExp;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * Created by caoyan on 1/8/15.
  */
@@ -91,11 +94,27 @@ public class SREUtil {
         switch (operator) {
             case "Complement": // Switches sign of SRE
                 return new SRE(sre.getNegativeRE(), sre.getPositiveRE());
-			/*
-			 * case "Action": //Includes only the actions in SRE
-			 *
-			 * case "Result": //Includes only the results in SRE
-			 */
+
+			case "Action": //Includes only the actions in SRE
+                RegExp rePos    = new RegExp(sre.getPositiveRE().replace("%", ".*"));
+                RegExp reNeg    = new RegExp(sre.getNegativeRE().replace("%", ".*"));
+                RegExp action   = new RegExp(".+\\(.*\\)");
+                Automaton amPos = rePos.toAutomaton();
+                Automaton amNeg = reNeg.toAutomaton();
+                Automaton amAct = action.toAutomaton();
+                return new SRE(amPos.intersection(amAct).toString(),amPos.intersection(amAct).toString());
+
+			case "Result": //Includes only the results in SRE
+                RegExp rePos1    = new RegExp(sre.getPositiveRE().replace("%", ".*"));
+                RegExp reNeg1    = new RegExp(sre.getNegativeRE().replace("%", ".*"));
+                RegExp action1   = new RegExp(".+\\(.*\\)");
+                Automaton amPos1 = rePos1.toAutomaton();
+                Automaton amNeg1 = reNeg1.toAutomaton();
+                Automaton amAct1 = action1.toAutomaton();
+                Automaton resPos = amPos1.minus(amPos1.intersection(amAct1));
+                Automaton resNeg = amNeg1.minus(amNeg1.intersection(amAct1));
+                return new SRE(resPos.toString(),resNeg.toString());
+
             case "Positive": // Includes only positive portion of SRE
                 return new SRE(sre.getPositiveRE(), null);
             case "Negative": // Includes only negative portion of SRE
