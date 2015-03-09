@@ -571,6 +571,7 @@ public class Compiler {
         jOut(0, "import java.lang.reflect.Method;\n");
         jOut(0, "public aspect %s {", aspectName);
         jOut(1, "private DummyRootPolicy root = new DummyRootPolicy( new %s() );\n", childName);
+        //jOut(1, "private MainPolicy root = new MainPolicy();\n");
     }
 
     private void outAspectEpilogue() {

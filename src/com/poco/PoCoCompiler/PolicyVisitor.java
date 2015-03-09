@@ -651,4 +651,132 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         else
             return null;
     }
+
+    /**
+     * Generates code for class representing a Main tree policy.
+     *
+     * @param ctx
+     * @return
+     */
+    /*@Override
+    public Void visitMetapol(@NotNull PoCoParser.MetapolContext ctx) {
+
+        outLine(0, "class MainPolicy extends Policy {");
+        outLine(1, "private Stack<String> monitoringEvents;");
+        outLine(1, "private ArrayList<Policy> children;");
+        outLine(1, "public MainPolicy() {");
+        outLine(2, "children = new ArrayList<Policy>();");
+        //iterate through policies and add to list
+        AddPolicies(ctx.treedefs());
+        outLine(2, "this.monitoringEvents = new Stack<>();");
+        outLine(1, "}");
+
+        outLine(1,  "public void queryAction(Event event) {");
+        outLine(2,  "ArrayList<SRE> results = new ArrayList<SRE>");
+        //iterate through policies and query all
+        AddQueries(ctx);
+        outLine(2,  "monitoringEvents.push(event.getSignature());");
+        outLine(2,  "//when accept is false, the returned SRE value is NULL");
+        //TODO: not looping through all children yet
+        outLine(2,  "if (results.get(0) == null) {");
+        outLine(3,  "monitoringEvents.pop();");
+        outLine(3,  "System.exit(-1);");
+        outLine(2,  "}");
+        outLine(2,  "boolean posMatch = false;");
+        outLine(2,  "boolean negMatch = false;");
+        outLine(2,  "if (result.get(0).positiveRE().length() > 0) {");
+        outLine(3,  "boolean promoted = false;");
+        outLine(3,  "//if the monitoringEvent is Result, it should be popped on the stack,");
+        outLine(3,  "//since we already get the result");
+        outLine(3,  "if(!monitoringEvents.empty())");
+        outLine(4,  "if(event.eventType!= null && event.eventType.equals(\"Result\"))");
+        outLine(5,  "monitoringEvents.pop();");
+        outLine(4,  "if(monitoringEvents.peek().contains(result.get(0).positiveRE().toString())) {");
+        outLine(5,  "promoted = true;");
+        outLine(4,  "}");
+        outLine(4,  "if (promoted) {");
+        outLine(5,  "System.out.println(\"the action is allowed\");");
+        outLine(5,  "monitoringEvents.pop();");
+        outLine(4,  "} else {");
+        outLine(5,  "try {");
+        outLine(6,  "Promoter.Reflect(result.get(0).positiveRE());");
+        outLine(5,  "} catch (Exception ex) {");
+        outLine(6,  "ex.printStackTrace();");
+        outLine(5,  "}");
+        outLine(4,  "}");
+        outLine(3,  "}");
+        outLine(3,  "if (result.get(0).negativeRE().length() > 0) {");
+        outLine(4,  "// if already on stack, show System.exit(-1);");
+        outLine(4,  "Pattern negPat = Pattern.compile(result.get(0).negativeRE());");
+        outLine(4,  "Matcher negMatcher = negPat.matcher(event.getSignature());");
+        outLine(4,  "negMatch = negMatcher.find();");
+        outLine(3,  "}");
+        outLine(3,  "if (posMatch) {");
+        outLine(4,  "return;");
+        outLine(3,  "}");
+        outLine(3,  "if (negMatch) {");
+        outLine(4,  "System.exit(-1);");
+        outLine(3,  "}");
+        outLine(2,  "}");
+        outLine(1,  "}");
+        outLine(0, "}");
+
+        return null;
+    }
+
+    private void AddPolicies(PoCoParser.TreedefsContext ctx)
+    {
+        PoCoParser.TreedefContext treedef = ctx.treedef();
+        AddTreePolicies(treedef);
+        PoCoParser.TreedefsContext treedefs = ctx.treedefs();
+        if(treedefs != null)
+        {
+            AddPolicies(treedefs);
+        }
+    }
+
+    private void AddTreePolicies(PoCoParser.TreedefContext ctx)
+    {
+        if(ctx.id().size() > 1)
+        {
+            String policyName = ctx.id(1).getText();
+            outLine(2,  "children.add(new %s());", policyName);
+        }
+        PoCoParser.PolicyargsContext policyargs = ctx.policyargs();
+        if(policyargs != null)
+        {
+            AddPolicyArgsPolicies(policyargs);
+        }
+    }
+
+    private void AddPolicyArgsPolicies(PoCoParser.PolicyargsContext ctx)
+    {
+        PoCoParser.PolicyargContext policyarg = ctx.policyarg();
+        AddPolicyArgPolicies(policyarg);
+        if(ctx.policyargs() != null)
+        {
+            AddPolicyArgsPolicies(ctx.policyargs());
+        }
+    }
+
+    private void AddPolicyArgPolicies(PoCoParser.PolicyargContext ctx)
+    {
+        if(ctx != null) {
+            if (ctx.AT() == null) {
+                String policyName = ctx.id().getText();
+                outLine(2, "children.add(new %s());", policyName);
+                AddPolicyArgsPolicies(ctx.policyargs());
+            }
+            else
+            {
+                AddPolicyArgPolicies(ctx.policyarg());
+            }
+        }
+    }
+
+    private void AddQueries(PoCoParser.MetapolContext ctx) {
+        outLine(2,  "for (i=0; i < children.size(); i++) {");
+        outLine(3,  "results.add(children.get(i).query(event));");
+        outLine(2,  "}");
+    }*/
 }

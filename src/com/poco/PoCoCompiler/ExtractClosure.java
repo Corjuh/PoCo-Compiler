@@ -6,7 +6,6 @@ import com.poco.Extractor.Closure;
 import com.poco.Extractor.VarTypeVal;
 import com.sun.deploy.config.Config;
 import org.antlr.v4.runtime.misc.NotNull;
-import sun.jvm.hotspot.debugger.posix.elf.ELFSectionHeader;
 
 import java.util.Arrays;
 import java.util.regex.Matcher;
