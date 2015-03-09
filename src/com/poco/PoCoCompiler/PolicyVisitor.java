@@ -7,8 +7,8 @@ import com.poco.PoCoParser.PoCoParserBaseVisitor;
 import org.antlr.v4.runtime.misc.NotNull;
 
 import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Iterator;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -452,7 +452,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     }
 
     @Override
-    public Void visitRe(@NotNull PoCoParser.ReContext ctx) {
+    public Void visitRe(@NotNull PoCoParser.ReContext ctx)  {
         if (matchRHS == true) {
             String matchStr = null;
             if (ctx.function() != null) {
@@ -493,7 +493,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                     outLine(3, "%s.setMatchString(\".\");", currentMatch);
                 }
             } else {
-                String content;
+                String content="";
                 if (ctx.DOLLAR() != null) {
                     content = loadFromClosure(ctx.qid().getText());
                     if (content == null) {
@@ -501,7 +501,12 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                     }
                 } else {
                     if (ctx.object() != null) {
-                        content = parseObject(ctx.object().qid().getText(), ctx.object().re().getText());
+                        try {
+                            content = parseObject(ctx.object().qid().getText(), ctx.object().re().getText());
+                        }
+                        catch(Exception e) {
+                            e.printStackTrace();
+                        }
                     } else if (ctx.function() != null) {
                         content = ctx.function().fxnname().getText();
                         if (ctx.function().INIT() != null)
@@ -604,27 +609,20 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     /**
      * This method use to track the value from object format
      */
-    private String parseObject(String type, String value) {
+    private String parseObject(String type, String value) throws Exception {
         switch (type) {
             case "Integer":
-                return getIntVal(value);
+                String objType = getClassInfo(value,1);
+                if(objType!= null)  {
+                    Field field = Class.forName(objType).getField(getClassInfo(value,2));
+                    return new Integer(field.getInt(null)).toString();
+                }
+                else
+                    return value;
             //will add more case here
             default:
                 return value;
         }
-    }
-
-    private String getIntVal(String input) {
-        int result = -99;
-        switch (input) {
-            case "JOptionPane.OK_OPTION":
-                result = 0;
-                break;
-            case "JOptionPane.NO_OPTION":
-                result = 1;
-                break;
-        }
-        return Integer.toString(result);
     }
 
     private static String scrubString(String input) {
@@ -642,12 +640,12 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         return null;
     }
 
-    private static String getObjTyp(String str) {
+    private static String getClassInfo(String str, int index) {
         String reg = "#(.+)\\{(.+)\\}";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(str);
         if (matcher.find())
-            return matcher.group(1).toString().trim();
+            return matcher.group(index).toString().trim();
         else
             return null;
     }

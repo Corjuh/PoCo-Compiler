@@ -682,7 +682,7 @@ public class Compiler {
                 default:
                     str = "String.valueOf(" + valName + ")";
             }
-            return "StringMatch(" + str + ", \"" + matchVal + "\")";
+            return "SREUtil.StringMatch(" + str + ", \"" + matchVal + "\")";
         }
         return null;
     }

@@ -27,9 +27,9 @@ map (Union, -`FileWrite($ext)',
      <!Action(`FileWrite($ext)') => Neutral>*
      < Action(`@call[FileWrite($ext)]') => +`JOptionPane.showConfirmDialog($message($call))'>
      <!Result(`JOptionPane.showConfirmDialog($message($call))', `%') => +`JOptionPane.showConfirmDialog($message($call))'>*
-     ( <Result(`JOptionPane.showConfirmDialog($message($call))', `#Integer{JOptionPane.OK_OPTION}') => +`$call'>
+     ( <Result(`JOptionPane.showConfirmDialog($message($call))', `#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$call'>
               | <_ => Neutral>)
-)*
+)* 
 =================================================================================
 ConfirmAndAllowOnlyHTTP() :
 var call :RE

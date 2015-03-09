@@ -148,6 +148,30 @@ public class Closure {
         return null;
     }
 
+    public String getType(String varName) {
+        if (varName == null)
+            throw new NullPointerException("Can't put a null symbol in SymbolTable.");
+        if (closures.containsKey(varName)) {
+            VarTypeVal vals = (VarTypeVal)closures.get(varName);
+            return vals.getVarType();
+        }
+        else {
+            /**
+             * need to check the parents policy's closure
+             */
+            Closure parent = this.parent;
+            while (parent != null) {
+                if (parent.closures.containsKey(varName)) {
+                    VarTypeVal vals = (VarTypeVal)parent.closures.get(varName);
+                    return vals.getVarType();
+                }
+                else
+                    parent = parent.parent;
+            }
+        }
+        return null;
+    }
+
     public void updateLinkedVal(String text, String objVal) {
         if (closures != null) {
             for (Object varName : closures.keySet()) {
