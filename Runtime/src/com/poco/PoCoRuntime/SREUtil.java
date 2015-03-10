@@ -306,4 +306,22 @@ public class SREUtil {
             return true;
         return false;
     }
+    
+        /**
+     * trim the first six letters from the full class name
+     * (e.g., trim "class java.lang.reflect.Method" to "java.lang.reflect.Method")
+     * @param fullClassName
+     * @return
+     */
+    public static String trimClassName(String fullClassName) {
+        if(fullClassName != null && fullClassName.length()>=6)
+            if(fullClassName.startsWith("class "))
+                return fullClassName.substring(6, fullClassName.length());
+        return fullClassName;
+
+    }
+
+    public static String concatClsMethod(String className, String methodName) {
+        return className.trim().concat(".").concat(methodName.trim());
+    }
 }
