@@ -93,8 +93,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
             if (qid.contains("$")) {
                 String qidName = getQid(qid);
                 if (qidName != null && closure != null && closure.getContext(qidName) != null) {
-                    String replaced = qid.replace("$ports", closure.getContext(qidName));
-                    varTyCal = new VarTypeVal(matcher.group(1).toString().trim(), ctx.re(), replaced);
+                    varTyCal = new VarTypeVal(matcher.group(1).toString().trim(), ctx.re(), qid);
                 } else
                     varTyCal = new VarTypeVal(matcher.group(1).toString().trim(), ctx.re(), qid);
             } else {
@@ -124,21 +123,20 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                     closure.updateLinkedVal(ctx.id().getText(), getObjVal(str));
 
                 } else if (ctx.re(0).rewild() != null) {
-                    closure.updateClosure(ctx.id().getText(), new VarTypeVal("java.lang.String", ctx.re(0), ".*"));
+                    closure.updateClosure(ctx.id().getText(), new VarTypeVal(closure.getType(ctx.id().getText()), ctx.re(0), ".*"));
                     closure.updateLinkedVal(ctx.id().getText(), ".*");
                 } else { //it is not an object type value,  then we need parse it
                     if (ctx.getText().contains("$")) {
-
                         parseRe = true;
                         closureVal = "";
                         visitChildren(ctx);
-                        closure.updateClosure(ctx.id().getText(), new VarTypeVal("java.lang.String", ctx.re(0), closureVal));
+                        closure.updateClosure(ctx.id().getText(), new VarTypeVal(closure.getType(ctx.id().getText()), ctx.re(0), closureVal));
                         closure.updateLinkedVal(ctx.id().getText(), closureVal);
                         closureVal = "";
                         parseRe = false;
                     }
                     else {
-                        closure.updateClosure(ctx.id().getText(), new VarTypeVal("java.lang.String", null, ctx.re(0).getText()));
+                        closure.updateClosure(ctx.id().getText(), new VarTypeVal(closure.getType(ctx.id().getText()), null, ctx.re(0).getText()));
                         closure.updateLinkedVal(ctx.id().getText(), ctx.re(0).getText());
                     }
 
@@ -189,6 +187,8 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                         closureVal += "(" + ctx.getText() + ")";
                 }
             }
+            else
+                visitChildren(ctx);
         }
         return null;
     }
@@ -256,5 +256,4 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
         }
         return null;
     }
-
 }
