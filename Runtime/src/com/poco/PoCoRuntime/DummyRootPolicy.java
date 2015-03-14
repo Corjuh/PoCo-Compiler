@@ -22,10 +22,14 @@ import java.util.regex.Pattern;
 public class DummyRootPolicy {
     private Stack<String> monitoringEvents;
     private Policy child;
+    public Stack<String>   promotedEvents;
+    public HashMap<String,String> closure;
 
     public DummyRootPolicy(Policy child) {
         this.child = child;
         this.monitoringEvents = new Stack<>();
+        this.promotedEvents   = new Stack<>();
+        this.closure  = new HashMap<String, String>();
     }
 
     public void setChild(Policy child) {
@@ -39,16 +43,15 @@ public class DummyRootPolicy {
      *            security-relevant action caught by AspectJ
      */
     public void queryAction(Event event) {
-        // TODO: Do more than allow an action or halt
-        SRE result = child.query(event);
-
-        monitoringEvents.push(event.getSignature());
-
+        if (event.eventType == null || event.eventType !="Result") {
+	    monitoringEvents.push(event.getSignature());
+	}
+        SRE result = child.query(event); 
         //when accept is false, the returned SRE value is NULL
         if (result == null) {
             monitoringEvents.pop();
             System.exit(-1);
-//			return;
+	    //return;
         }
 
         // For debugging purposes:
@@ -65,42 +68,60 @@ public class DummyRootPolicy {
         boolean negMatch = false;
 
         if (result.positiveRE().length() > 0) {
-            boolean promoted = false;
-
-            //if the monitoringEvent is Result, it should be popped on the stack,
-            //since we already get the result
-            if(!monitoringEvents.empty())
-                if(event.eventType!= null && event.eventType.equals("Result"))
-                    monitoringEvents.pop();
-
-            if(monitoringEvents.peek().contains(result.positiveRE().toString())) {
-                promoted = true;
-            }
-            if (promoted) {
-                System.out.println("the action is allowed");
-                monitoringEvents.pop();
-            } else {
-                try {
-                    Promoter.Reflect(result.positiveRE());
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-            }
+            String resultPos =  result.positiveRE();
+	    String reg       = "(.*)(\\$\\$(.+)\\$\\$)(.*)";
+	    Pattern pattern  = Pattern.compile(reg);
+	    Matcher matcher  = pattern.matcher(resultPos);
+	    boolean needUpdate = matcher.find();
+	    while(needUpdate){
+		//need delete (, otherwise cause issues.
+		String replaceStr = closure.get(matcher.group(3).trim());
+		if(replaceStr.indexOf('(') != -1)
+		    replaceStr = replaceStr.substring(0, replaceStr.indexOf('('));
+		    resultPos = resultPos.replace(matcher.group(2).trim(), replaceStr);
+		    matcher  = pattern.matcher(resultPos);
+		    needUpdate = matcher.find();
+		}
+		posMatch= true;
+		boolean promoted = false;
+		if (monitoringEvents.peek().contains(resultPos)) 
+			promoted = true;
+		if (promoted) {
+		    //System.out.println("the action is allowed");
+		    monitoringEvents.pop();
+		} else {
+		    try {
+			//System.out.println("the action will be promoted");
+			String methodname=resultPos;
+			int index = resultPos.indexOf('(');
+			if(index > -1)
+			    methodname = resultPos.substring(0, index);
+			promotedEvents.push(methodname.trim());
+			Promoter.Reflect(resultPos);
+		    } catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	    }
         }
 
-        if (result.negativeRE().length() > 0) {
-            // if already on stack, show System.exit(-1);
-            Pattern negPat = Pattern.compile(result.negativeRE());
-            Matcher negMatcher = negPat.matcher(event.getSignature());
-            negMatch = negMatcher.find();
-        }
-        if (posMatch) {
+        if(!posMatch) {
+	    if (result.negativeRE().length() > 0) {
+	    // if already on stack, show System.exit(-1);
+	    	if(monitoringEvents!=null && monitoringEvents.peek().contains(result.negativeRE().toString())) {
+		    monitoringEvents.pop();
+		    negMatch = true;
+		} 
+	    }
+	}
+        if (posMatch) 
             return;
-        }
-        if (negMatch) {
+        if (negMatch) 
             System.exit(-1);
-        }
-        // Placeholder for promoting a different action other than triggering
-        // event
+    }
+    
+    public void updateClosure(String key, String value) {
+	if(closure.containsKey(key))
+    	    closure.remove(key);
+    	closure.put(key, value);
     }
 }
