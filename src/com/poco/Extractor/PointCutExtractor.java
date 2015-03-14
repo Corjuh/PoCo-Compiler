@@ -3,10 +3,6 @@ package com.poco.Extractor;
 import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseVisitor;
 import org.antlr.v4.runtime.misc.NotNull;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -22,7 +18,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     private Closure closure;
     private boolean ptFromOpparamlist = false;
     private boolean isResult = false;
-
+    private boolean varBinding = false;
+    
     public PointCutExtractor(Closure closure) {
         this.closure = closure;
     }
@@ -34,55 +31,38 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitRe(@NotNull PoCoParser.ReContext ctx) {
         if (ptFromOpparamlist == false) {
-            pointcutStr = " * ";
+            if (varBinding == false)
+                pointcutStr = "* ";
+            else
+                pointcutStr += "* ";
             if (ctx.rewild() != null) {
                 pointcutStr = pointcutStr + " * (..); ";
             } else if (ctx.qid() != null) {
-                /**load from closure */
-                if(closure != null && getClosureStr(ctx.qid().getText(), 1) != null) {
-                    pointcutStr = "";
-                    if (getClosureReStr(ctx.qid().getText()) != null) {
-                        visitRe(getClosureReStr(ctx.qid().getText()));
-                    } else
-                        //pointcutStr += "$"+ str + "$";
-                        pointcutStr += "$$" + ctx.qid().getText();
-                    if (ctx.opparamlist() != null) {
-                        if (ctx.opparamlist().getText().equals("%")) {
-                            pointcutStr += "(..)";
-                            add2NodesNodes4Result(pointcutStr);
-                        } else {
-                            ptFromOpparamlist = true;
-                            visitChildren(ctx);
-                            ptFromOpparamlist = false;
-                        }
+                pointcutStr = "$$" + ctx.qid().getText();
+                if (ctx.opparamlist() != null) {
+                    if (ctx.opparamlist().getText().equals("%")) {
+                        pointcutStr += "(..)";
+                        add2NodesNodes4Result(pointcutStr);
                     } else {
+                        ptFromOpparamlist = true;
+                        visitChildren(ctx);
+                        ptFromOpparamlist = false;
                         add2NodesNodes4Result(pointcutStr);
                     }
                 } else {
-                    pointcutStr = pointcutStr + ctx.qid().getText();
-                    if (ctx.opparamlist() != null) {
-                        if (ctx.opparamlist().getText().equals("%")) {
-                            pointcutStr += "(..)";
-                            add2NodesNodes4Result(pointcutStr);
-                        } else {
-                            ptFromOpparamlist = true;
-                            visitChildren(ctx);
-                            ptFromOpparamlist = false;
-                        }
-                    } else {
-                        pointcutStr = pointcutStr + "(..)";
-                        add2NodesNodes4Result(pointcutStr);
-                    }
+                    add2NodesNodes4Result(pointcutStr); 
                 }
             } else if (ctx.function() != null) {
-                pointcutStr = pointcutStr + ctx.function().fxnname().getText();
                 if (ctx.function().INIT() != null) {
-                    pointcutStr = ctx.function().fxnname().getText() + "new";
-                }
+                    // delete * since there is no return val for new
+                    pointcutStr = pointcutStr.substring(0, pointcutStr.length() - 2);
+                    pointcutStr += ctx.function().fxnname().getText() + "new";
+                } else
+                    pointcutStr = pointcutStr + ctx.function().fxnname().getText();
                 if (ctx.function().arglist() != null) {
-                    if(ctx.function().arglist().getText().length()==0) {
+                    if (ctx.function().arglist().getText().length() == 0) {
                         pointcutStr += "()";
-                    }else {
+                    } else {
                         ptFromOpparamlist = true;
                         visitChildren(ctx);
                         ptFromOpparamlist = false;
@@ -95,7 +75,10 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 else if (ctx.object().qid() != null)
                     pointcutStr = pointcutStr + ctx.object().qid().getText();
             } else if (ctx.AT() != null) {
+                varBinding = true;
+                pointcutStr = "@" + ctx.id().getText() + "@";
                 visitChildren(ctx);
+                varBinding = false;
             } else {
                 visitChildren(ctx);
             }
@@ -103,19 +86,17 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             if (ctx.rewild() != null) {
                 pointcutStr = pointcutStr + "(..)";
             } else if (ctx.qid() != null) {
-                if (closure != null && getClosureStr(ctx.qid().getText(), 0) != null) {
-                    if (closure.getContext(ctx.qid().getText()) != null)
-                        pointcutStr += "(" + getClosureStr(ctx.qid().getText(), 0) + "$$" + closure.getContext(ctx.qid().getText()).replace("\\", "") + "" +
-                                "$$) ";
-                    else
-                        pointcutStr += "(" + getClosureStr(ctx.qid().getText(), 0) + "$$" + ctx.qid().getText() + ") ";
-                } else
-                    pointcutStr = pointcutStr + "(" + ctx.qid().getText() + ")";
-                //add2NodesNodes4Result(pointcutStr);
+                String strval = ctx.qid().getText();
+                if (closure != null && closure.isContains(strval))
+                    pointcutStr += "($$" + strval + ")";
+                else
+                    throw new NullPointerException("No such var exist."); 
             } else if (ctx.AT() != null) {
-                //pointcutStr = pointcutStr + "(" + ctx.re(0).getText() + ")";
-                pointcutStr = pointcutStr + "(" + getClosureStr(ctx.id().getText(), 0) + ")";
-                //add2NodesNodes4Result(+pointcutStr);
+                String strval = ctx.id().getText();
+                if (closure != null && closure.isContains(strval))
+                    pointcutStr += "($$@" + strval + "@$$) ";
+                else
+                    throw new NullPointerException("No such var exist.");
             } else if (ctx.object() != null) {
                 if (ctx.object().POUND() != null) {
                     //format as #qid{re}
@@ -220,8 +201,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             pointcutStr = null;
         }
         if (ctx.qid() != null) {
-            pointcutStr = " * ";
-            String str = getClosureStr(ctx.qid().getText(), 1);
+            pointcutStr = " * "; 
             pointcutStr = pointcutStr + ctx.qid().getText() + "(..)";
             add2NodesNodes4Result(pointcutStr);
         } else if (ctx.srebop() != null) {
@@ -232,8 +212,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         }  else if (ctx.sreuop() != null) {
             visitChildren(ctx.sre(0));
             add2NodesNodes4Result(pointcutStr);
-        }
-        else {
+        }  else {
             visitChildren(ctx);
         }
         return null;
@@ -245,80 +224,29 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     public LinkedHashSet<String> getPCStrs4Results() {
         return new LinkedHashSet<String>(nodes4Results);
-    }
-
-    public String getClosureStr(String varName, int type) {
-        if (closure != null && closure.loadClosure(varName) != null) {
-            if (type == 0)
-                return closure.loadClosure(varName).getVarType();
-            else if (type == 1) {
-                if (closure.loadClosure(varName).getVarLink() != null)
-                    return closure.loadClosure(varName).getVarLink().getText();
-                else
-                    return closure.loadClosure(varName).getVarContext();
-            }
-        }
-        return null;
-    }
-
-    public PoCoParser.ReContext getClosureReStr(String varName) {
-        return closure.loadClosure(varName).getVarLink();
-    }
+    } 
 
     public void add2NodesNodes4Result(String pointcutStr) {
-        if (isResult) {
-            //if it is result, move the pointcut from the action
-            nodes.remove(pointcutStr);
-            nodes4Results.add(pointcutStr);
-        } else {
-            if(!nodes4Results.contains(pointcutStr))
-                nodes.add(pointcutStr);
-        }
-    }
-
-    private String up8QidVal(String str) {
-        String returnStr = "";
-        int index = str.indexOf("$");
-        while (index != -1) {
-            int breakIndex = splitStr(str);
-            String qidval = str.substring(index + 1, breakIndex);
-            if (closure.isContains(qidval)) {
-                VarTypeVal val = closure.loadClosure(qidval);
-                if (val != null && val.getVarContext() != null) {
-                    if (index - 1 >= 0)
-                        returnStr += str.substring(0, index - 1);
-                    returnStr += val.getVarContext();
-                } else
-                    returnStr += str.substring(0, breakIndex + 1);
+        String reg = "@(.+)@(.+)";
+        Pattern pattern = Pattern.compile(reg);
+        Matcher matcher = pattern.matcher(pointcutStr);
+        if (matcher.find()) {
+            if (isResult) {
+                //if it is result, move the pointcut from the action
+                nodes.remove(matcher.group(2));
+                nodes4Results.add(pointcutStr);
             } else {
-                returnStr += str.substring(0, index) + str.substring(index + 1, breakIndex + 1);
+                //if(!nodes4Results.contains(pointcutStr))
+                nodes.remove(matcher.group(2));
+                nodes.add(pointcutStr);
             }
-            if (breakIndex + 1 == str.length()) {
-                returnStr += str = str.substring(breakIndex, str.length());
-                break;
+        } else {
+            if (isResult) {
+                nodes.remove(pointcutStr);
+                nodes4Results.add(pointcutStr);
+            } else {
+                nodes.add(pointcutStr);
             }
-            str = str.substring(breakIndex + 1, str.length());
-            index = str.indexOf("$");
         }
-        return returnStr;
-    }
-
-    /**
-     * Split str by (,),. to find the $
-     *
-     * @param str
-     */
-    private static int splitStr(String str) {
-        int[] positions = new int[4];
-        positions[0] = str.indexOf("(");
-        positions[1] = str.indexOf(")");
-        positions[2] = str.indexOf(".");
-        positions[3] = str.indexOf(" ");
-
-        Arrays.sort(positions);
-        for (int index : positions) {
-            if (index != -1) return index;
-        }
-        return -1;
     }
 }
