@@ -11,7 +11,7 @@ import java.util.Iterator;
  */
 public class Closure {
 
-    private Hashtable closures;
+    private Hashtable<String, VarTypeVal> closures;
     // Should have reference to parent symbol table
     Closure parent;
 
@@ -38,7 +38,7 @@ public class Closure {
      * Construct a symbol table with specified parent.
      */
     public Closure(Closure parent) {
-        closures = new Hashtable();
+        closures = new Hashtable<String, VarTypeVal>();
         this.parent = parent;
     }
 
@@ -46,7 +46,7 @@ public class Closure {
      * Construct a symbol table with null parent.
      */
     public Closure() {
-        closures = new Hashtable();
+        closures = new Hashtable<String, VarTypeVal>();
         this.parent = null;
     }
 
@@ -171,24 +171,7 @@ public class Closure {
         }
         return null;
     }
-
-    public void updateLinkedVal(String text, String objVal) {
-        if (closures != null) {
-            for (Object varName : closures.keySet()) {
-                String id = (String) varName;
-                if(!id.equals(text)) {
-                    VarTypeVal vals = (VarTypeVal) closures.get(id);
-                    if(vals.getVarLink() != null && vals.getVarLink().getText().contains("$"+text)) {
-                        if(objVal.indexOf('(') != -1)
-                            objVal = objVal.substring(0, objVal.indexOf('('));
-                        String context =  vals.getVarContext().replace("$"+text,objVal);
-                        closures.put(varName, new VarTypeVal(vals.getVarType(),vals.getVarLink(),context));
-                    }
-                }
-
-            }
-        }
-    }
+ 
     /**
      * just for debug
      */
@@ -197,10 +180,6 @@ public class Closure {
             for (Object varname : closures.keySet()) {
                 System.out.println(varname + ": ");
                 System.out.println("Type    : " + loadClosure((String) varname).getVarType());
-                if(loadClosure((String) varname).getVarLink()!= null)
-                    System.out.println("Link    : " + loadClosure((String) varname).getVarLink().getText());
-                else
-                    System.out.println("Link    : NULL");
                 System.out.println("Context : " + loadClosure((String) varname).getVarContext());
                 System.out.println("==========================================================");
             }
