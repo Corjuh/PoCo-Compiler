@@ -1,35 +1,319 @@
 
 Trivial(): <_ => Neutral>*
-
 =================================================================================
-
-NoOpenClassFiles() : <_ => -`File.<init>(#String{%.class})'>*
-NoOpenClassFiles() : <_ => -`File.<init>(#String{%.class},#Integer{1})'>*
-
 =================================================================================
+NoOpenClassFiles() : <_ => -`java.io.File.<init>(#String{%.class})'>*
 
+/*****---------------------**  RuntimeDemo.java **----------------------*****/
+package com.poco;
+
+import java.io.File;  
+public class RuntimeDemo {
+     public static void main(String[] args) {
+	  System.out.println("............Starting to execute............\n");
+	  try {		
+               File file = new File("data.class");
+	  } catch (Exception e) {
+	       e.printStackTrace();
+	  }
+	  System.out.println("............End executing............\n");
+	}
+}
+
+/*****--------------------**  AspectDisSysCalls.aj **---------------------*****/
+package com.poco; 
+import java.lang.reflect.Method; 
+
+public aspect AspectDisSysCalls {
+    private DummyRootPolicy root = new DummyRootPolicy( new NoOpenClassFiles() );
+
+    pointcut PC4Reflection():
+        call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
+
+    Object around(): PC4Reflection()   {  return new SRE(null,".");  }
+
+    pointcut PointCut0(String value0): call( java.io.File.new(String)) && args(value0);
+
+    Object around(String value0): PointCut0(value0) {
+        if (SREUtil.StringMatch(String.valueOf(value0), "*.class")) {
+            root.queryAction(new Event(thisJoinPoint));
+            return proceed(value0);
+        }
+        else
+            return proceed(value0);
+    }
+
+    class NoOpenClassFiles extends Policy {
+        public NoOpenClassFiles() {
+            try {
+                SequentialExecution rootExec = new SequentialExecution("none");
+                SequentialExecution exec0 = new SequentialExecution("*");
+                Exchange exch0 = new Exchange();
+                Match match0 = new Match("java.io.File");
+                exch0.addMatcher(match0);
+                SRE sre0 = new SRE(null, null);
+                sre0.setNegativeRE("java.io.File");
+                exch0.setSRE(sre0);
+                exec0.addChild(exch0);
+                rootExec.addChild(exec0);
+                rootExec.getCurrentChildModifier();
+                setRootExecution(rootExec);
+            } catch (PoCoException pex) {
+                System.out.println(pex.getMessage());
+                pex.printStackTrace();
+                System.exit(-1);
+            }
+        }
+    }
+}
+=================================================================================
+=================================================================================
 DisSysCalls() : <_ => -`Runtime.exec(%)'>*
-
 =================================================================================
-AllowOnlyMIME() :
-@ports[!`#Integer{143|993|25|110|995}'] :RE
-<_ => -`ServerSocket.<init>($ports)'>*
+=================================================================================
+AllowOnlyMIME() : //add 2080 to test
+@ports[!`#int{143|993|25|110|995|2080}'] :RE
+<_ => -`java.net.ServerSocket.<init>($ports)'>*
 
-@ports[!`#Integer{143|993|25|110|995}'] :RE
-<_ => -`$NetworkConnection($ports)'>*
+/*****---------------------**  RuntimeDemo.java **----------------------*****/
+package com.poco;
+package com.poco;
+import java.net.ServerSocket;
+import java.net.Socket;
 
+public class RuntimeDemo {
+     public static void main(String[] args) {
+          System.out.println("............Starting to execute............\n");
+          try {
+               ServerSocket socket = new ServerSocket(2080); 
+          } catch (Exception e) {
+               e.printStackTrace();
+	  }
+     	  System.out.println("............End executing............\n");
+     } 
+}
+
+/*****--------------------**  AspectDisSysCalls.aj **---------------------*****/
+package com.poco;
+public aspect AspectDisSysCalls {
+     private DummyRootPolicy root = new DummyRootPolicy(new AllowOnlyMIME());
+     private String ports = "143|993|25|110|995|2080";
+     public AspectDisSysCalls() {
+        root.updateClosure("ports", "143|993|25|110|995|2080");
+     }     
+     pointcut PC4Reflection():
+        call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
+     Object around(): PC4Reflection() {  return new SRE(null,"."); }
+     pointcut PointCut0(int value0): call(java.net.ServerSocket.new(int)) && args(value0);
+     Object around(int value0): PointCut0(value0) {
+          if (SREUtil.StringMatch(new Integer(value0).toString(), ports)) {
+               root.queryAction(new Event(thisJoinPoint));
+               return proceed(value0);
+          }else
+               return proceed(value0);
+     }
+     class AllowOnlyMIME extends Policy {
+          public AllowOnlyMIME() {
+            try {
+                SequentialExecution rootExec = new SequentialExecution("none");
+                SequentialExecution exec0 = new SequentialExecution("*");
+                Exchange exch0 = new Exchange();
+                Match match0 = new Match("java.net.ServerSocket");
+                exch0.addMatcher(match0);
+                SRE sre0 = new SRE(null, null);
+                sre0.setNegativeRE("java.net.ServerSocket");
+                exch0.setSRE(sre0);
+                exec0.addChild(exch0);
+                rootExec.addChild(exec0);
+                rootExec.getCurrentChildModifier();
+                setRootExecution(rootExec);
+            } catch (PoCoException pex) {
+                System.out.println(pex.getMessage());
+                pex.printStackTrace();
+                System.exit(-1);
+            }
+        }
+    }
+}
+=================================================================================
 =================================================================================
 Attachments() :
 var call: RE
-@ext[`#String{.exe|.vbs|.hta|.mdb|.bad}']  :RE 
-@message(call) [`#String{Allowing a dangerous file is creating via\: $call \?}'] :RE
-map (Union, -`FileWrite($ext)',
-     <!Action(`FileWrite($ext)') => Neutral>*
-     < Action(`@call[FileWrite($ext)]') => +`JOptionPane.showConfirmDialog($message($call))'>
-     <!Result(`JOptionPane.showConfirmDialog($message($call))', `%') => +`JOptionPane.showConfirmDialog($message($call))'>*
-     ( <Result(`JOptionPane.showConfirmDialog($message($call))', `#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$call'>
+@ext[`#java.lang.String{.exe|.vbs|.hta|.mdb|.bad}']  :RE 
+@message[`#java.lang.String{Allowing a dangerous file is creating via\: $call \?}'] :RE
+map (Union, -`java.io.FileWriter.<init>($ext)',
+     <!Action(`java.io.FileWriter.<init>($ext)') => Neutral>*
+     < Action(`@call[java.io.FileWriter.<init>($ext)]') => +`com.poco.RuntimeDemo.ShowDialog($message)'>
+     <!Result(`com.poco.RuntimeDemo.ShowDialog($message)', `%') => +`com.poco.RuntimeDemo.ShowDialog($message)'>*
+     ( <Result(`com.poco.RuntimeDemo.ShowDialog($message)', `#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$call'>
               | <_ => Neutral>)
-)* 
+)*
+ 
+/*****---------------------**  RuntimeDemo.java **----------------------*****/
+package com.poco;
+
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
+import javax.swing.JOptionPane;
+public class RuntimeDemo {
+     public static void main(String[] args) {
+	  System.out.println("............Starting to execute............\n");
+          try {
+     	       String str = "This is the PoCo Policy test for FileWrite class"; 
+	       FileWriter writer = new FileWriter("file1.bad");
+               writer.write(str);
+               writer.close();
+	  } catch (Exception e) {
+	       e.printStackTrace();
+	  }
+	  System.out.println("............End executing............\n");
+     }
+     public int ShowDialog(String s) {
+          int option = JOptionPane.showConfirmDialog(null, s, "Warning", 0);
+	  return option;
+     }
+}
+
+
+/*****--------------------**  AspectDisSysCalls.aj **---------------------*****/
+package com.poco;
+import java.lang.reflect.Method;
+import java.util.HashMap;
+public aspect AspectDisSysCalls {
+    private DummyRootPolicy root = new DummyRootPolicy( new Attachments() );
+    private java.lang.String ext = ".exe|.vbs|.hta|.mdb|.bad";
+    private java.lang.String call = "";
+    private java.lang.String message = "Allowing a dangerous file is creating via: $$call$$?";
+    public AspectDisSysCalls() {
+        root.updateClosure("ext", ".exe|.vbs|.hta|.mdb|.bad");
+        root.updateClosure("call", "");
+        root.updateClosure("message", "Allowing a dangerous file is creating via: $$call$$?");
+    }
+    pointcut PC4Reflection():
+        call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
+    Object around(): PC4Reflection() {  return new SRE(null,".");  }
+    pointcut PointCut0(java.lang.String value0):
+        call(java.io.FileWriter.new(java.lang.String)) && args(value0);
+    Object around(java.lang.String value0): PointCut0(value0) {
+        if (SREUtil.StringMatch(String.valueOf(value0), ext)) {
+            call = thisJoinPoint.getSignature().toString();
+            root.updateClosure("call",call);
+            root.queryAction(new Event(thisJoinPoint));
+            return proceed(value0);
+        } else
+            return proceed(value0);
+    }
+    pointcut PointCut1(Method run): target(run) &&call(Object Method.invoke(..));
+    Object around(Method run): PointCut1(run) {
+        String className = SREUtil.trimClassName(run.getDeclaringClass().toString());
+        className =SREUtil.concatClsMethod(className, run.getName());
+        if (matchingStack(className)) {
+            Object ret = proceed(run);
+            Event event = new Event(thisJoinPoint);
+            event.eventType = "Result";
+            event.setResult(ret);
+            root.queryAction(event);
+            return ret;
+        }else
+            return proceed(run);
+    }
+    private boolean matchingStack(String runningMethod) {
+        if (root.promotedEvents != null)
+            if(root.promotedEvents.peek().equals(runningMethod)) {
+                root.promotedEvents.pop();
+                return true;
+            }
+        return false;
+    }
+    class Attachments extends Policy {
+        public Attachments() {
+            try {
+                SequentialExecution rootExec = new SequentialExecution("none");
+                MapExecution mapExec0 = new MapExecution("*");
+                mapExec0.setOperator("Union");
+                SRE sre0 = new SRE(null, null);
+                sre0.setNegativeRE("java.io.FileWriter");
+                mapExec0.setMatchSre(sre0);
+                SequentialExecution exec1 = new SequentialExecution("*");
+                Exchange exch0 = new Exchange();
+                Matchs matchs0 = new Matchs();
+                matchs0.setNOT(true);
+                Match match0 = new Match();
+                match0.setAsAction();
+                match0.setMatchString("java.io.FileWriter");
+                matchs0.addChild(match0);
+                exch0.addMatcher(matchs0);
+                SRE sre1 = new SRE(null, null);
+                exch0.setSRE(sre1);
+                exec1.addChild(exch0);
+                mapExec0.addChild(exec1);
+                SequentialExecution exec2 = new SequentialExecution("none");
+                Exchange exch1 = new Exchange();
+                Matchs matchs1 = new Matchs();
+                Match match1 = new Match();
+                match1.setAsAction();
+                match1.setMatchString("java.io.FileWriter");
+                matchs1.addChild(match1);
+                exch1.addMatcher(matchs1);
+                SRE sre2 = new SRE(null, null);
+                sre2.setPositiveRE("com.poco.RuntimeDemo.ShowDialog(#java.lang.String{$$message$$})");
+                exch1.setSRE(sre2);
+                exec2.addChild(exch1);
+                mapExec0.addChild(exec2);
+                SequentialExecution exec3 = new SequentialExecution("*");
+                Exchange exch2 = new Exchange();
+                Matchs matchs2 = new Matchs();
+                matchs2.setNOT(true);
+                Match match2 = new Match();
+                match2.setAsResult();
+                match2.setMatchString("com.poco.RuntimeDemo.ShowDialog()");
+                match2.setResultMatchStr(".");
+                matchs2.addChild(match2);
+                exch2.addMatcher(matchs2);
+                SRE sre3 = new SRE(null, null);
+                sre3.setPositiveRE("com.poco.RuntimeDemo.ShowDialog(#java.lang.String{$$message$$})");
+                exch2.setSRE(sre3);
+                exec3.addChild(exch2);
+                mapExec0.addChild(exec3);
+                SequentialExecution groupedExec4 = new SequentialExecution("none");
+                AlternationExecution alterExec5 = new AlternationExecution("none");
+                SequentialExecution exec6 = new SequentialExecution("none");
+                Exchange exch3 = new Exchange();
+                Matchs matchs3 = new Matchs();
+                Match match3 = new Match();
+                match3.setAsResult();
+                match3.setMatchString("com.poco.RuntimeDemo.ShowDialog()");
+                match3.setResultMatchStr("0");
+                matchs3.addChild(match3);
+                exch3.addMatcher(matchs3);
+                SRE sre4 = new SRE(null, null);
+                sre4.setPositiveRE("$$call$$");
+                exch3.setSRE(sre4);
+                exec6.addChild(exch3);
+                alterExec5.addChild(exec6);
+                SequentialExecution exec7 = new SequentialExecution("none");
+                Exchange exch4 = new Exchange();
+                SRE sre5 = new SRE(null, null);
+                exch4.setSRE(sre5);
+                exec7.addChild(exch4);
+                alterExec5.addChild(exec7);
+                groupedExec4.addChild(alterExec5);
+                mapExec0.addChild(groupedExec4);
+                rootExec.addChild(mapExec0);
+                rootExec.getCurrentChildModifier();
+                setRootExecution(rootExec);
+            } catch (PoCoException pex) {
+                System.out.println(pex.getMessage());
+                pex.printStackTrace();
+                System.exit(-1);
+            }
+        }
+    }
+}
+=================================================================================
 =================================================================================
 ConfirmAndAllowOnlyHTTP() :
 var call :RE
@@ -42,7 +326,6 @@ map (Union, -`ServerSocket.<init>($ports)',
                | <_ => Neutral>)
 )*
 =================================================================================
-
 ClassLoaders() :
 
 var call      : RE
