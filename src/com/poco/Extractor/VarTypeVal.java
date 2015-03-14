@@ -1,33 +1,20 @@
 package com.poco.Extractor;
 
-import com.poco.PoCoParser.PoCoParser;
-
 /**
  * Created by caoyan on 10/28/14.
  */
 public class VarTypeVal {
 
-    private String varType;
-    private PoCoParser.ReContext varLink;
+    private String varType; 
     private String varContext;
 
     public VarTypeVal() {
-        this.varType = null;
-        this.varLink = null;
+        this.varType = null; 
     }
 
-    public VarTypeVal(String varType, PoCoParser.ReContext varLink, String varContext) {
-        this.varType = varType;
-        this.varLink = varLink;
+    public VarTypeVal(String varType, String varContext) {
+        this.varType = varType; 
         this.varContext = varContext;
-    }
-
-    public PoCoParser.ReContext getVarLink() {
-        return varLink;
-    }
-
-    public void setVarLink(PoCoParser.ReContext varLink) {
-        this.varLink = varLink;
     }
 
     public String getVarContext() {
@@ -49,8 +36,7 @@ public class VarTypeVal {
     @Override
     public String toString() {
         return "VarTypeVal{" +
-                "varType='" + varType + '\'' +
-                ", varLink=" + varLink +
+                "varType='" + varType + '\'' + 
                 ", varContext='" + varContext + '\'' +
                 '}';
     }
