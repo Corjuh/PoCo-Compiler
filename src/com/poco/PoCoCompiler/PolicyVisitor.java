@@ -632,7 +632,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     public String loadFromClosure(String varName) {
         if (closure != null)
             if (closure.loadClosure(varName) != null) 
-                return closure.loadClosure(varName).getVarLink().getText();
+                return closure.loadClosure(varName).getVarContext().trim();
         return null;
     }
 
