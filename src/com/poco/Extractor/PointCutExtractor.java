@@ -94,7 +94,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             } else if (ctx.AT() != null) {
                 String strval = ctx.id().getText();
                 if (closure != null && closure.isContains(strval))
-                    pointcutStr += "($$@" + strval + "@$$) ";
+                    pointcutStr += "($$@" + strval + "@) ";
                 else
                     throw new NullPointerException("No such var exist.");
             } else if (ctx.object() != null) {
