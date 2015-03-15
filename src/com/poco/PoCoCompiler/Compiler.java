@@ -1,11 +1,8 @@
 package com.poco.PoCoCompiler;
 
-import com.poco.Extractor.Extractor;
-import com.poco.Extractor.MethodSignaturesExtract;
-import com.poco.Extractor.PointCutExtractor;
+import com.poco.Extractor.*;
 import com.poco.PoCoParser.PoCoLexer;
 import com.poco.PoCoParser.PoCoParser;
-import com.poco.Extractor.Closure;
 import com.poco.StaticAnalysis.StaticAnalysis;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
@@ -358,6 +355,8 @@ public class Compiler {
                 String varContext = ((VarTypeVal) entry.getValue()).getVarContext();
                 if (varContext == null)
                     varContext = "";
+                else if (varContext.equals("%"))
+                    varContext = ".*";
                 jOut(1, "private String " + entry.getKey() + " = \"" + varContext + "\";");
             }
 
@@ -366,13 +365,14 @@ public class Compiler {
                 String varContext = ((VarTypeVal) entry.getValue()).getVarContext();
                 if (varContext == null)
                     varContext = "";
+                else if (varContext.equals("%"))
+                    varContext = ".*";
                 jOut(2, "root.updateClosure(\"" + entry.getKey() + "\", \"" + varContext + "\");");
             }
             jOut(1, "}");
         }
 
         jOut(1, "");
-
         //add this paragraph for generate pointcut for reflection calls
         //only reflection calls can be made is thru PoCo
         jOut(1, "pointcut PC4Reflection():");
@@ -381,10 +381,15 @@ public class Compiler {
         jOut(2, "return new SRE(null,\".\"); ");
         jOut(1, "}\n");
         int pointcutNum = 0;
+
         for (String entry : this.extractedPtCuts) {
+            // $$SendMail($$@msg@$$) ||  $$SendMail
             if (entry.startsWith("$$")) {
                 boolean isMonitored = false;
                 String varName = entry.substring(2, entry.length());
+                if(varName.indexOf('(') != -1) {//is function format
+                    varName = varName.substring(0,varName.indexOf('('));
+                }
                 for (Iterator<String> it = monitoredPC.iterator(); it.hasNext(); ) {
                     if (it.next().startsWith("@" + varName + "@")) {
                         isMonitored = true;
@@ -395,7 +400,7 @@ public class Compiler {
                     continue;
             } else
                 monitoredPC.add(entry);
-                
+
             //argTypeList:  Integer, String
             String argList4PC = "";
             //argList4PC :  Integer value0, String value1
@@ -405,8 +410,9 @@ public class Compiler {
             //aspect will only monitor the values that matches
             String monitorVals = "";
             //get the var name that need 2B dynamically updated (e.g., @call@java.io.FileWriter.new($$ext))
+
             String dyncBindStr = getBindVar(entry);
-            
+
             String[] argsList = getArgsLstArray(entry);
             if (argsList != null) {
                 int count = 0;
@@ -437,7 +443,8 @@ public class Compiler {
             if (argTypeList != null) {
                 jOut(1, "pointcut PointCut%d(%s):", pointcutNum, argList4PC);
                 String callStr = getPCMethodName(entry);
-                if (callStr.substring(0,2).equals("$$")) {
+
+                if (callStr.substring(0, 2).equals("$$")) {
                     if (closure.getContext(callStr.substring(2, callStr.length())) != null)
                         callStr = closure.getContext(callStr.substring(2, callStr.length()));
                 }
@@ -462,7 +469,7 @@ public class Compiler {
             }
         }
 
-        if (this.extractedPtCuts4Results.size() > 0) { 
+        if (this.extractedPtCuts4Results.size() > 0) {
             jOut(1, "pointcut PointCut%d(Method run):", pointcutNum);
             jOut(2, "target(run) &&call(Object Method.invoke(..));\n");
             outAdvicePrologue4Result("PointCut" + pointcutNum);
@@ -476,7 +483,9 @@ public class Compiler {
         if (pvisitor.hasTransation()) {
             createTransUtil(pvisitor.getTransactions());
         }
+
         outAspectEpilogue();
+
         aspectWriter.close();
         aspectWriter = null;
     }
@@ -583,7 +592,7 @@ public class Compiler {
         jOut(0, "import com.poco.PoCoRuntime.*;");
         jOut(0, "import java.lang.reflect.Method;\n");
         jOut(0, "public aspect %s {", aspectName);
-        jOut(1, "private DummyRootPolicy root = new DummyRootPolicy( new %s() );\n", childName); 
+        jOut(1, "private DummyRootPolicy root = new DummyRootPolicy( new %s() );\n", childName);
     }
 
     private void outAdvicePrologue(String dyncBindStr, String pointcutName, String aroundlist, String arglist, String monitorVal) {
@@ -695,13 +704,20 @@ public class Compiler {
         String[] resultStr = new String[2];
         if (matchVal != null && matchVal.length() > 0) {
             matchVal = matchVal.replace("%", ".*");
-
             String reg = "@(.+)@(.+)";
             Pattern pattern = Pattern.compile(reg);
             Matcher matcher = pattern.matcher(matchVal);
             if (matcher.find()) {
                 matchVal = matcher.group(2).trim();
                 resultStr[1] = matcher.group(1).trim() + " = " + valName + ";";
+            }else {
+                reg = "@(.+)@";
+                pattern = Pattern.compile(reg);
+                matcher = pattern.matcher(matchVal);
+                if (matcher.find()) {
+                    matchVal = matcher.group(1).trim();
+                    resultStr[1] = matcher.group(1).trim() + " = " + valName + ";";
+                }
             }
             String str = "";
             switch (type) {
@@ -725,7 +741,6 @@ public class Compiler {
                 default:
                     str = "String.valueOf(" + valName + ")";
             }
-
 
             if (mode == 0)
                 resultStr[0] = "SREUtil.StringMatch(" + str + ", \"" + matchVal + "\")";
@@ -764,18 +779,19 @@ public class Compiler {
     }
 
     private String getPCMethodName(String str) {
-        String reg = "@(.+)@(.+)";
+        String reg = "(.+)\\((.+)\\)";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(str);
         if (matcher.find())
+            str = matcher.group(1).toString().trim();
+
+        reg = "@(.+)@(.+)";
+        pattern = Pattern.compile(reg);
+        matcher = pattern.matcher(str);
+        if (matcher.find())
             str = matcher.group(2).toString().trim();
 
-        int index = str.indexOf('(');
-        if (index == -1)
-            return str;
-        else {
-            return str.substring(0, index);
-        }
+        return str;
     }
 
     private String[] getArgsLstArray(String str) {
@@ -811,14 +827,20 @@ public class Compiler {
             pattern = Pattern.compile(reg);
             matcher = pattern.matcher(str);
             if (matcher.find()) {
+                String temp = matcher.group(1).toString().trim();
+                reg = "@(.+)@";
+                pattern = Pattern.compile(reg);
+                matcher = pattern.matcher(temp);
+                if (matcher.find())
+                    temp = matcher.group(1).toString().trim();
                 if (index == 1) {
-                    String varType = closure.getType(matcher.group(1).toString().trim());
+                    String varType = closure.getType(temp);
                     if (varType == null || varType.length() == 0)
                         return "java.lang.String";
                     else
                         return varType;
                 } else { //if index == 2;
-                    String value = closure.getContext(matcher.group(1).toString().trim());
+                    String value = closure.getContext(temp);
                     if (value == null)
                         return "";
                     else
