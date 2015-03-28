@@ -7,6 +7,7 @@ import org.antlr.v4.runtime.misc.NotNull;
 
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
+import java.security.cert.PolicyNode;
 import java.util.HashSet;
 import java.util.Stack;
 import java.util.regex.Matcher;
@@ -515,7 +516,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             }
             String content = "";
             if (ctx.DOLLAR() != null) {
-                content = "$$" + ctx.qid().getText() + "$$";
+                String policyName = closure.getContext("PolicyName");
+                content = "$$" + policyName + "_" +ctx.qid().getText() + "$$";
                 if (ctx.opparamlist() != null) {
                     //only need care about the arglist is when we try to promote the action
                     if (isSrePos) {
@@ -700,9 +702,10 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     }
 
     private String getVarTyp(String qid) {
-        if (closure != null && closure.getType(qid) != null)
-            return "#" + closure.getType(qid) + "{$$" + qid + "$$}";
-        return "null";
+        if (closure != null && closure.getType(qid) != null) {
+            String policyName = closure.getContext("PolicyName");
+            return "#" + closure.getType(qid) + "{$$" + policyName +"_" +qid + "$$}";
+        }return "null";
     }
 
     /**
