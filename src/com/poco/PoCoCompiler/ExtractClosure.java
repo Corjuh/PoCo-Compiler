@@ -31,7 +31,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
     private boolean parseRe = false;
     private String closureVal;
     private String binding;
-
+    private String policyName = "";
 
     /**
      * Generates code for class representing a PoCo policy. This is the first visit method called.
@@ -43,10 +43,13 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
     public Void visitPocopol(@NotNull PoCoParser.PocopolContext ctx) {
         // need handle when policy has parameteres (e.g., OutgoingMail(String ContactInfo))
         closure = new Closure();
+        policyName = ctx.id().getText().trim();
+        VarTypeVal varTyCal = new VarTypeVal("java.lang.String", policyName);
+        closure.addClosure("PolicyName", varTyCal);
         if (ctx.paramlist() != null && ctx.paramlist().getText().trim().length() > 0) {
             PoCoParser.ParamlistContext paraList = ctx.paramlist();
             while (paraList != null) {
-                VarTypeVal varTyCal = new VarTypeVal(paraList.qid().getText(), paraList.id().getText());
+                varTyCal = new VarTypeVal(paraList.qid().getText(), paraList.id().getText());
                 closure.addClosure(paraList.id().getText(), varTyCal);
                 paraList = paraList.paramlist();
             }
@@ -227,7 +230,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
         return null;
     }
 
-    private static String getObjVal(String str) {
+    private  String getObjVal(String str) {
         String tempStr = "";
         String returnStr = "";
         String reg = "#(.+)\\{(.+)\\}";
@@ -245,7 +248,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                 returnStr += tempStr.substring(0, tempStr.indexOf('$'));
                 tempStr = tempStr.substring(tempStr.indexOf('$'), tempStr.length());
                 if (tempStr.indexOf(' ') != -1) {
-                    returnStr += "$" + tempStr.substring(0, tempStr.indexOf(' ')) + "$$";
+                    returnStr += "$$"+policyName + "_" + tempStr.substring(1, tempStr.indexOf(' ')) + "$$";
                     tempStr = tempStr.substring(tempStr.indexOf(' ') + 1, tempStr.length());
                 }
             }
