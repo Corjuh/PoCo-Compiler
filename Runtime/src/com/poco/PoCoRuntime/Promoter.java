@@ -1,5 +1,7 @@
 package com.poco.PoCoRuntime;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -7,50 +9,42 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Created by caoyan on 1/30/15.
  */
 public class Promoter {
-
-    // double check with Danielle if we need to consider the instance invoke
-    // case,
-    // since the invoke would be a little bit different
-    // instance.getClass(); (//new Date().getClass();)
-
     /**
      *
      * @param pocoString
      *            the function want to be invoked
      * @throws Exception
      */
-    public static void Reflect(String pocoString) throws Exception {
+    public static void Reflect(String pocoString, Object[] objects) throws Exception {
         // className.funcName(#java.lang.Integer{42},#java.lang.String{402125})
         List<String> toExecute = Parse(pocoString);
-
         // class we are calling
         String className = toExecute.get(0)
                 .substring(0, toExecute.get(0).length() - 1).trim();
-
         // the name of function the to be invoked
         String methodName = toExecute.get(1).trim();
-
-        // String[] params = null;
         ArrayList<ReflectParameter> rps = null;
         // if params list is not empty
         if (toExecute.size() == 3) {
             String[] params = toExecute.get(2).split(","); // #java.lang.Integer{42}
             rps = ParseParameters(params);
         }
-        ReflectExecute(className, methodName, rps);
+        ReflectExecute(className, methodName, rps, objects);
     }
 
-    public static void ReflectExecute(String className, String methodName,
-                                      ArrayList<ReflectParameter> params) throws Exception {
+    private static void ReflectExecute(String className, String methodName,
+                                       ArrayList<ReflectParameter> params, Object[] objs) throws Exception {
         try {
             boolean isfound = false;
+
+            //get rid of the return type if the string contains it
+            if(className.trim().split(" ").length == 2)
+                className = className.trim().split(" ")[1];
             Class cls1 = Class.forName(className);
             Method[] methods = cls1.getMethods();
             Method theMethod = null;
@@ -68,8 +62,7 @@ public class Promoter {
                             String methodParam = GetTypeName(methodParams[i]
                                     .toString());
                             // if the type is not the primitive type
-                            if (!methodParam.equals(it.next()
-                                    .GetParameterType())) {
+                            if (!methodParam.equals(it.next().GetParameterType())) {
                                 isfound = false;
                                 break;
                             }
@@ -84,10 +77,8 @@ public class Promoter {
             }
             // found the right method that is we wanted
             if (isfound) {
-                // System.out.println("the Method's name: " +
-                // theMethod.getName());
                 if (paramCounts > 0) {
-                    Object[] objs = new Object[paramCounts];
+                    /*Object[] objs = new Object[paramCounts];
                     int i = 0;
                     for (Iterator<ReflectParameter> it = params.iterator(); it
                             .hasNext();) {
@@ -98,7 +89,7 @@ public class Promoter {
                                     rp.GetParameterValue());
                         i++;
                     }
-
+                    */
                     // need check static or not
                     if (Modifier.isStatic(theMethod.getModifiers())) {
                         theMethod.invoke(null, objs);
@@ -123,9 +114,8 @@ public class Promoter {
      * @return
      * @throws Exception
      */
-    public static ArrayList<String> Parse(String toParse) throws Exception {
+    private static ArrayList<String> Parse(String toParse) throws Exception {
         ArrayList<String> tokens = new ArrayList<>();
-
         String reg = "(.+\\.)*(.+)\\((.*)\\)";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(toParse);
@@ -143,7 +133,7 @@ public class Promoter {
         return tokens;
     }
 
-    public static ArrayList<ReflectParameter> ParseParameters(String[] params)
+    private static ArrayList<ReflectParameter> ParseParameters(String[] params)
             throws Exception {
         ArrayList<ReflectParameter> rps = new ArrayList<ReflectParameter>(
                 params.length);
@@ -154,8 +144,8 @@ public class Promoter {
             matcher = pattern.matcher(params[i]);
             if (matcher.find()) {
                 String paraTyp = matcher.group(1).toString().trim();
-                String paraVal = matcher.group(2).toString().trim();
-                rps.add(new ReflectParameter(paraTyp, paraVal));
+                //String paraVal = matcher.group(2).toString().trim();
+                rps.add(new ReflectParameter(paraTyp, null));
             } else {
                 throw new Exception("the parameter you entered is invalid");
             }
@@ -177,7 +167,7 @@ public class Promoter {
      * @param val
      * @return
      */
-    public static Object newInstance4Param(String type, String val) {
+    private static Object newInstance4Param(String type, String val) {
         Object obj = null;
         try {
 			/*
