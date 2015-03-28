@@ -267,7 +267,8 @@ public class Compiler {
         pcExtractor.visit(parseTree);
         this.extractedPtCuts = pcExtractor.getPCStrings();
         this.extractedPtCuts4Results = pcExtractor.getPCStrs4Results();
-
+        this.objParams = pcExtractor.getObjParams();
+        Set<String> set = this.extractedPtCuts.keySet();
         /*for (String entry : this.extractedPtCuts) {
             extractedPCs.add(entry);
         }
@@ -280,14 +281,13 @@ public class Compiler {
         writeToFile(extractedPCs, policyExtractPath);
         // Extract all method signatures from jar/class files
         vOut("Extracting method signatures from scan files...\n");*/
-        this.extractedMethodSignatures = new LinkedHashSet<>();
+        /*this.extractedMethodSignatures = new LinkedHashSet<>();
         for (Path scanFilePath : scanFilePaths) {
             this.extractedMethodSignatures.addAll(new MethodSignaturesExtract(scanFilePath).getMethodSignatures());
         }
-
         // Write the extracted methods to a file
         Path methodExtractPath = outputDir.resolve(policyName + "_allmethods.txt");
-        writeToFile(extractedMethodSignatures, methodExtractPath);
+        writeToFile(extractedMethodSignatures, methodExtractPath);*/
     }
 
     /**
@@ -743,7 +743,7 @@ public class Compiler {
             if (mode == 0)
                 resultStr[0] = "SREUtil.StringMatch(" + str + ", \"" + matchVal + "\")";
             else //if(mode == 1)
-                resultStr[0] = "SREUtil.StringMatch(" + str + ", DataWH.closure.get(\"" + matchVal + "\"))";
+                resultStr[0] = "SREUtil.StringMatch(" + str + ", DataWH.closure.get(\"" + policyName +"_" + matchVal + "\"))";
             return resultStr;
         }
         return null;
@@ -773,9 +773,9 @@ public class Compiler {
             Set<String> set = monitoredPC.keySet();
             for (Iterator<String> it = set.iterator(); it.hasNext(); ) {
                 String varName = it.next();
-                jOut(offset, "typeVal = DataWH.dataVal.get(\"" + varName + "\").getType();");
-                jOut(offset, "DataWH.dataVal.remove(\"" + varName + "\");");
-                jOut(offset, "DataWH.dataVal.put(\"" + varName + "\", new TypeVal(typeVal, " + monitoredPC.get(varName) + "));");
+                jOut(offset, "typeVal = DataWH.dataVal.get(\"" +policyName+"_" +varName + "\").getType();");
+                jOut(offset, "DataWH.dataVal.remove(\"" + policyName+"_" +varName + "\");");
+                jOut(offset, "DataWH.dataVal.put(\"" + policyName+"_" +varName + "\", new TypeVal(typeVal, " + monitoredPC.get(varName) + "));");
             }
         }
     }
@@ -888,6 +888,8 @@ public class Compiler {
         Set<Map.Entry<String, VarTypeVal>> entrySet = closure.getClosures().entrySet();
         jOut(1, "public " + aspectName + "() {");
         for (Map.Entry entry : entrySet) {
+            if(entry.getKey().equals("PolicyName"))
+                continue;
             String varContext = ((VarTypeVal) entry.getValue()).getVarContext();
             if (varContext == null || varContext.equals("%"))
                 varContext = ".*";
@@ -895,7 +897,7 @@ public class Compiler {
                 varContext = varContext.replace("%.", "(.*)\\.");
             varContext = varContext.replace("\\", "\\\\");
             String key = policyName + "_" + entry.getKey();
-            jOut(2, "DataWH.closure.put(\"" + entry.getKey() + "\", \"" + varContext + "\");");
+            jOut(2, "DataWH.closure.put(\"" + key + "\", \"" + varContext + "\");");
         }
         if (objParams != null) {
             for (String s : objParams) {
@@ -951,7 +953,7 @@ public class Compiler {
                             break;
                     }
                 }
-                //s = policyName + "_" + s;
+                s = policyName + "_" + s;
                 jOut(2, "DataWH.dataVal.put(\"" + s + "\"," + str);
             }
         }
