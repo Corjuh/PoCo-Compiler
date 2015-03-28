@@ -46,15 +46,17 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 pointcutStr = pointcutStr + " * (..); ";
             } else if (ctx.qid() != null) {
                 if (closure != null && closure.isContains(ctx.qid().getText())) {
-                    pointcutStr = closure.getContext(ctx.qid().getText());
+                    String funcStr = closure.getContext(ctx.qid().getText());
+                    //function name included return type;
+                    if(getFunctionName(funcStr).split(" ").length ==2)
+                        pointcutStr = funcStr;
+                    else
+                        pointcutStr +=funcStr;
                 } else {
                     throw new NullPointerException("No such var exist.");
                 }
                 if (ctx.opparamlist() != null) {
-                    int leftPara = pointcutStr.indexOf("(");
-                    int righPara = pointcutStr.indexOf(")");
-                    if(leftPara!=-1 && righPara!=-1 && leftPara <righPara)
-                        pointcutStr = pointcutStr.substring(0,leftPara);
+                    pointcutStr = getFunctionName(pointcutStr);
                     if (ctx.opparamlist().getText().equals("%")) {
                         pointcutStr += "(..)";
                         add2NodesNodes4Result(pointcutStr);
@@ -113,8 +115,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 } else if (ctx.AT() != null) {
                     varBinding = true;
                     varBind4thisPC.add(ctx.id().getText());
-                    //pointcutStr = ctx.id().getText();
-                    //System.out.println("--------"+pointcutStr);
                     visitChildren(ctx);
                     varBinding = false;
                 } else {
@@ -270,7 +270,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     public void add2NodesNodes4Result(String pointcutStr) {
         pointcutStr = pointcutStr.trim();
-
         if (!isResult) {
             if (nodes.containsKey(pointcutStr))
                 varBind4thisPC.addAll(nodes.get(pointcutStr));
@@ -286,5 +285,13 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             nodes4Results.put(pointcutStr, varBind4thisPC);
             varBind4thisPC = new HashSet<String>();
         }
+    }
+
+    public String getFunctionName(String str) {
+        int leftPara = str.indexOf("(");
+        int righPara = str.indexOf(")");
+        if(leftPara!=-1 && righPara!=-1 && leftPara <righPara)
+            return str.substring(0,leftPara);
+        return str;
     }
 }
