@@ -41,7 +41,6 @@ public class Compiler {
     private PrintWriter aspectWriter = null;
     /** Other policies that need to be parsed (found via "import" statements) */
     private LinkedHashSet<String> additionalPolicies = new LinkedHashSet<>();
-
     /*
      * COMPILATION RESULTS
      */
@@ -52,21 +51,24 @@ public class Compiler {
     /** Regular expressions from PoCo policy */
     private ArrayList<String> extractedREs = null;
     
-     /** pointcut info  from PoCo policy */
+    /** * pointcut info  from PoCo policy */
     ArrayList<String> extractedPCs = new ArrayList<String>();
-    LinkedHashSet<String> extractedPtCuts = null;
+    Hashtable<String, HashSet<String>> extractedPtCuts = null;
     //add this in order to generate the different kinds of advices for pointcuts
-    LinkedHashSet<String> extractedPtCuts4Results = null;
-    /** All method signatures from files in scanFilePaths */
+    Hashtable<String, HashSet<String>> extractedPtCuts4Results = null;
+
+    /**  All method signatures from files in scanFilePaths */
     private LinkedHashSet<String> extractedMethodSignatures = null;
-    /** Each RE from the PoCo policy mapped to all matching methods */
+    /**  * Each RE from the PoCo policy mapped to all matching methods  */
     private LinkedHashMap<String, ArrayList<String>> regexMethodMappings = null;
     private LinkedHashMap<String, ArrayList<String>> pointcutMappings = null;
     /**
      * vars and marcos value will be saved in closure
      */
     private Closure closure;
-    private HashSet<String> monitoredPC = new HashSet<String>();
+    private Hashtable<String, String> monitoredPC = new Hashtable<String, String>();
+    private HashSet<String> varNeedBind;
+    private HashSet<String> objParams;
 
     /**
      * Writes a Collection object to a file, separated by newlines.
@@ -266,7 +268,7 @@ public class Compiler {
         this.extractedPtCuts = pcExtractor.getPCStrings();
         this.extractedPtCuts4Results = pcExtractor.getPCStrs4Results();
 
-        for (String entry : this.extractedPtCuts) {
+        /*for (String entry : this.extractedPtCuts) {
             extractedPCs.add(entry);
         }
         for (String entry : this.extractedPtCuts4Results) {
@@ -277,7 +279,7 @@ public class Compiler {
         //writeToFile(extractedREs, policyExtractPath);
         writeToFile(extractedPCs, policyExtractPath);
         // Extract all method signatures from jar/class files
-        vOut("Extracting method signatures from scan files...\n");
+        vOut("Extracting method signatures from scan files...\n");*/
         this.extractedMethodSignatures = new LinkedHashSet<>();
         for (Path scanFilePath : scanFilePaths) {
             this.extractedMethodSignatures.addAll(new MethodSignaturesExtract(scanFilePath).getMethodSignatures());
@@ -348,30 +350,8 @@ public class Compiler {
         outAspectPrologue(aspectName, childPolicyName);
 
         //adding variable declares so later we can updated the dynamic binding values.
-        if (closure != null) {
-            Set<String> keySet = closure.getClosures().keySet();
-            Set<Map.Entry<String, VarTypeVal>> entrySet = closure.getClosures().entrySet();
-            for (Map.Entry entry : entrySet) {
-                String varContext = ((VarTypeVal) entry.getValue()).getVarContext();
-                if (varContext == null)
-                    varContext = "";
-                else if (varContext.equals("%"))
-                    varContext = ".*";
-                jOut(1, "private String " + entry.getKey() + " = \"" + varContext + "\";");
-            }
-
-            jOut(1, "public " + aspectName + "() {");
-            for (Map.Entry entry : entrySet) {
-                String varContext = ((VarTypeVal) entry.getValue()).getVarContext();
-                if (varContext == null)
-                    varContext = "";
-                else if (varContext.equals("%"))
-                    varContext = ".*";
-                jOut(2, "root.updateClosure(\"" + entry.getKey() + "\", \"" + varContext + "\");");
-            }
-            jOut(1, "}");
-        }
-
+        if (closure != null)
+            genVarClosure(aspectName);
         jOut(1, "");
         //add this paragraph for generate pointcut for reflection calls
         //only reflection calls can be made is thru PoCo
@@ -382,74 +362,113 @@ public class Compiler {
         jOut(1, "}\n");
         int pointcutNum = 0;
 
-        for (String entry : this.extractedPtCuts) {
-            // $$SendMail($$@msg@$$) ||  $$SendMail
+        Set<String> keys = this.extractedPtCuts.keySet();
+        for (Iterator<String> key = keys.iterator(); key.hasNext(); ) {
+            String entry = key.next();
+            varNeedBind = this.extractedPtCuts.get(entry);
+            System.out.println("entry:" + entry);
+            // $$SendMail($$msg$$) ||  $$SendMail
             if (entry.startsWith("$$")) {
-                boolean isMonitored = false;
                 String varName = entry.substring(2, entry.length());
-                if(varName.indexOf('(') != -1) {//is function format
-                    varName = varName.substring(0,varName.indexOf('('));
+                if (varName.indexOf('(') != -1) {//is function format
+                    varName = varName.substring(0, varName.indexOf('('));
                 }
-                for (Iterator<String> it = monitoredPC.iterator(); it.hasNext(); ) {
-                    if (it.next().startsWith("@" + varName + "@")) {
-                        isMonitored = true;
-                        break;
-                    }
-                }
-                if (isMonitored == true)
-                    continue;
-            } else
-                monitoredPC.add(entry);
-
+            }
             //argTypeList:  Integer, String
             String argList4PC = "";
             //argList4PC :  Integer value0, String value1
             String argList4Call = "";
+            //this one will use for generate monitor values for defining the around advice
+            //the different btw this and monitorVals is that, in advice, * should be deleted.
+            //e.g., pointcut PointCut1(String value0):call(java.io.File.new(..,String)) && args(*,value0);
+            //      Object around(String value0): PointCut1(value0) {.....}
+            String argLs4Around = "";
+
             //argList4Call: value0, value1
             String argTypeList = "";
             //aspect will only monitor the values that matches
             String monitorVals = "";
-            //get the var name that need 2B dynamically updated (e.g., @call@java.io.FileWriter.new($$ext))
 
-            String dyncBindStr = getBindVar(entry);
-
+            //get the var name that need 2B dynamically updated
             String[] argsList = getArgsLstArray(entry);
             if (argsList != null) {
                 int count = 0;
                 for (int i = 0; i < argsList.length; i++) {
                     String str = getArgsType(argsList[i], 1);
-                    if (!str.contains("..")) {
-                        argTypeList += getArgsType(argsList[i], 1);
-                        argList4PC += getArgsType(argsList[i], 1) + " value" + count;
-                        if (getArgsMatchVal(argsList[i]) != null) {
-                            monitorVals += argList4PC + getArgsMatchVal(argsList[i]);
-                            if (i != argsList.length - 1) monitorVals += ",";
+                    if (!str.equals("..")) {
+                        String varTyp = getArgsType(argsList[i], 1);
+                        argTypeList += varTyp;
+                        argList4PC += varTyp + " value" + count;
+                        if (getArgsType(argsList[i], 2) != null) {
+                            monitorVals += argList4PC + getArgsType(argsList[i], 2);
+                            if (i != argsList.length - 1)
+                                monitorVals += ",";
                         }
+                        argLs4Around += "value" + count;
                         argList4Call += "value" + count++;
-
                         if (i != argsList.length - 1) {
-                            argTypeList += ",";
-                            argList4PC += ",";
+                            argTypeList  += ",";
+                            argList4PC   += ",";
                             argList4Call += ",";
+                            argLs4Around += ",";
                         }
+                    }else {
+                        argList4Call +="*";
+                        if (i != argsList.length - 1)
+                            argList4Call += ",";
                     }
+
                 }
-                argTypeList = trimLastPunctuation(argTypeList, ",");
-                argList4PC = trimLastPunctuation(argList4PC, ",");
+                argTypeList  = trimLastPunctuation(argTypeList, ",");
+                argList4PC   = trimLastPunctuation(argList4PC, ",");
                 argList4Call = trimLastPunctuation(argList4Call, ",");
-                monitorVals = trimLastPunctuation(monitorVals, ",");
+                argLs4Around = trimLastPunctuation(argLs4Around, ",");
+                monitorVals  = trimLastPunctuation(monitorVals, ",");
             }
-            //if argTypeList is empty then no need for define arugment for pointcut
+            //if argTypeList is empty then no need for define argument for pointcut
             if (argTypeList != null) {
                 jOut(1, "pointcut PointCut%d(%s):", pointcutNum, argList4PC);
                 String callStr = getPCMethodName(entry);
-
                 if (callStr.substring(0, 2).equals("$$")) {
                     if (closure.getContext(callStr.substring(2, callStr.length())) != null)
                         callStr = closure.getContext(callStr.substring(2, callStr.length()));
+                    String funName = getPCMethodName(callStr);
+                    //if the method signature included the return type(if user included the return
+                    // type then has to have space btw return type and method name) then just use it,
+                    //if not, we will consider any none constructor method(.new) with * return type
+                    if (funName.split(" ").length == 1 && !funName.substring(funName.length() - 4, funName.length()).equals(".new")) {
+                        funName = "* " + funName;
+                    }
+                    String argTyps = "";
+                    //callStr = java.io.File($FileType) | java.io.File(\*, $FileType);
+                    int index = 0;
+                    while (index < callStr.length() && callStr.indexOf("(", index) != -1 && callStr.indexOf(")", index + 1) != -1) {
+                        int startIndex = callStr.indexOf("(", index);
+                        int endIndex = callStr.indexOf(")", index + 1);
+                        String strInPara = callStr.substring(startIndex + 1, endIndex);
+                        if (endIndex > startIndex) {
+                            argTyps = getArgsTyp4PC(strInPara);
+                            index = endIndex + (argTyps.length() - strInPara.length());
+                            String fstPart = callStr.substring(0, startIndex + 1);
+                            if (endIndex < callStr.length() - 1) {
+                                String sndPart = callStr.substring(endIndex, callStr.length());
+                                callStr = fstPart + argTyps + sndPart;
+                            } else if (endIndex == callStr.length() - 1) {
+                                callStr = fstPart + argTyps + ")";
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    String funName = getPCMethodName(entry);
+                    String args = "";
+                    if (entry.indexOf("(") != -1 && entry.indexOf(")") != -1) {
+                        args = getArgsTyp4PC(entry.substring(entry.indexOf("("), entry.length()));
+                    }
+                    callStr = funName + "(" + args + ")";
                 }
+                callStr = callStr.replace("\\", "");
                 if (argTypeList != "") {
-                    callStr += "(" + argTypeList + ")";
                     jOut(2, "call(%s) && args(%s);\n", callStr, argList4Call);
                 } else {
                     if (entry.contains("(..)")) {
@@ -458,13 +477,13 @@ public class Compiler {
                         jOut(2, "call(%s);\n", callStr);
                     }
                 }
-                outAdvicePrologue(dyncBindStr, "PointCut" + pointcutNum, argList4PC, argList4Call, monitorVals);
+                outAdvicePrologue("PointCut" + pointcutNum, argList4PC, argLs4Around, monitorVals);
                 pointcutNum++;
             } else {
                 jOut(1, "pointcut PointCut%d():", pointcutNum);
                 String callStr = getPCMethodName(entry);
                 jOut(2, "call(%s(..));\n", callStr);
-                outAdvicePrologue(dyncBindStr, "PointCut" + pointcutNum, argList4PC, argList4Call, monitorVals);
+                outAdvicePrologue("PointCut" + pointcutNum, argList4PC, argLs4Around, monitorVals);
                 pointcutNum++;
             }
         }
@@ -489,7 +508,7 @@ public class Compiler {
         aspectWriter.close();
         aspectWriter = null;
     }
-    
+
     private void outAspectEpilogue() {
         jOut(0, "}");
     }
@@ -504,6 +523,7 @@ public class Compiler {
         jOut(2, "return false;");
         jOut(1, "}\n");
     }
+
     private String trimLastPunctuation(String str, String punctuation) {
         while (str.length() > 1) {
             int x = str.length() - punctuation.length();
@@ -595,7 +615,7 @@ public class Compiler {
         jOut(1, "private DummyRootPolicy root = new DummyRootPolicy( new %s() );\n", childName);
     }
 
-    private void outAdvicePrologue(String dyncBindStr, String pointcutName, String aroundlist, String arglist, String monitorVal) {
+    private void outAdvicePrologue(String pointcutName, String aroundlist, String arglist, String monitorVal) {
          /* aroundlist: String value0,int value1; arglist: value0,value1; monitorVal String value0$$*.class$$*/
         if (monitorVal != null && monitorVal.length() > 0)
             jOut(1, "Object around(%s): %s(%s) {", aroundlist, pointcutName, arglist);
@@ -603,47 +623,10 @@ public class Compiler {
             jOut(1, "Object around(): %s() {", pointcutName);
 
         if (monitorVal != null && monitorVal.length() > 0) {
-            String[] conditionState = genCoditionStatements(monitorVal);
-            if (conditionState != null && conditionState[0] != null && conditionState[0].length() > 0) {
-                jOut(2, "if (" + conditionState[0] + ") {");
-                if (conditionState[1] != null && conditionState[1].length() > 0) {
-                    String[] updates = conditionState[1].split("&&");
-                    for (String str : updates)
-                        jOut(3, str);
-                }
-                if (dyncBindStr != null)
-                    outAdviceProlog4DynBind(dyncBindStr, 3);
-                jOut(3, "root.queryAction(new Event(thisJoinPoint));");
-                jOut(3, "return proceed(%s);", arglist);
-                jOut(2, "}");
-                jOut(2, "else");
-                jOut(3, "return proceed(%s);", arglist);
-                jOut(1, "}\n");
-            } else {
-                if (dyncBindStr != null)
-                    outAdviceProlog4DynBind(dyncBindStr,2);
-                jOut(2, "root.queryAction(new Event(thisJoinPoint));");
-                jOut(2, "return proceed(%s);", arglist);
-                jOut(1, "}\n");
-            }
-        } else {
-            if (dyncBindStr != null)
-                outAdviceProlog4DynBind(dyncBindStr, 2);
-            jOut(2, "root.queryAction(new Event(thisJoinPoint));");
-            jOut(2, "return proceed();");
-            jOut(1, "}\n");
-        }
-    }
-
-    private String[] genCoditionStatements(String matchStrs) {
-        if (matchStrs == null || matchStrs.equals(""))
-            return null;
-        else {
-            String[] returnStr = new String[2];
-            returnStr[0] = "";
-            returnStr[1] = "";
-
-            String[] typeValArray = matchStrs.split(",");
+            String[] typeValArray = monitorVal.split(",");
+            String[] varTyps = new String[typeValArray.length];
+            String[] varNams = new String[typeValArray.length];
+            String[] varVals = new String[typeValArray.length];
             if (typeValArray != null) {
                 String reg1 = "(.+)\\$\\$(.+)\\$\\$";
                 String reg2 = "(.+)\\$\\$(.+)";
@@ -651,51 +634,79 @@ public class Compiler {
                 Pattern pattern2 = Pattern.compile(reg2);
                 Matcher matcher1;
                 Matcher matcher2;
-                //String value0$$*.class$$ ||String value0.$$ip ||String value0 ||String value0$$*.class$$, int value1$$aa$$
                 for (int i = 0; i < typeValArray.length; i++) {
                     matcher1 = pattern1.matcher(typeValArray[i]);
                     matcher2 = pattern2.matcher(typeValArray[i]);
                     if (matcher1.find()) {
-                        String[] typValName = matcher1.group(1).toString().trim().split(" ");
-                        String typ = typValName[0];
-                        String valName = typValName[1];
-                        String[] temp = genCoditionStatement(typ, valName, matcher1.group(2).toString(), 0);
-                        if (temp != null) {
-                            if (temp[0] != null)
-                                returnStr[0] += temp[0] + " && ";
-                            if (temp[1] != null)
-                                returnStr[1] += temp[1] + " && ";
-                        }
+                        varTyps[i] = matcher1.group(1).toString().trim().split(" ")[0];
+                        varNams[i] = matcher1.group(1).toString().trim().split(" ")[1];
+                        varVals[i] = matcher1.group(2).toString().trim();
                     } else if (matcher2.find()) {
-                        String[] typValName = matcher2.group(1).toString().trim().split(" ");
-                        String typ = typValName[0];
-                        String valName = typValName[1];
-                        String[] temp = genCoditionStatement(typ, valName, matcher2.group(2).toString(), 1);
-                        if (temp != null) {
-                            if (temp[0] != null)
-                                returnStr[0] += temp[0] + " && ";
-                            if (temp[1] != null)
-                                returnStr[1] += temp[1] + " && ";
-                        }
-                    } else if (typeValArray[i].contains(" ")) {
-                        String typ = typeValArray[i].substring(0, typeValArray[i].indexOf(' '));
-                        String val = typeValArray[i].substring(typeValArray[i].indexOf(' ') + 1);
+                        varTyps[i] = matcher2.group(1).toString().trim().split(" ")[0];
+                        varNams[i] = matcher2.group(1).toString().trim().split(" ")[1];
+                        varVals[i] = matcher2.group(2).toString().trim();
 
-                        String valName = getArgsType(val, 1);
-                        String matchVal = getArgsType(val, 2);
-                        String[] temp = genCoditionStatement(typ, valName, matchVal, 0);
-                        if (temp != null) {
-                            if (temp[0] != null)
-                                returnStr[0] += temp[0] + " && ";
-                            if (temp[1] != null)
-                                returnStr[1] += temp[1] + " && ";
-                        }
+                        if(varNeedBind!= null && varNeedBind.contains(varVals[i]))
+                            monitoredPC.put(varVals[i], varNams[i]);
+                        varVals[i] = "$$" + varVals[i];
                     }
+                }
+            }
+            String[] conditionState = genCoditionStatements(varTyps, varNams, varVals);
+            if (conditionState != null && conditionState[0] != null && conditionState[0].length() > 0) {
+                jOut(2, "if (" + conditionState[0] + ") {");
+                if (conditionState[1] != null && conditionState[1].length() > 0) {
+                    String[] updates = conditionState[1].split("&&");
+                    for (String str : updates)
+                        jOut(3, str);
+                }
+                outAdviceProlog4DynBind(3);
+                jOut(3, "root.queryAction(new Event(thisJoinPoint));");
+                jOut(3, "return proceed(%s);", arglist);
+                jOut(2, "}");
+                jOut(2, "else");
+                jOut(3, "return proceed(%s);", arglist);
+                jOut(1, "}\n");
+            } else {
+                outAdviceProlog4DynBind(2);
+                jOut(2, "root.queryAction(new Event(thisJoinPoint));");
+                jOut(2, "return proceed(%s);", arglist);
+                jOut(1, "}\n");
+            }
+        } else {
+            jOut(2, "root.queryAction(new Event(thisJoinPoint));");
+            jOut(2, "return proceed();");
+            jOut(1, "}\n");
+        }
+    }
+
+    private String[] genCoditionStatements(String[] varTyps, String[] varNams, String[] varVals) {
+        if (varTyps == null || varTyps.length == 0)
+            return null;
+        else {
+            String[] returnStr = new String[2];
+            returnStr[0] = "";
+            returnStr[1] = "";
+            String[] temp = new String[2];
+            for (int i = 0; i < varTyps.length; i++) {
+                //need handle the case where we do not care about the type and value
+                if (varVals[i] == null) {
+                    continue;
+                }
+                if (varVals[i].startsWith("$$"))
+                    temp = genCoditionStatement(varTyps[i], varNams[i],
+                            varVals[i].substring(2, varVals[i].length()), 1);
+                else
+                    temp = genCoditionStatement(varTyps[i], varNams[i], varVals[i], 0);
+                if (temp != null) {
+                    if (temp[0] != null)
+                        returnStr[0] += temp[0] + " && ";
+                    if (temp[1] != null)
+                        returnStr[1] += temp[1] + " && ";
                 }
             }
             returnStr[0] = trimLastPunctuation(returnStr[0], " && ");
             returnStr[1] = trimLastPunctuation(returnStr[1], " && ");
-
             return returnStr;
         }
     }
@@ -704,21 +715,8 @@ public class Compiler {
         String[] resultStr = new String[2];
         if (matchVal != null && matchVal.length() > 0) {
             matchVal = matchVal.replace("%", ".*");
-            String reg = "@(.+)@(.+)";
-            Pattern pattern = Pattern.compile(reg);
-            Matcher matcher = pattern.matcher(matchVal);
-            if (matcher.find()) {
-                matchVal = matcher.group(2).trim();
-                resultStr[1] = matcher.group(1).trim() + " = " + valName + ";";
-            }else {
-                reg = "@(.+)@";
-                pattern = Pattern.compile(reg);
-                matcher = pattern.matcher(matchVal);
-                if (matcher.find()) {
-                    matchVal = matcher.group(1).trim();
-                    resultStr[1] = matcher.group(1).trim() + " = " + valName + ";";
-                }
-            }
+            if (monitoredPC.contains(matchVal))
+                resultStr[1] = matchVal + " = " + valName + ";";
             String str = "";
             switch (type) {
                 case "int":
@@ -745,7 +743,7 @@ public class Compiler {
             if (mode == 0)
                 resultStr[0] = "SREUtil.StringMatch(" + str + ", \"" + matchVal + "\")";
             else //if(mode == 1)
-                resultStr[0] = "SREUtil.StringMatch(" + str + ", " + matchVal + ")";
+                resultStr[0] = "SREUtil.StringMatch(" + str + ", DataWH.closure.get(\"" + matchVal + "\"))";
             return resultStr;
         }
         return null;
@@ -768,9 +766,18 @@ public class Compiler {
         jOut(1, "}\n");
     }
 
-    private void outAdviceProlog4DynBind(String dyncBindStr, int offset) {
-        jOut(offset, dyncBindStr + " = thisJoinPoint.getSignature().toString();");
-        jOut(offset, "root.updateClosure(\"" + dyncBindStr + "\"," + dyncBindStr + ");\n");
+    private void outAdviceProlog4DynBind(int offset) {
+
+        if (monitoredPC != null && monitoredPC.size() > 0) {
+            jOut(offset, "String typeVal; ");
+            Set<String> set = monitoredPC.keySet();
+            for (Iterator<String> it = set.iterator(); it.hasNext(); ) {
+                String varName = it.next();
+                jOut(offset, "typeVal = DataWH.dataVal.get(\"" + varName + "\").getType();");
+                jOut(offset, "DataWH.dataVal.remove(\"" + varName + "\");");
+                jOut(offset, "DataWH.dataVal.put(\"" + varName + "\", new TypeVal(typeVal, " + monitoredPC.get(varName) + "));");
+            }
+        }
     }
 
     public static void main(String[] args) {
@@ -778,24 +785,18 @@ public class Compiler {
         compiler.compile();
     }
 
+    /**
+     * This method is used to generate the method name for Pointcut
+     */
     private String getPCMethodName(String str) {
-        String reg = "(.+)\\((.+)\\)";
-        Pattern pattern = Pattern.compile(reg);
-        Matcher matcher = pattern.matcher(str);
-        if (matcher.find())
-            str = matcher.group(1).toString().trim();
-
-        reg = "@(.+)@(.+)";
-        pattern = Pattern.compile(reg);
-        matcher = pattern.matcher(str);
-        if (matcher.find())
-            str = matcher.group(2).toString().trim();
-
+        int begingIndex = str.indexOf("(", 0);
+        if (begingIndex != -1)
+            return str.substring(0, begingIndex);
         return str;
     }
 
     private String[] getArgsLstArray(String str) {
-        // File.new(String$*.class$)(int$1$)   || @call@FileWriter.new($$ext)
+        // File.new(String$*.class$)(int$1$)   || FileWriter.new($$ext)
         String argList = "";
         int index = str.indexOf('(', 0);
         while (index != -1) {
@@ -815,8 +816,15 @@ public class Compiler {
         else return null;
     }
 
+    /**
+     * This function return either arg type or arg value
+     *
+     * @param str
+     * @param index == 1 return args Type; index == 2 return value
+     * @return
+     */
     private String getArgsType(String str, int index) {
-        //String$$*.class$$ || int$$1$$ || $$ip ||String
+        //java.lang.String$$*.class$$ || int$$1$$ || $$ip ||java.lang.String
         String reg = "(.+)(\\$\\$(.+)\\$\\$)";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(str);
@@ -828,13 +836,8 @@ public class Compiler {
             matcher = pattern.matcher(str);
             if (matcher.find()) {
                 String temp = matcher.group(1).toString().trim();
-                reg = "@(.+)@";
-                pattern = Pattern.compile(reg);
-                matcher = pattern.matcher(temp);
-                if (matcher.find())
-                    temp = matcher.group(1).toString().trim();
                 if (index == 1) {
-                    String varType = closure.getType(temp);
+                    String varType = closure.getType(temp).trim();
                     if (varType == null || varType.length() == 0)
                         return "java.lang.String";
                     else
@@ -842,49 +845,116 @@ public class Compiler {
                 } else { //if index == 2;
                     String value = closure.getContext(temp);
                     if (value == null)
-                        return "";
+                        return "$$" + temp.trim();
                     else
-                        return value;
+                        return "$$" + value.trim() + "$$";
                 }
             }
         }
-        if (index == 1)
-            return str;
-        else
+        if (index == 1) {
+            if (str.trim().equals("\\*"))
+                return "..";
+            return str.trim();
+        } else
             return null;
     }
 
-    private String getArgsMatchVal(String str) {
-        //String$$*.class$$ || int$$1$$ || $$ip ||String
-        String reg = "(.+)(\\$\\$(.+)\\$\\$)";
-        Pattern pattern = Pattern.compile(reg);
-        Matcher matcher = pattern.matcher(str);
-        //Static match
-        if (str != null) {
-            if (matcher.find()) {
-                return matcher.group(2).toString().trim();
-            } else {
-                reg = "\\$\\$(.+)";
-                pattern = Pattern.compile(reg);
-                matcher = pattern.matcher(str);
-                if (matcher.find()) {
-                    return str;
+    /**
+     * This method is used to draw parameter types of the method, so that
+     * pointcut can correctly monitor the correct method.
+     *
+     * @param argStr
+     * @return method signature
+     */
+    private String getArgsTyp4PC(String argStr) {
+        //(java.lang.String$$*.class$$)
+        //(\*)(java.lang.String$$*.class$$)
+        String returnStr = "";
+        if (argStr != null && argStr.length() > 0) {
+            String[] args = argStr.split("[()]+");
+            if (args != null) {
+                for (int i = 0; i < args.length; i++) {
+                    if (args[i].trim().length() == 0) continue;
+                    returnStr += getArgsType(args[i].trim(), 1);
+                    if (i != args.length - 1)
+                        returnStr += ",";
                 }
             }
         }
-        return null;
+        return returnStr;
     }
 
-    private String getBindVar(String str) {
-        //@call@java.io.FileWriter.new($$ext)
-        String reg = "@(.+)@(.+)";
-        Pattern pattern = Pattern.compile(reg);
-        Matcher matcher = pattern.matcher(str);
-        //Static match
-        if (matcher.find()) {
-            String[] returnVal = new String[2];
-            return matcher.group(1).toString().trim();
+    private void genVarClosure(String aspectName) {
+        Set<Map.Entry<String, VarTypeVal>> entrySet = closure.getClosures().entrySet();
+        jOut(1, "public " + aspectName + "() {");
+        for (Map.Entry entry : entrySet) {
+            String varContext = ((VarTypeVal) entry.getValue()).getVarContext();
+            if (varContext == null || varContext.equals("%"))
+                varContext = ".*";
+            if (varContext.contains("%."))
+                varContext = varContext.replace("%.", "(.*)\\.");
+            varContext = varContext.replace("\\", "\\\\");
+            String key = policyName + "_" + entry.getKey();
+            jOut(2, "DataWH.closure.put(\"" + entry.getKey() + "\", \"" + varContext + "\");");
         }
-        return null;
+        if (objParams != null) {
+            for (String s : objParams) {
+                String varType = "";
+                String varContext = "";
+                VarTypeVal varTypeVal = (VarTypeVal) closure.getClosures().get(s);
+                if (varTypeVal != null) {
+                    varType = varTypeVal.getVarType();
+                    varContext = varTypeVal.getVarContext();
+                }
+                if (varType == null || varType.equals(""))
+                    varType = "java.lang.String";
+                if (varContext == null || varContext.equals("%")) {
+                    if (varType.equals("java.lang.String"))
+                        varContext = ".*";
+                    else
+                        varContext = "null";
+                }
+                if (varContext.contains("%."))
+                    varContext = varContext.replace("%.", "(.*)\\.");
+                varContext = varContext.replace("\\", "\\\\");
+                String str = "new TypeVal(\"" + varType + "\",  null));";
+                if (!varContext.equals("null")) {
+                    switch (varType) {
+                        case "int":
+                            str = "new TypeVal(\"java.lang.String\",\"" + varContext + "\"));";
+                            break;
+                        case "short":
+                            str = "new TypeVal(\"short\",new Integer(\"" + varContext + "\")));";
+                            break;
+                        case "long":
+                            str = "new TypeVal(\"long\",new Long(\"" + varContext + "\")));";
+                            break;
+                        case "double":
+                            str = "new TypeVal(\"double\",new Double(\"" + varContext + "\")));";
+                            break;
+                        case "float":
+                            str = "new TypeVal(\"float\",new Float(\"" + varContext + "\")));";
+                            break;
+                        case "boolean":
+                            str = "new TypeVal(\"boolean\",new Boolean(\"" + varContext + "\")));";
+                            break;
+                        case "char":
+                            str = "new TypeVal(\"char\",new Character(" + varContext + ".CharAt(0))));";
+                            break;
+                        case "String":
+                        case "java.lang.String":
+                            str = "new TypeVal(\"java.lang.String\", \"" + varContext + "\"));";
+                            break;
+                        case "Message":
+                        case "javax.mail.Message":
+                            str = "new TypeVal(\"java.lang.String\",  null));";
+                            break;
+                    }
+                }
+                //s = policyName + "_" + s;
+                jOut(2, "DataWH.dataVal.put(\"" + s + "\"," + str);
+            }
+        }
+        jOut(1, "}");
     }
 }
