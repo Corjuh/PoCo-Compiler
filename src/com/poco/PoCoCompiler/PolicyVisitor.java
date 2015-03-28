@@ -7,6 +7,7 @@ import org.antlr.v4.runtime.misc.NotNull;
 
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
+import java.util.HashSet;
 import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -31,6 +32,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     private String currentExchange;
     private boolean isReturnValue;
 
+    private int matchNumber;
+    private Stack<String> matchNames;
     private int matchsNum;
     private Stack<String> matchsNames;
 
@@ -63,7 +66,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     private boolean isResultMatch = false;
 
     private boolean isMapSre = false;
-
+    private boolean reBop = false;
+    private HashSet<String> reMatchs;
+    private boolean isSkip = false;
     //use to save the transactions that need to be added into Util
     private String transactions = null;
 
@@ -87,6 +92,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         this.isReturnValue = false;
 
         // Initialize Matchs data structures
+        this.matchNumber = 0;
+        this.matchNames = new Stack<>();
+
         this.matchsNum = 0;
         this.matchsNames = new Stack<>();
 
@@ -98,6 +106,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         this.sreNum = 0;
         this.closure = closure1;
         this.sreNames = new Stack<>();
+
+        this.reMatchs = new HashSet<String>();
     }
 
     /**
@@ -231,19 +241,19 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         currentModifier = "none";
         // The code for the match object is not generated here unless the match portion is a wildcard
         boolean isWildcardMatch = (ctx.INPUTWILD() != null);
-        if (isWildcardMatch) { 
+        if (isWildcardMatch) {
             matchRHS = true;
             visitSre(ctx.sre());
             matchRHS = false;
         } else if (ctx.matchs() != null) {
-            String matchsName = "matchs" + matchsNum++;
+            String matchsName = "matchs" + matchNumber++;
             // Create matchs object
             outLine(3, "Matchs %s = new Matchs();", matchsName);
             // Visit children
-            matchsNames.push(matchsName);
+            matchNames.push(matchsName);
             visitMatchs(ctx.matchs());
             outLine(3, "%s.addMatcher(%s);", currentExchange, matchsName);
-            matchsNames.pop();
+            matchNames.pop();
         }
         // Let the child SRE know it's a return value, so that it attaches itself to this exchange
         isReturnValue = true;
@@ -271,11 +281,11 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         boolean hasMatch = (ctx.match() != null);
         if (!hasMatch) {
             if (hasBooluop)
-                outLine(3, "%s.setNOT(true);", matchsNames.peek());
+                outLine(3, "%s.setNOT(true);", matchNames.peek());
             if (hasAnd)
-                outLine(3, "%s.setAND(true);", matchsNames.peek());
+                outLine(3, "%s.setAND(true);", matchNames.peek());
             else if (hasOr)
-                outLine(3, "%s.setOR(true);", matchsNames.peek());
+                outLine(3, "%s.setOR(true);", matchNames.peek());
 
             //set up the flag so the % case will not be skipped (e.g., <Action(`[%]')&&@out[`$p']=>+`fopen($f)'>)
             if (hasBooluop || hasAnd || hasOr)
@@ -287,7 +297,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             // This matchs simply wraps a match object. No need to create a matchs object
             visitChildren(ctx);
         }
-
         return null;
     }
 
@@ -302,12 +311,12 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             isMatch = false;
             currentMatch = null;
 
-            if (matchsNames.empty()) {
+            if (matchNames.empty()) {
                 // Add match object to parent exchange
                 outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
-            } else { 
+            } else {
                 // Add match object to parent matchs
-                outLine(3, "%s.addChild(%s);", matchsNames.peek(), matchName);
+                outLine(3, "%s.addChild(%s);", matchNames.peek(), matchName);
             }
         } else if (ctx.SUBSET() != null || ctx.SREEQUALS() != null) {
 
@@ -315,7 +324,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             // Create match object
             String matchName = "match" + matchNum++;
             outLine(3, "Match %s = new Match();", matchName);
-            // TODO: Handle case when something other than an ire is in a match object
             // Visit children
             currentMatch = matchName;
             isMatch = true; //set isMatch for ture, so match as @out[`$p'] case will be knowned as match
@@ -323,12 +331,12 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             isMatch = false;
             currentMatch = null;
             // Add to parent
-            if (matchsNames.empty()) {
+            if (matchNames.empty()) {
                 // Add match object to parent exchange
                 outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
             } else {
                 // Add match object to parent matchs
-                outLine(3, "%s.addChild(%s);", matchsNames.peek(), matchName);
+                outLine(3, "%s.addChild(%s);", matchNames.peek(), matchName);
             }
         }
         return null;
@@ -450,104 +458,150 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     }
 
     @Override
-    public Void visitRe(@NotNull PoCoParser.ReContext ctx)  {
+    public Void visitRe(@NotNull PoCoParser.ReContext ctx) {
         if (matchRHS == true) {
-            String matchStr = null;
-            if (ctx.function() != null) {
-                matchStr = ctx.function().fxnname().getText();
-                //when match new, do not need .new key word. e.g., java.io.File(String)
-                if (ctx.function().INIT() != null)
-                    matchStr = matchStr.substring(0,matchStr.length()-1);
+            if (ctx.rebop() != null) {
+                reBop = true;
+                String matchsName = "matchs" + matchsNum++;
+                outLine(3, "Matchs %s = new Matchs(\"||\");",matchsName);
+                matchsNames.push(matchsName);
+                visitChildren(ctx);
+                matchsNames.pop();
+                reBop = false;
             } else {
-                matchStr = scrubString(ctx.getText());
-            }
-            String matchName = "match" + matchNum++;
-            outLine(3, "Match %s = new Match(\"%s\");", matchName, matchStr);
-            outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
-        } else {
-            if (ctx.AT() != null) { //binding variable
-                if (ctx.id() != null && closure == null)
-                    throw new NullPointerException("No such var exist.");
-                visitRe(ctx.re(0));
-            } else if (ctx.rewild() != null) {
-                if (isResult) {//it is the re case for ire result
-                    if (isResultMatch)
-                        outLine(3, "%s.setResultMatchStr(\".\");", scrubString(currentMatch));
-                } else if (isAction && isCombinedMatch) {
-                    //System.out.println(ctx.getText());
-                    outLine(3, "%s.setMatchString(\".\");", currentMatch);
-                }
-            } else {
-                String content="";
-                if (ctx.DOLLAR() != null) {
-                    content = "$$" + ctx.qid().getText() + "$$";
+                String matchStr = null;
+                if (ctx.function() != null) {
+                    matchStr = ctx.function().fxnname().getText();
+                    //when match new, do not need .new key word. e.g., java.io.File(String)
+                    if (ctx.function().INIT() != null)
+                        matchStr = matchStr.substring(0, matchStr.length() - 1);
                 } else {
-                    if (ctx.object() != null) {
-                        try {
-                            content = parseObject(ctx.object().qid().getText(), ctx.object().re().getText());
-                        } catch(Exception e) {
-                            e.printStackTrace();
-                        }
-                    } else if (ctx.function() != null) {
-                        content = ctx.function().fxnname().getText();
-                        if (ctx.function().INIT() != null) {
-                            content = content.substring(0, content.length() - 1);
-                            //content += "new";
-                        } else if (ctx.function().arglist() != null) {
-                            //only need care about the arglist is when we try to promote the action
-                            if (isSrePos) {
-                                content += "(";
-                                if (ctx.function().arglist().re() != null &&
-                                        ctx.function().arglist().re().rewild() == null) {
-                                    String str = ctx.function().arglist().getText();
-                                    String[] argLists = str.split(",");
-                                    for (int i = 0; i < argLists.length; i++) {
-                                        if (isSre) {
-                                            if (argLists[i].charAt(0) == '$') {
-                                                String qid = str.substring(1, argLists[i].length());
-                                                if (closure != null && closure.getContext(qid) != null) {
-                                                    String typ = closure.getType(qid);
-                                                    content += "#" + typ + "{$$" + qid + "$$}";
-                                                }
-                                            } else
-                                                content += argLists[i];
-                                            if (i != argLists.length - 1)
-                                                content += ",";
-                                        }
-                                    }
+                    matchStr = scrubString(ctx.getText());
+                }
+                matchStr = matchStr.trim();
+                if (reBop == false) {
+                    String matchName = "match" + matchNum++;
+                    outLine(3, "Match %s = new Match(\"%s\");", matchName, matchStr);
+                    outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
+                } else {
+                    if (!reMatchs.contains(matchStr)) {
+                        reMatchs.add(matchStr);
+                        String matchName = "match" + matchNum++;
+                        outLine(3, "Match %s = new Match(\"%s\");", matchName, matchStr);
+                        outLine(3, "%s.addChild(%s);", matchsNames.peek(), matchName);
+                        outLine(3, "%s.addMatcher(%s);", currentExchange, matchsNames.peek());
+                    }else
+                        isSkip = true;
+                }
+            }
+        } else if (ctx.rebop() != null) {
+            visitChildren(ctx);
+        } else if (ctx.AT() != null) { //binding variable
+            if (ctx.id() != null && closure == null)
+                throw new NullPointerException("No such var exist.");
+            visitRe(ctx.re(0));
+        } else if (ctx.rewild() != null) {
+            if (isResult) {//it is the re case for ire result
+                if (isResultMatch)
+                    outLine(3, "%s.setResultMatchStr(\".\");", scrubString(currentMatch));
+            } else if (isAction && isCombinedMatch) {
+                //System.out.println(ctx.getText());
+                outLine(3, "%s.setMatchString(\".\");", currentMatch);
+            }
+        } else {
+            if(isSkip == true) {
+                isSkip = false;
+                return null;
+            }
+            String content = "";
+            if (ctx.DOLLAR() != null) {
+                content = "$$" + ctx.qid().getText() + "$$";
+                if (ctx.opparamlist() != null) {
+                    //only need care about the arglist is when we try to promote the action
+                    if (isSrePos) {
+                        content += "(";
+                        if (ctx.opparamlist().re() != null &&
+                                ctx.opparamlist().re().rewild() == null) {
+                            String str = ctx.opparamlist().getText();
+                            String[] argLists = str.split(",");
+                            for (int i = 0; i < argLists.length; i++) {
+                                if (isSre) {
+                                    argLists[i] = argLists[i].trim();
+                                    if (argLists[i].charAt(0) == '$') {
+                                        content += getVarTyp(argLists[i].substring(1, argLists[i].length()));
+                                    } else
+                                        content += argLists[i];
+                                    if (i != argLists.length - 1)
+                                        content += ",";
                                 }
-                                content += ")";
                             }
                         }
-                    } else {
-                        content = scrubString(ctx.getText());
+                        content += ")";
                     }
                 }
+            } else {
+                if (ctx.object() != null) {
+                    try {
+                        content = parseObject(ctx.object().qid().getText(), ctx.object().re().getText());
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                } else if (ctx.function() != null) {
+                    content = ctx.function().fxnname().getText();
+                    if (ctx.function().INIT() != null) {
+                        content = content.substring(0, content.length() - 1);
+                        //content += "new";
+                    } else if (ctx.function().arglist() != null) {
+                        //only need care about the arglist is when we try to promote the action
+                        if (isSrePos) {
+                            content += "(";
+                            if (ctx.function().arglist().re() != null &&
+                                    ctx.function().arglist().re().rewild() == null) {
+                                String str = ctx.function().arglist().getText();
+                                String[] argLists = str.split(",");
+                                for (int i = 0; i < argLists.length; i++) {
+                                    if (isSre) {
+                                        argLists[i] = argLists[i].trim();
+                                        if (argLists[i].charAt(0) == '$') {
+                                            content += getVarTyp(argLists[i].substring(1, argLists[i].length()));
+                                        } else
+                                            content += argLists[i];
+                                        if (i != argLists.length - 1)
+                                            content += ",";
+                                    }
+                                }
+                            }
+                            content += ")";
+                        }
+                    }
+                } else {
+                    content = scrubString(ctx.getText());
+                }
+            }
 
-                if (isSre) {
-                    if (isSrePos)
-                        outLine(3, "%s.setPositiveRE(\"%s\");", sreNames.peek(), content);
-                    else
-                        outLine(3, "%s.setNegativeRE(\"%s\");", sreNames.peek(), content);
-                    if (isMapSre)
-                        outLine(3, "%s.setMatchSre(%s);", executionNames.peek(), sreNames.peek());
-                    //if it is Bopsre case, we will need postpone setSRE till pop to the right Sre
-                    if (isReturnValue && !isSreBop2 && !isSreBop1)
-                        outLine(3, "%s.setSRE(%s);", currentExchange, sreNames.peek());
-                } else if (isIre) {
-                    if (isAction) {
-                        outLine(3, "%s.setAsAction();", currentMatch);
-                        outLine(3, "%s.setMatchString(\"%s\");", currentMatch, scrubString(content));
-                    } else {
-                        if (!isResultMatch) {
-                            outLine(3, "%s.setAsResult();", currentMatch);
-                            outLine(3, "%s.setMatchString(\"%s\");", currentMatch, scrubString(content));
-                        } else
-                            outLine(3, "%s.setResultMatchStr(\"%s\");", currentMatch, scrubString(content));
-                    }
-                } else if (isMatch) {
-                    outLine(3, "%s.setMatchString(\"%s\");", currentMatch, scrubString(content));
+            if (isSre) {
+                if (isSrePos)
+                    outLine(3, "%s.setPositiveRE(\"%s\");", sreNames.peek(), content.replace("\\", "\\\\").trim());
+                else
+                    outLine(3, "%s.setNegativeRE(\"%s\");", sreNames.peek(), content.replace("\\", "\\\\").trim());
+                if (isMapSre)
+                    outLine(3, "%s.setMatchSre(%s);", executionNames.peek(), sreNames.peek());
+                //if it is Bopsre case, we will need postpone setSRE till pop to the right Sre
+                if (isReturnValue && !isSreBop2 && !isSreBop1)
+                    outLine(3, "%s.setSRE(%s);", currentExchange, sreNames.peek());
+            } else if (isIre) {
+                if (isAction) {
+                    outLine(3, "%s.setAsAction();", currentMatch);
+                    outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content.replace("\\", "\\\\").trim());
+                } else {
+                    if (!isResultMatch) {
+                        outLine(3, "%s.setAsResult();", currentMatch);
+                        outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content.replace("\\", "\\\\").trim());
+                    } else
+                        outLine(3, "%s.setResultMatchStr(\"%s\");", currentMatch, content.replace("\\", "\\\\").trim());
                 }
+            } else if (isMatch) {
+                outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content.replace("\\", "\\\\").trim());
             }
         }
         return null;
@@ -556,12 +610,12 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitTransaction(@NotNull PoCoParser.TransactionContext ctx) {
         String transaction = ctx.transbody().getText();
-        transactions=transaction.substring(0, transaction.length()-15);
+        transactions = transaction.substring(0, transaction.length() - 15);
         return null;
     }
 
     public boolean hasTransation() {
-        if(transactions != null)
+        if (transactions != null)
             return true;
         return false;
     }
@@ -612,14 +666,13 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     private String parseObject(String type, String value) throws Exception {
         switch (type) {
             case "Integer":
-                String objType = getClassInfo(value,1);
-                if(objType!= null)  {
-                    Field field = Class.forName(objType).getField(getClassInfo(value,2));
+                String objType = getClassInfo(value, 1);
+                if (objType != null) {
+                    Field field = Class.forName(objType).getField(getClassInfo(value, 2));
                     return new Integer(field.getInt(null)).toString();
-                }
-                else
+                } else
                     return value;
-            //will add more case here
+                //will add more case here
             default:
                 return value;
         }
@@ -631,7 +684,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
     public String loadFromClosure(String varName) {
         if (closure != null)
-            if (closure.loadClosure(varName) != null) 
+            if (closure.loadClosure(varName) != null)
                 return closure.loadClosure(varName).getVarContext().trim();
         return null;
     }
@@ -644,6 +697,12 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             return matcher.group(index).toString().trim();
         else
             return null;
+    }
+
+    private String getVarTyp(String qid) {
+        if (closure != null && closure.getType(qid) != null)
+            return "#" + closure.getType(qid) + "{$$" + qid + "$$}";
+        return "null";
     }
 
     /**
