@@ -30,6 +30,8 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
     private boolean frmOpparlist = false;
     private boolean parseRe = false;
     private String closureVal;
+    private String binding;
+
 
     /**
      * Generates code for class representing a PoCo policy. This is the first visit method called.
@@ -39,6 +41,17 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
      */
     @Override
     public Void visitPocopol(@NotNull PoCoParser.PocopolContext ctx) {
+        // need handle when policy has parameteres (e.g., OutgoingMail(String ContactInfo))
+        closure = new Closure();
+        if (ctx.paramlist() != null && ctx.paramlist().getText().trim().length() > 0) {
+            PoCoParser.ParamlistContext paraList = ctx.paramlist();
+            while (paraList != null) {
+                VarTypeVal varTyCal = new VarTypeVal(paraList.qid().getText(), paraList.id().getText());
+                closure.addClosure(paraList.id().getText(), varTyCal);
+                paraList = paraList.paramlist();
+            }
+        }
+
         visitChildren(ctx);
         return null;
     }
@@ -47,7 +60,6 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
     public Void visitVardecls(@NotNull PoCoParser.VardeclsContext ctx) {
         if (ctx.vardecl() != null) {
             //now only deal with single policy, need add parents in future
-            closure = new Closure();
             visitChildren(ctx);
         }
         return null;
@@ -81,22 +93,137 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
         else
             str = ctx.sre().getText();
 
+        //regex for Object
         String reg = "#(.+)\\{(.+)\\}";
         Pattern pattern = Pattern.compile(reg);
-        Matcher matcher = pattern.matcher(str);
+        Matcher matcher;
 
-        if (matcher.find()) {
-            String strVal = matcher.group(1).toString().trim();
-            String qid = matcher.group(2).toString();
-            varTyCal = new VarTypeVal(matcher.group(1).toString().trim(), getObjVal(str));
-        } else {
-            varTyCal = new VarTypeVal(null, getObjVal(str));
+        //regex for function def.
+        String reg1 = "(.+)\\((.+)\\)";
+        Pattern pattern1 = Pattern.compile(reg1);
+        Matcher matcher1 = pattern1.matcher(str);
+
+        //@SendMail(msg)[`javax.mail.Transport.send(#javax.mail.Message{$msg})']: RE
+        if (matcher1.find()) {
+            String strFunNm = matcher1.group(1).toString().trim();
+            //e.g.,  #javax.mail.Message{$msg}
+            String args = matcher1.group(2).toString().trim();
+            String[] strArgs = args.split(",");
+            if (strArgs != null) {
+                for (int i = 0; i < strArgs.length; i++) {
+                    matcher = pattern.matcher(strArgs[i]);
+                    if (matcher.find()) {
+                        String varTyp = matcher.group(1).toString().trim();
+                        String varName = matcher.group(2).toString();
+                        if (varName.startsWith("$")) {
+                            String varNm = varName.substring(1, varName.length());
+                            String existTyp = closure.loadClosure(varNm).getVarType();
+                            if (existTyp == null || !existTyp.equals(varTyp)) {
+                                String context = closure.loadClosure(varNm).getVarContext();
+                                closure.updateClosure(varNm, new VarTypeVal(varTyp, context));
+                            }
+                        }
+                    }
+                }
+            }
+            varTyCal = new VarTypeVal("java.lang.String", strFunNm + "(" + args + ")");
+        } else {    //@ports()[!`#int{143|993|25|110|995|2080}'] :RE
+            matcher = pattern.matcher(str);
+            if (matcher.find()) {
+                String strVal = matcher.group(1).toString().trim();
+                String qid = matcher.group(2).toString();
+                varTyCal = new VarTypeVal(matcher.group(1).toString().trim(), getObjVal(str));
+            } else {
+                varTyCal = new VarTypeVal(null, getObjVal(str));
+            }
         }
         closure.addClosure(ctx.id().getText(), varTyCal);
         return null;
     }
 
     public Void visitRe(@NotNull PoCoParser.ReContext ctx) {
+        if (ctx.AT() != null) {
+            binding = ctx.id().getText();
+            visitChildren(ctx);
+            binding = null;
+        } else {
+            if (binding == null)
+                return null;
+
+            if (frmOpparlist == false) {
+                if (ctx.function() != null) {
+                    closureVal = "* ";
+                    if (ctx.function().INIT() != null) {
+                        closureVal = ctx.function().fxnname().getText() + "new";
+                    } else {
+                        //has return value type
+                        if (ctx.function().fxnname().getText().trim().split(" ").length == 2)
+                            closureVal = ctx.function().fxnname().getText();
+                        else
+                            closureVal += ctx.function().fxnname().getText();
+                    }
+                    if (ctx.function().arglist() != null) {
+                        if (ctx.function().arglist().getText().length() == 0) {
+                            closureVal += "()";
+                        } else {
+                            frmOpparlist = true;
+                            visitChildren(ctx);
+                            frmOpparlist = false;
+                        }
+                    } else
+                        closureVal += "()";
+
+                    String existTyp = closure.loadClosure(binding).getVarType();
+                    if (existTyp == null)
+                        existTyp = "java.lang.String";
+                    closure.updateClosure(binding, new VarTypeVal(existTyp, closureVal));
+                    binding = null;
+                } else if (ctx.object() != null) {
+
+                } else {
+                    visitChildren(ctx);
+                }
+            } else {  //ptFromOpparamlist = true
+                if (ctx.rewild() != null) {
+                    closureVal = closureVal + "(..)";
+                } else if (ctx.qid() != null) {
+                    String strval = ctx.qid().getText();
+                    if (closure != null && closure.isContains(strval)) {
+                        closureVal += "($$" + strval + ")";
+                    } else
+                        throw new NullPointerException("No such var exist.");
+                }  else if (ctx.object() != null) {
+                    if (ctx.object().POUND() != null) {
+                        //format as #qid{re}
+                        closureVal = closureVal + "(" + ctx.object().qid().getText();
+                        String reStr = ctx.object().re().getText();
+                        //if reStr does not contain the "$", means the value is static,
+                        //so we can check it statically, otherwise we have to check it dynamically
+                        if (!reStr.contains("$")) {
+                            if (reStr.equals("%"))
+                                closureVal += "$$*.*$$";
+                            else
+                                closureVal += "$$" + reStr.replaceAll("%", "*") + "$$";
+                        } else { //so the value will be dynamic
+                            closureVal += reStr;
+                        }
+                        closureVal += ")";
+                    } else if (ctx.id() != null) {
+                        closureVal = closureVal + "(" + ctx.id().getText() + ")";
+                    } else {  //Null case
+                        closureVal = closureVal + "(..)";
+                    }
+                } else if (ctx.rebop() != null) {
+                    visitRe(ctx.re(0));
+                    visitRe(ctx.re(1));
+                } else {
+                    if (ctx.getText().trim().length() > 0)
+                        closureVal = closureVal + "(" + ctx.getText() + ")";
+                }
+            }
+            return null;
+        }
+
         return null;
     }
 
@@ -125,5 +252,5 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
             returnStr += tempStr;
         }
         return returnStr;
-    } 
+    }
 }
