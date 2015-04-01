@@ -1,5 +1,4 @@
 // Generated from /Users/caoyan/GitHub/PoCo-Compiler/Parser/grammar/PoCoLexer.g4 by ANTLR 4.x
-package com.poco.PoCoParser;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.Token;

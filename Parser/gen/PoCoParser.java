@@ -1,5 +1,4 @@
 // Generated from /Users/caoyan/GitHub/PoCo-Compiler/Parser/grammar/PoCoParser.g4 by ANTLR 4.x
-package com.poco.PoCoParser;
 import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.*;
