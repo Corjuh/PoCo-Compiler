@@ -1,10 +1,8 @@
-
 Trivial(): <_ => Neutral>*
 =================================================================================
 =================================================================================
 NoCreateClassFiles() :
 <_ => -`java.io.File.<init>(#java.lang.String{%.class})|java.io.File.<init>(\*, #java.lang.String{%.class})'>*
-
 
 **********************************************RuntimeDemo.java********************************************
 import java.io.File;  
@@ -24,45 +22,33 @@ public class RuntimeDemo {
 	  System.out.println("............End executing............\n");
     }
 }
-
 **********************************************AspectDisSysCalls.aj********************************************
 import com.poco.PoCoRuntime.*;
 import java.lang.reflect.Method;
-
 public aspect AspectDisSysCalls {
     private DummyRootPolicy root = new DummyRootPolicy( new DisSysCalls() );
-
     public AspectDisSysCalls() { }
-    
     pointcut PC4Reflection():
         call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
-
     Object around(): PC4Reflection()   {   return new SRE(null,".");    }
-
     pointcut PointCut0(java.lang.String value0):
         call(java.io.File.new(java.lang.String)) && args(value0);
-
     Object around(java.lang.String value0): PointCut0(value0) {
         if (SREUtil.StringMatch(String.valueOf(value0), "*.class")) {
             root.queryAction(new Event(thisJoinPoint));
             return proceed(value0);
-        }
-        else
+        } else
             return proceed(value0);
     }
-
     pointcut PointCut1(java.lang.String value0):
         call(java.io.File.new(..,java.lang.String)) && args(*,value0);
-
     Object around(java.lang.String value0): PointCut1(value0) {
         if (SREUtil.StringMatch(String.valueOf(value0), "*.class")) {
             root.queryAction(new Event(thisJoinPoint));
             return proceed(value0);
-        }
-        else
+        } else
             return proceed(value0);
     }
-
     class NoCreateClassFiles extends Policy {
         public NoCreateClassFiles() {
             try {
@@ -175,151 +161,161 @@ map (Union, -`java.io.FileWriter.<init>($ext()) | java.io.FileWriter.<init>($ext
 package com.poco;
 import java.lang.reflect.Method;
 public aspect AspectAttachments {
-    private DummyRootPolicy root = new DummyRootPolicy(new Attachments()); 
-    public AspectAttachments {
-        DataWH.closure.put("Attachments_ext", ".exe|.vbs|.hta|.mdb|.bad");
-        DataWH.closure.put("Attachments_call", "java.io.FileWriter.new($$ext)");
-        DataWH.closure.put("Attachments_message", "Allowing a dangerous file is creating via: $$Attachments_call$$?");
-        DataWH.dataVal.put("Attachments_message",new TypeVal("java.lang.String", "Allowing a dangerous file is creating via: $$Attachments_call$$?"));
-        DataWH.dataVal.put("Attachments_ext",new TypeVal("java.lang.String", ".exe|.vbs|.hta|.mdb|.bad"));
-    }
-    pointcut PC4Reflection():
-        call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
-    Object around(): PC4Reflection()   { return new SRE(null,".");  }
-    pointcut PointCut0(java.lang.String value0,boolean value1):
-        call(java.io.FileWriter.new(java.lang.String,boolean)) && args(value0,value1);
-    Object around(java.lang.String value0,boolean value1): PointCut0(value0,value1) {
-        if (SREUtil.StringMatch(String.valueOf(value0), ".exe|.vbs|.hta|.mdb|.bad")) {
-            root.queryAction(new Event(thisJoinPoint));
-            return proceed(value0,value1);
-        } else
-            return proceed(value0,value1);
-    }
-    pointcut PointCut1(java.lang.String value0): call(java.io.FileWriter.new(java.lang.String)) && args(value0);
-    Object around(java.lang.String value0): PointCut1(value0) {
-        if (SREUtil.StringMatch(String.valueOf(value0), ".exe|.vbs|.hta|.mdb|.bad")) {
-            root.queryAction(new Event(thisJoinPoint));
-            return proceed(value0);
-        } else
-            return proceed(value0);
-    }
-    pointcut PointCut2(Method run):
-        target(run) &&call(Object Method.invoke(..));
-    Object around(Method run): PointCut2(run) {
-        String className = SREUtil.trimClassName(run.getDeclaringClass().toString());
-        className =SREUtil.concatClsMethod(className, run.getName());
-        if (matchingStack(className)) {
-            Object ret = proceed(run);
-            Event event = new Event(thisJoinPoint);
-            event.eventType = "Result";
-            event.setResult(ret);
-            root.queryAction(event);
-            return ret;
-        } else
-            return proceed(run);
-    }
-    private boolean matchingStack(String runningMethod) {
-        if (root.promotedEvents != null)
-            if(root.promotedEvents.peek().equals(runningMethod)) {
-                root.promotedEvents.pop();
-                return true;
-            }
-        return false;
-    }
-    class Attachments extends Policy {
-        public Attachments() {
-            try {
-                SequentialExecution rootExec = new SequentialExecution("none");
-                MapExecution mapExec0 = new MapExecution("*");
-                mapExec0.setOperator("Union");
-                SRE sre0 = new SRE(null, null);
-                sre0.setNegativeRE("java.io.FileWriter");
-                mapExec0.setMatchSre(sre0);
-                sre0.setNegativeRE("");
-                mapExec0.setMatchSre(sre0);
-                sre0.setNegativeRE("java.io.FileWriter");
-                mapExec0.setMatchSre(sre0);
-                SequentialExecution exec1 = new SequentialExecution("*");
-                Exchange exch0 = new Exchange();
-                Matchs matchs0 = new Matchs();
-                matchs0.setNOT(true);
-                Match match0 = new Match();
-                match0.setAsAction();
-                match0.setMatchString("java.io.FileWriter");
-                match0.setAsAction();
-                match0.setMatchString("java.io.FileWriter");
-                matchs0.addChild(match0);
-                exch0.addMatcher(matchs0);
-                SRE sre1 = new SRE(null, null);
-                exch0.setSRE(sre1);
-                exec1.addChild(exch0);
-                mapExec0.addChild(exec1);
-                SequentialExecution exec2 = new SequentialExecution("none");
-                Exchange exch1 = new Exchange();
-                Matchs matchs1 = new Matchs();
-                Match match1 = new Match();
-                match1.setAsAction();
-                match1.setMatchString("java.io.FileWriter");
-                match1.setAsAction();
-                match1.setMatchString("");
-                match1.setAsAction();
-                match1.setMatchString("java.io.FileWriter");
-                matchs1.addChild(match1);
-                exch1.addMatcher(matchs1);
-                SRE sre2 = new SRE(null, null);
-                sre2.setPositiveRE("com.poco.RuntimeDemo.ShowDialog(#java.lang.String{$$Attachments_message$$})");
-                exch1.setSRE(sre2);
-                exec2.addChild(exch1);
-                mapExec0.addChild(exec2);
-                SequentialExecution exec3 = new SequentialExecution("*");
-                Exchange exch2 = new Exchange();
-                Matchs matchs2 = new Matchs();
-                matchs2.setNOT(true);
-                Match match2 = new Match();
-                match2.setAsResult();
-                match2.setMatchString("com.poco.RuntimeDemo.ShowDialog()");
-                match2.setResultMatchStr(".");
-                matchs2.addChild(match2);
-                exch2.addMatcher(matchs2);
-                SRE sre3 = new SRE(null, null);
-                sre3.setPositiveRE("com.poco.RuntimeDemo.ShowDialog(#java.lang.String{$$Attachments_message$$})");
-                exch2.setSRE(sre3);
-                exec3.addChild(exch2);
-                mapExec0.addChild(exec3);
-                SequentialExecution groupedExec4 = new SequentialExecution("none");
-                AlternationExecution alterExec5 = new AlternationExecution("none");
-                SequentialExecution exec6 = new SequentialExecution("none");
-                Exchange exch3 = new Exchange();
-                Matchs matchs3 = new Matchs();
-                Match match3 = new Match();
-                match3.setAsResult();
-                match3.setMatchString("com.poco.RuntimeDemo.ShowDialog()");
-                match3.setResultMatchStr("0");
-                matchs3.addChild(match3);
-                exch3.addMatcher(matchs3);
-                SRE sre4 = new SRE(null, null);
-                sre4.setPositiveRE("$$Attachments_call$$");
-                exch3.setSRE(sre4);
-                exec6.addChild(exch3);
-                alterExec5.addChild(exec6);
-                SequentialExecution exec7 = new SequentialExecution("none");
-                Exchange exch4 = new Exchange();
-                SRE sre5 = new SRE(null, null);
-                exch4.setSRE(sre5);
-                exec7.addChild(exch4);
-                alterExec5.addChild(exec7);
-                groupedExec4.addChild(alterExec5);
-                mapExec0.addChild(groupedExec4);
-                rootExec.addChild(mapExec0);
-                rootExec.getCurrentChildModifier();
-                setRootExecution(rootExec);
-            } catch (PoCoException pex) {
-                System.out.println(pex.getMessage());
-                pex.printStackTrace();
-                System.exit(-1);
-            }
-        }
-    }
+	private DummyRootPolicy root = new DummyRootPolicy(new Attachments());
+	public AspectAttachments() {
+		DataWH.closure.put("Attachments_ext", ".exe|.vbs|.hta|.mdb|.bad");
+		DataWH.closure.put("Attachments_call", "java.io.FileWriter.new($$ext)");
+		DataWH.closure.put("Attachments_message",
+						"Allowing a dangerous file is creating via: $$Attachments_call$$?");
+		DataWH.dataVal.put("Attachments_message",
+						new TypeVal("java.lang.String",
+								"Allowing a dangerous file is creating via: $$Attachments_call$$?"));
+		DataWH.dataVal.put("Attachments_ext", new TypeVal("java.lang.String",
+				".exe|.vbs|.hta|.mdb|.bad"));
+	}
+	pointcut PC4Reflection():
+	        call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
+	Object around(): PC4Reflection()   { return new SRE(null, ".");}
+
+	pointcut PointCut0(java.lang.String value0, boolean value1):
+	        call(java.io.FileWriter.new(java.lang.String,boolean)) && args(value0,value1);
+	Object around(java.lang.String value0, boolean value1): PointCut0(value0,value1) {
+		if (SREUtil.StringMatch(String.valueOf(value0),
+				".exe|.vbs|.hta|.mdb|.bad")) {
+			root.queryAction(new Event(thisJoinPoint));
+			return proceed(value0, value1);
+		} else
+			return proceed(value0, value1);
+	}
+	pointcut PointCut1(java.lang.String value0):
+	        call(java.io.FileWriter.new(java.lang.String)) && args(value0);
+	Object around(java.lang.String value0): PointCut1(value0) {
+		if (SREUtil.StringMatch(String.valueOf(value0),
+				".exe|.vbs|.hta|.mdb|.bad")) {
+			root.queryAction(new Event(thisJoinPoint));
+			return proceed(value0);
+		} else
+			return proceed(value0);
+	}
+	pointcut PointCut2(Method run): target(run) &&call(Object Method.invoke(..));
+	Object around(Method run): PointCut2(run) {
+		String className = SREUtil.trimClassName(run.getDeclaringClass()
+				.toString());
+		className = SREUtil.concatClsMethod(className, run.getName());
+		if (matchingStack(className)) {
+			Object ret = proceed(run);
+			Event event = new Event(thisJoinPoint);
+			event.eventType = "Result";
+			event.setResult(ret);
+			root.queryAction(event);
+			return ret;
+		} else
+			return proceed(run);
+	}
+	private boolean matchingStack(String runningMethod) {
+		if (root.promotedEvents != null)
+			if (root.promotedEvents.peek().equals(runningMethod)) {
+				root.promotedEvents.pop();
+				return true;
+			}
+		return false;
+	}
+	class Attachments extends Policy {
+		public Attachments() {
+			try {
+				SequentialExecution rootExec = new SequentialExecution("none");
+				MapExecution mapExec0 = new MapExecution("*");
+				mapExec0.setOperator("Union");
+				SRE sre0 = new SRE(null, null);
+				sre0.setNegativeRE("java.io.FileWriter");
+				mapExec0.setMatchSre(sre0);
+				sre0.setNegativeRE("");
+				mapExec0.setMatchSre(sre0);
+				sre0.setNegativeRE("java.io.FileWriter");
+				mapExec0.setMatchSre(sre0);
+				SequentialExecution exec1 = new SequentialExecution("*");
+				Exchange exch0 = new Exchange();
+				Matchs matchs0 = new Matchs();
+				matchs0.setNOT(true);
+				Match match0 = new Match();
+				match0.setAsAction();
+				match0.setMatchString("java.io.FileWriter");
+				match0.setAsAction();
+				match0.setMatchString("java.io.FileWriter");
+				matchs0.addChild(match0);
+				exch0.addMatcher(matchs0);
+				SRE sre1 = new SRE(null, null);
+				exch0.setSRE(sre1);
+				exec1.addChild(exch0);
+				mapExec0.addChild(exec1);
+				SequentialExecution exec2 = new SequentialExecution("none");
+				Exchange exch1 = new Exchange();
+				Matchs matchs1 = new Matchs();
+				Match match1 = new Match();
+				match1.setAsAction();
+				match1.setMatchString("java.io.FileWriter");
+				match1.setAsAction();
+				match1.setMatchString("");
+				match1.setAsAction();
+				match1.setMatchString("java.io.FileWriter");
+				matchs1.addChild(match1);
+				exch1.addMatcher(matchs1);
+				SRE sre2 = new SRE(null, null);
+				sre2.setPositiveRE("com.poco.RuntimeDemo.ShowDialog(#java.lang.String{$$Attachments_message$$})");
+				exch1.setSRE(sre2);
+				exec2.addChild(exch1);
+				mapExec0.addChild(exec2);
+				SequentialExecution exec3 = new SequentialExecution("*");
+				Exchange exch2 = new Exchange();
+				Matchs matchs2 = new Matchs();
+				matchs2.setNOT(true);
+				Match match2 = new Match();
+				match2.setAsResult();
+				match2.setMatchString("com.poco.RuntimeDemo.ShowDialog()");
+				match2.setResultMatchStr(".");
+				matchs2.addChild(match2);
+				exch2.addMatcher(matchs2);
+				SRE sre3 = new SRE(null, null);
+				sre3.setPositiveRE("com.poco.RuntimeDemo.ShowDialog(#java.lang.String{$$Attachments_message$$})");
+				exch2.setSRE(sre3);
+				exec3.addChild(exch2);
+				mapExec0.addChild(exec3);
+				SequentialExecution groupedExec4 = new SequentialExecution(
+						"none");
+				AlternationExecution alterExec5 = new AlternationExecution(
+						"none");
+				SequentialExecution exec6 = new SequentialExecution("none");
+				Exchange exch3 = new Exchange();
+				Matchs matchs3 = new Matchs();
+				Match match3 = new Match();
+				match3.setAsResult();
+				match3.setMatchString("com.poco.RuntimeDemo.ShowDialog()");
+				match3.setResultMatchStr("0");
+				matchs3.addChild(match3);
+				exch3.addMatcher(matchs3);
+				SRE sre4 = new SRE(null, null);
+				sre4.setPositiveRE("$$Attachments_call$$");
+				exch3.setSRE(sre4);
+				exec6.addChild(exch3);
+				alterExec5.addChild(exec6);
+				SequentialExecution exec7 = new SequentialExecution("none");
+				Exchange exch4 = new Exchange();
+				SRE sre5 = new SRE(null, null);
+				exch4.setSRE(sre5);
+				exec7.addChild(exch4);
+				alterExec5.addChild(exec7);
+				groupedExec4.addChild(alterExec5);
+				mapExec0.addChild(groupedExec4);
+				rootExec.addChild(mapExec0);
+				rootExec.getCurrentChildModifier();
+				setRootExecution(rootExec);
+			} catch (PoCoException pex) {
+				System.out.println(pex.getMessage());
+				pex.printStackTrace();
+				System.exit(-1);
+			}
+		}
+	}
 }
 -----------------------------------------------RuntimeDemo.java------------------------------------------------
 import java.io.FileWriter;
@@ -474,16 +470,10 @@ map(  Union, -`$SendMail(@msg[%])',
 )*
 
 ********************************************************AspectOutgoingMail*******************************************************
-import com.poco.PoCoRuntime.*;
 import java.lang.reflect.Method;
-
-package com.poco;
-
-import java.lang.reflect.Method;
-
-public aspect AspectOutgoingMail {
-	private DummyRootPolicy root = new DummyRootPolicy(new OutgoingMail()); 
-	    public AspectOutgoingMail() {
+public aspect AspectDisSysCalls {
+	private DummyRootPolicy root = new DummyRootPolicy(new OutgoingMail());
+	    public AspectDisSysCalls() {
 	        DataWH.closure.put("OutgoingMail_Confirm", "com.poco.MailUtil.confirm(#javax.mail.Message{$msg})");
 	        DataWH.closure.put("OutgoingMail_ConcatContactMsg", "String com.poco.MailUtil.concatContactMsg(#javax.mail.Message{$msg},#java.lang.String{$ContactInfo})");
 	        DataWH.closure.put("OutgoingMail_AddBCC", "com.poco.MailUtil.addBcc(#javax.mail.Message{$msg})");
@@ -496,20 +486,21 @@ public aspect AspectOutgoingMail {
 	    }
 	    pointcut PC4Reflection():
 	        call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
-	    Object around(): PC4Reflection()   {       return new SRE(null,".");   }
+	    Object around(): PC4Reflection()   {  return new SRE(null,".");     }
 	    pointcut PointCut0(javax.mail.Message value0):
-	        call(*  javax.mail.Transport.send(javax.mail.Message)) && args(value0);
-	    Object around(javax.mail.Message value0): PointCut0(value0) {
+	        call(* javax.mail.Transport.send(javax.mail.Message)) && args(value0);
+	    Object around(javax.mail.Message value0): PointCut0(value0) {	       
 	        if (SREUtil.StringMatch(String.valueOf(value0), DataWH.closure.get("OutgoingMail_msg"))) {
-	            String typeVal; 
+	        	String typeVal; 
 	            typeVal = DataWH.dataVal.get("OutgoingMail_msg").getType();
 	            DataWH.dataVal.remove("OutgoingMail_msg");
 	            DataWH.dataVal.put("OutgoingMail_msg", new TypeVal(typeVal, value0));
 	            root.queryAction(new Event(thisJoinPoint));
 	            return proceed(value0);
-	        } else  return proceed(value0);
+	        } else
+	            return proceed(value0);
 	    }
-	    pointcut PointCut1(Method run):     target(run) &&call(Object Method.invoke(..));
+	    pointcut PointCut1(Method run):   target(run) &&call(Object Method.invoke(..));
 	    Object around(Method run): PointCut1(run) {
 	        String className = SREUtil.trimClassName(run.getDeclaringClass().toString());
 	        className =SREUtil.concatClsMethod(className, run.getName());
@@ -703,7 +694,6 @@ public aspect AspectOutgoingMail {
 	        }
 	    }
 	}
-
 ********************************************************MailUtil.java*******************************************************
 import java.io.FileWriter;
 import java.io.IOException;
