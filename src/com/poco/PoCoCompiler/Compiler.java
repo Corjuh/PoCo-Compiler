@@ -367,11 +367,11 @@ public class Compiler {
             String entry = key.next();
             varNeedBind = this.extractedPtCuts.get(entry);
             System.out.println("entry:" + entry);
-            // $$SendMail($$msg$$) ||  $$SendMail
+            // $$SendMail$$($$msg$$) ||  $$SendMail$$
             if (entry.startsWith("$$")) {
                 String varName = entry.substring(2, entry.length());
                 if (varName.indexOf('(') != -1) {//is function format
-                    varName = varName.substring(0, varName.indexOf('('));
+                    varName = varName.substring(0, varName.indexOf('(')-2);
                 }
             }
             //argTypeList:  Integer, String
@@ -430,8 +430,8 @@ public class Compiler {
                 jOut(1, "pointcut PointCut%d(%s):", pointcutNum, argList4PC);
                 String callStr = getPCMethodName(entry);
                 if (callStr.substring(0, 2).equals("$$")) {
-                    if (closure.getContext(callStr.substring(2, callStr.length())) != null)
-                        callStr = closure.getContext(callStr.substring(2, callStr.length()));
+                    if (closure.getContext(callStr.substring(2, callStr.length()-2)) != null)
+                        callStr = closure.getContext(callStr.substring(2, callStr.length()-2));
                     String funName = getPCMethodName(callStr);
                     //if the method signature included the return type(if user included the return
                     // type then has to have space btw return type and method name) then just use it,
@@ -628,8 +628,8 @@ public class Compiler {
             String[] varNams = new String[typeValArray.length];
             String[] varVals = new String[typeValArray.length];
             if (typeValArray != null) {
-                String reg1 = "(.+)\\$\\$(.+)\\$\\$";
-                String reg2 = "(.+)\\$\\$(.+)";
+                String reg1 = "(.+)\\$\\$\\$(.+)\\$\\$\\$";
+                String reg2 = "(.+)\\$\\$(.+)\\$\\$";
                 Pattern pattern1 = Pattern.compile(reg1);
                 Pattern pattern2 = Pattern.compile(reg2);
                 Matcher matcher1;
@@ -693,7 +693,7 @@ public class Compiler {
                 if (varVals[i] == null) {
                     continue;
                 }
-                if (varVals[i].startsWith("$$"))
+                if (varVals[i].startsWith("$$")&&!varVals[i].startsWith("$$$"))
                     temp = genCoditionStatement(varTyps[i], varNams[i],
                             varVals[i].substring(2, varVals[i].length()), 1);
                 else
@@ -743,7 +743,7 @@ public class Compiler {
             if (mode == 0)
                 resultStr[0] = "SREUtil.StringMatch(" + str + ", \"" + matchVal + "\")";
             else //if(mode == 1)
-                resultStr[0] = "SREUtil.StringMatch(" + str + ", DataWH.closure.get(\"" + policyName +"_" + matchVal + "\"))";
+                resultStr[0] = "SREUtil.StringMatch(" + str + ", DataWH.closure.get(\"" + matchVal + "\"))";
             return resultStr;
         }
         return null;
@@ -767,15 +767,14 @@ public class Compiler {
     }
 
     private void outAdviceProlog4DynBind(int offset) {
-
         if (monitoredPC != null && monitoredPC.size() > 0) {
             jOut(offset, "String typeVal; ");
             Set<String> set = monitoredPC.keySet();
             for (Iterator<String> it = set.iterator(); it.hasNext(); ) {
                 String varName = it.next();
-                jOut(offset, "typeVal = DataWH.dataVal.get(\"" +policyName+"_" +varName + "\").getType();");
-                jOut(offset, "DataWH.dataVal.remove(\"" + policyName+"_" +varName + "\");");
-                jOut(offset, "DataWH.dataVal.put(\"" + policyName+"_" +varName + "\", new TypeVal(typeVal, " + monitoredPC.get(varName) + "));");
+                jOut(offset, "typeVal = DataWH.dataVal.get(\"" + varName + "\").getType();");
+                jOut(offset, "DataWH.dataVal.remove(\"" + varName + "\");");
+                jOut(offset, "DataWH.dataVal.put(\"" + varName + "\", new TypeVal(typeVal, " + monitoredPC.get(varName) + "));");
             }
         }
     }
@@ -825,18 +824,20 @@ public class Compiler {
      */
     private String getArgsType(String str, int index) {
         //java.lang.String$$*.class$$ || int$$1$$ || $$ip ||java.lang.String
-        String reg = "(.+)(\\$\\$(.+)\\$\\$)";
+        String reg = "(.+)(\\$\\$\\$(.+)\\$\\$\\$)";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(str);
         if (matcher.find())
             return matcher.group(index).toString().trim();
         else {
-            reg = "\\$\\$(.+)";
+            reg = "\\$\\$(.+)\\$\\$";
             pattern = Pattern.compile(reg);
             matcher = pattern.matcher(str);
             if (matcher.find()) {
                 String temp = matcher.group(1).toString().trim();
                 if (index == 1) {
+                    if(temp.endsWith("$$"))
+                        temp = temp.substring(0,temp.length()-2);
                     String varType = closure.getType(temp).trim();
                     if (varType == null || varType.length() == 0)
                         return "java.lang.String";
@@ -845,9 +846,9 @@ public class Compiler {
                 } else { //if index == 2;
                     String value = closure.getContext(temp);
                     if (value == null)
-                        return "$$" + temp.trim();
+                        return "$$" + temp.trim()+"$$";
                     else
-                        return "$$" + value.trim() + "$$";
+                        return "$$$" + value.trim() + "$$$";
                 }
             }
         }
@@ -896,8 +897,7 @@ public class Compiler {
             if (varContext.contains("%."))
                 varContext = varContext.replace("%.", "(.*)\\.");
             varContext = varContext.replace("\\", "\\\\");
-            String key = policyName + "_" + entry.getKey();
-            jOut(2, "DataWH.closure.put(\"" + key + "\", \"" + varContext + "\");");
+            jOut(2, "DataWH.closure.put(\"" + entry.getKey() + "\", \"" + varContext + "\");");
         }
         if (objParams != null) {
             for (String s : objParams) {
@@ -953,7 +953,6 @@ public class Compiler {
                             break;
                     }
                 }
-                s = policyName + "_" + s;
                 jOut(2, "DataWH.dataVal.put(\"" + s + "\"," + str);
             }
         }
