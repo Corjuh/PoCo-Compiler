@@ -72,7 +72,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     private boolean isSkip = false;
     //use to save the transactions that need to be added into Util
     private String transactions = null;
-
+    private String policyName = null;
     /**
      * Constructor
      *
@@ -150,7 +150,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
      */
     @Override
     public Void visitPocopol(@NotNull PoCoParser.PocopolContext ctx) {
-        String policyName = ctx.id().getText();
+        policyName = ctx.id().getText();
 
         outLine(0, "class %s extends Policy {", policyName);
         outLine(1, "public %s() {", policyName);
@@ -516,8 +516,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             }
             String content = "";
             if (ctx.DOLLAR() != null) {
-                String policyName = closure.getContext("PolicyName");
-                content = "$$" + policyName + "_" +ctx.qid().getText() + "$$";
+                content = "$$" + policyName + "_" + ctx.qid().getText()+"$$";
                 if (ctx.opparamlist() != null) {
                     //only need care about the arglist is when we try to promote the action
                     if (isSrePos) {
@@ -702,9 +701,10 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     }
 
     private String getVarTyp(String qid) {
-        if (closure != null && closure.getType(qid) != null) {
-            String policyName = closure.getContext("PolicyName");
-            return "#" + closure.getType(qid) + "{$$" + policyName +"_" +qid + "$$}";
+        String id = policyName+"_"+qid;
+        if (closure != null && closure.getType(id) != null) {
+
+            return "#" + closure.getType(id) + "{$$" + id + "$$}";
         }return "null";
     }
 
