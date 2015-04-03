@@ -3,6 +3,7 @@ package com.poco.Extractor;
 import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseVisitor;
 import org.antlr.v4.runtime.misc.NotNull;
+import sun.jvm.hotspot.debugger.posix.elf.ELFSectionHeader;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -24,6 +25,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     private boolean ptFromOpparamlist = false;
     private boolean isResult = false;
     private boolean varBinding = false;
+    private String policyName = "";
 
     public PointCutExtractor(Closure closure) {
         this.closure = closure;
@@ -35,22 +37,28 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     }
 
     @Override
+    public Void visitPocopol(@NotNull PoCoParser.PocopolContext ctx){
+        policyName = ctx.id().getText().trim()+"_";
+        visitChildren(ctx);
+        return null;
+    }
+
+
+    @Override
     public Void visitRe(@NotNull PoCoParser.ReContext ctx) {
         if (ptFromOpparamlist == false) {
             pointcutStr = "* ";
-            /*if (varBinding == false)
-                pointcutStr = "* ";
-            else
-                pointcutStr += "* ";*/
             if (ctx.rewild() != null) {
                 pointcutStr = pointcutStr + " * (..); ";
             } else if (ctx.qid() != null) {
-                if (closure != null && closure.isContains(ctx.qid().getText())) {
-                    String funcStr = closure.getContext(ctx.qid().getText());
+                if (closure != null && closure.isContains(policyName+ctx.qid().getText())) {
+                    String funcStr = closure.getContext(policyName+ctx.qid().getText());
                     //function name included return type;
                     if(getFunctionName(funcStr).split(" ").length ==2)
                         pointcutStr = funcStr;
-                    else
+                    else if(getFunctionName(funcStr).contains(".new")) {
+                        pointcutStr = funcStr;
+                    }else
                         pointcutStr +=funcStr;
                 } else {
                     throw new NullPointerException("No such var exist.");
@@ -114,7 +122,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                     }
                 } else if (ctx.AT() != null) {
                     varBinding = true;
-                    varBind4thisPC.add(ctx.id().getText());
+                    varBind4thisPC.add(policyName +ctx.id().getText());
                     visitChildren(ctx);
                     varBinding = false;
                 } else {
@@ -124,19 +132,18 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 if (ctx.rewild() != null) {
                     pointcutStr = pointcutStr + "(..)";
                 } else if (ctx.qid() != null) {
-
                     String strval = ctx.qid().getText();
-                    if (closure != null && closure.isContains(strval)) {
-                        pointcutStr += "($$" + strval + ")";
-                        objParams.add(strval);
+                    if (closure != null && closure.isContains(policyName+strval)) {
+                        pointcutStr += "($$" +policyName+strval + "$$)";
+                        objParams.add(policyName+strval);
                     } else
                         throw new NullPointerException("No such var exist.");
                 } else if (ctx.AT() != null) {
                     String strval = ctx.id().getText();
-                    if (closure != null && closure.isContains(strval)) {
-                        varBind4thisPC.add(ctx.id().getText());
-                        pointcutStr += "($$" + strval + ") ";
-                        objParams.add(strval);
+                    if (closure != null && closure.isContains(policyName+strval)) {
+                        varBind4thisPC.add(policyName+ctx.id().getText());
+                        pointcutStr += "($$" + policyName+strval + "$$) ";
+                        objParams.add(policyName+strval);
                     } else
                         throw new NullPointerException("No such var exist.");
                 } else if (ctx.object() != null) {
@@ -148,9 +155,9 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                         //so we can check it statically, otherwise we have to check it dynamically
                         if (!reStr.contains("$")) {
                             if (reStr.equals("%"))
-                                pointcutStr += "$$*.*$$";
+                                pointcutStr += "$$$*.*$$$";
                             else
-                                pointcutStr += "$$" + reStr.replaceAll("%", "*") + "$$";
+                                pointcutStr += "$$$" + reStr.replaceAll("%", "*") + "$$$";
                         } else { //so the value will be dynamic
                             pointcutStr += reStr;
                         }
@@ -160,7 +167,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                     } else {  //Null case
                         pointcutStr = pointcutStr + "(..)";
                     }
-
                 } else if (ctx.function() != null) {
                     //TODO: add detail later
                     pointcutStr = pointcutStr + ctx.function().fxnname().getText();
@@ -168,8 +174,10 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                     visitRe(ctx.re(0));
                     visitRe(ctx.re(1));
                 } else {
-                    if (ctx.getText().trim().length() > 0)
-                        pointcutStr = pointcutStr + "(" + ctx.getText() + ")";
+                    if (ctx.getText().trim().length() > 0) {
+                        if(!isEmptyParent(ctx.getText().trim()))
+                            pointcutStr = pointcutStr + "(" + ctx.getText() + ")";
+                    }
                 }
             }
             return null;
@@ -293,5 +301,16 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         if(leftPara!=-1 && righPara!=-1 && leftPara <righPara)
             return str.substring(0,leftPara);
         return str;
+    }
+
+    public boolean isEmptyParent(String str) {
+        str = str.trim();
+        if(str.length() >=2 && str.charAt(0)== '(' && str.charAt(str.length()-1) ==')') {
+            if(str.length() == 2)
+                 return true;
+            if(str.substring(1,str.length()-1).trim().length() ==0)
+                return true;
+        }
+        return false;
     }
 }
