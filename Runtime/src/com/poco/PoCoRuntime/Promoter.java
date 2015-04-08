@@ -1,7 +1,5 @@
-package com.poco.PoCoRuntime;
+package com.poco;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -9,6 +7,10 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.mail.Message;
 
 /**
  * Created by caoyan on 1/30/15.
@@ -38,13 +40,13 @@ public class Promoter {
     }
 
     private static void ReflectExecute(String className, String methodName,
-                                       ArrayList<ReflectParameter> params, Object[] objs) throws Exception {
+                                      ArrayList<ReflectParameter> params, Object[] objs) throws Exception {
         try {
-            boolean isfound = false;
-
-            //get rid of the return type if the string contains it
-            if(className.trim().split(" ").length == 2)
-                className = className.trim().split(" ")[1];
+        	boolean isfound = false;
+        	
+        	//get rid of the return type if the string contains it
+        	if(className.trim().split(" ").length == 2)
+        		className = className.trim().split(" ")[1];
             Class cls1 = Class.forName(className);
             Method[] methods = cls1.getMethods();
             Method theMethod = null;
