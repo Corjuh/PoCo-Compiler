@@ -1,4 +1,5 @@
-package com.poco.PoCoRuntime;
+package com.poco;
+
 import org.aspectj.lang.JoinPoint;
 
 /**
@@ -8,19 +9,36 @@ import org.aspectj.lang.JoinPoint;
  */
 public class Event {
     private String signature;
-    public String eventType;
-
-    private Object result = null;
+    private String eventType;
+    private String promotedMethod;
+    
+    private Object result = null; 
 
     public Object getResult() {
-        return result;
-    }
-
+		return result;
+	}
+    
     public void setResult(Object result) {
-        this.result = result;
+    	this.result = result;
     }
 
-    /**
+	public String getPromotedMethod() {
+		return promotedMethod;
+	}
+
+	public void setPromotedMethod(String promotedMethod) {
+		this.promotedMethod = promotedMethod;
+	}
+
+	public String getEventType() {
+		return eventType;
+	}
+
+	public void setEventType(String eventType) {
+		this.eventType = eventType;
+	}
+
+	/**
      * Construct an event from explicitly passed details. Used when testing.
      *
      * @param signature method signature of event
@@ -43,9 +61,11 @@ public class Event {
         return signature;
     }
 
-    @Override
-    public String toString() {
-        return "Event [signature=" + signature + ", eventType=" + eventType
-                + ", result=" + result + "]";
-    }
+	@Override
+	public String toString() {
+		return "Event [signature=" + signature + ", eventType=" + eventType
+				+ ", result=" + result + "]";
+	}
+    
+    
 }
