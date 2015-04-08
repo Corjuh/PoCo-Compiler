@@ -1,4 +1,4 @@
-package com.poco.PoCoRuntime;
+package com.poco;
 
 import java.util.ArrayList;
 
@@ -93,30 +93,27 @@ public class Matchs implements Matchable {
      * @return whether this Matchs' children (and itself) accept or can provide a result for the event.
      */
     @Override
-    public boolean accepts(Event event) {
+    public boolean accepts(Event event) {  
         // An empty Matchs object does not accept anything
         if (children.size() == 0) {
             return false;
         }
-
         // Short-circuited OR operation
         if (isOR) {
             for (Matchable child : children) {
-                if (child.accepts(event)) {
+                if (child.accepts(event))  
                     return true;
-                }
             }
 
             return false;
-        }
-
+        } 
         // Both AND and NOT require all children to be evaluated
         boolean[] results = new boolean[children.size()];
         for (int i = 0; i < children.size(); i++) {
-            results[i] = children.get(i).accepts(event);
+            results[i] = children.get(i).accepts(event); 
         }
-
-        if (isNOT) {
+         
+        if (isNOT) {  
             return !results[0];
         } else if (isAND) {
             // AND all results together to get final result
@@ -124,11 +121,12 @@ public class Matchs implements Matchable {
             for (boolean result : results) {
                 combo = combo && result;
             }
-
             return combo;
         }
-
-        return false;
+        else { //Single child and isNot=false
+        	return results[0];
+        }
+        //return false;
     }
 
     /*
@@ -149,4 +147,12 @@ public class Matchs implements Matchable {
     public int getNumChildren() {
         return children.size();
     }
+
+	@Override
+	public String toString() {
+		return "Matchs [children=" + children + ", isAND=" + isAND + ", isOR="
+				+ isOR + ", isNOT=" + isNOT + "]";
+	}
+    
+    
 }
