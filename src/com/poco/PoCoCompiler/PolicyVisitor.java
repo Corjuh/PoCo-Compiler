@@ -36,7 +36,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     private int matchNumber;
     private Stack<String> matchNames;
     private int matchsNum;
-    private Stack<String> matchsNames;
 
     private int matchNum;
     private String currentMatch;
@@ -73,6 +72,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     //use to save the transactions that need to be added into Util
     private String transactions = null;
     private String policyName = null;
+
     /**
      * Constructor
      *
@@ -97,7 +97,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         this.matchNames = new Stack<>();
 
         this.matchsNum = 0;
-        this.matchsNames = new Stack<>();
 
         // Initialize Match data structures
         this.matchNum = 0;
@@ -279,14 +278,43 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             else
                 hasAnd = true;
         }
+        if (ctx.match() == null) {
+            if (hasBooluop) {
+                outLine(3, "%s.setNOT(true);", matchNames.peek());
+            }
+            if (hasAnd || hasOr) {
+                String matchsName = "matchs" + matchNumber++;
+                outLine(3, "Matchs %s = new Matchs();", matchsName);
+                if (hasAnd)
+                    outLine(3, "%s.setAND(true);", matchsName);
+                else if (hasOr)
+                    outLine(3, "%s.setOR(true);", matchsName);
+                matchNames.push(matchsName);
+                isCombinedMatch = true;
+                visitChildren(ctx);
+                isCombinedMatch = false;
+                matchNames.pop();
+                outLine(3, "%s.addChild(%s);", matchNames.peek(), matchsName);
+            }
+            else {
+                isCombinedMatch = true;
+                visitChildren(ctx);
+                isCombinedMatch = false;
+            }
+        } else {
+            visitChildren(ctx);
+        }
+        return null;
+        /*
         boolean hasMatch = (ctx.match() != null);
         if (!hasMatch) {
             if (hasBooluop)
                 outLine(3, "%s.setNOT(true);", matchNames.peek());
             if (hasAnd)
                 outLine(3, "%s.setAND(true);", matchNames.peek());
-            else if (hasOr)
+            else if (hasOr) {
                 outLine(3, "%s.setOR(true);", matchNames.peek());
+            }
 
             //set up the flag so the % case will not be skipped (e.g., <Action(`[%]')&&@out[`$p']=>+`fopen($f)'>)
             if (hasBooluop || hasAnd || hasOr)
@@ -298,7 +326,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             // This matchs simply wraps a match object. No need to create a matchs object
             visitChildren(ctx);
         }
-        return null;
+        return null;*/
     }
 
     @Override
@@ -464,10 +492,10 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             if (ctx.rebop() != null) {
                 reBop = true;
                 String matchsName = "matchs" + matchsNum++;
-                outLine(3, "Matchs %s = new Matchs(\"||\");",matchsName);
-                matchsNames.push(matchsName);
+                outLine(3, "Matchs %s = new Matchs(\"||\");", matchsName);
+                matchNames.push(matchsName);
                 visitChildren(ctx);
-                matchsNames.pop();
+                matchNames.pop();
                 reBop = false;
             } else {
                 String matchStr = null;
@@ -489,9 +517,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                         reMatchs.add(matchStr);
                         String matchName = "match" + matchNum++;
                         outLine(3, "Match %s = new Match(\"%s\");", matchName, matchStr);
-                        outLine(3, "%s.addChild(%s);", matchsNames.peek(), matchName);
-                        outLine(3, "%s.addMatcher(%s);", currentExchange, matchsNames.peek());
-                    }else
+                        outLine(3, "%s.addChild(%s);", matchNames.peek(), matchName);
+                        outLine(3, "%s.addMatcher(%s);", currentExchange, matchNames.peek());
+                    } else
                         isSkip = true;
                 }
             }
@@ -510,13 +538,13 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 outLine(3, "%s.setMatchString(\".\");", currentMatch);
             }
         } else {
-            if(isSkip == true) {
+            if (isSkip == true) {
                 isSkip = false;
                 return null;
             }
             String content = "";
             if (ctx.DOLLAR() != null) {
-                content = "$$" + policyName + "_" + ctx.qid().getText()+"$$";
+                content = "$$" + policyName + "_" + ctx.qid().getText() + "$$";
                 if (ctx.opparamlist() != null) {
                     //only need care about the arglist is when we try to promote the action
                     if (isSrePos) {
@@ -701,11 +729,12 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     }
 
     private String getVarTyp(String qid) {
-        String id = policyName+"_"+qid;
+        String id = policyName + "_" + qid;
         if (closure != null && closure.getType(id) != null) {
 
             return "#" + closure.getType(id) + "{$$" + id + "$$}";
-        }return "null";
+        }
+        return "null";
     }
 
     /**
