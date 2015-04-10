@@ -47,7 +47,7 @@ public class DummyRootPolicy {
 		boolean negMatch = false;
 
 		//System.out.format("Root policy queried with event: \"%s\"\n",event.getSignature());
-		if (result.getPositiveRE() != null && result.getPositiveRE().equals("null")) {
+		if (result.getPositiveRE() != null && !result.getPositiveRE().equals("null")) {
 			posMatch = true;
 			//System.out.format("Child policy returned +`%s'\n",result.positiveRE());
 		}
