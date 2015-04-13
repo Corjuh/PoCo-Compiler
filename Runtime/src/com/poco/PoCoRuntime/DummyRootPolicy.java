@@ -46,19 +46,19 @@ public class DummyRootPolicy {
 		boolean posMatch = false;
 		boolean negMatch = false;
 
-		//System.out.format("Root policy queried with event: \"%s\"\n",event.getSignature());
+		System.out.format("Root policy queried with event: \"%s\"\n",event.getSignature());
 		if (result.getPositiveRE() != null && !result.getPositiveRE().equals("null")) {
 			posMatch = true;
-			//System.out.format("Child policy returned +`%s'\n",result.positiveRE());
+			System.out.format("Child policy returned +`%s'\n",result.positiveRE());
 		}
 		if (result.getNegativeRE() != null) {
 			if (!posMatch)
 				negMatch = true;
-			 //System.out.format("Child policy returned -`%s'\n",result.negativeRE());
+			 System.out.format("Child policy returned -`%s'\n",result.negativeRE());
 		}
 		// Neutral case which means should be okay if
 		if (result.getPositiveRE() == null && result.getNegativeRE() == null) {
-			 //System.out.println("Child policy returned Neutral");
+			 System.out.println("Child policy returned Neutral");
 		}
 
 		if (posMatch) {
@@ -205,7 +205,7 @@ public class DummyRootPolicy {
 	 * @return
 	 */
 	private boolean methodMatch(String peek, String resultPos) {
-		String reg = "(.+)\\((.+)\\)";
+		String reg = "(.+)\\((.*)\\)";
 		String peekMethodName = peek;
 		String resultMethodName = resultPos;
 		String[] peekParams = null;
@@ -218,19 +218,29 @@ public class DummyRootPolicy {
 			peekMethodName = matcher1.group(1).trim();
 			if (peekMethodName.split(" ").length == 2)
 				peekMethodName = peekMethodName.split(" ")[1];
-			peekParams = matcher1.group(2).trim().split(",");
+			String strParams = matcher1.group(2).trim();
+			if(strParams.length() ==0)  
+				peekParams = null;
+			else
+				peekParams = strParams.split(",");
 		}
 		if (matcher2.find()) {
 			resultMethodName = matcher2.group(1).trim();
 			if (resultMethodName.split(" ").length == 2)
 				resultMethodName = resultMethodName.split(" ")[1];
-			resultParams = matcher2.group(2).trim().split(",");
+			String strParams = matcher2.group(2).trim();
+			if(strParams.length() ==0)  
+				resultParams = null;
+			else
+				resultParams = strParams.split(",");
 
 		}
+		
+		
 		if (peekMethodName.equals(resultMethodName)) {
-			if (resultParams == null)
+			if (resultParams == null) {
 				return true;
-			else {
+			}else {
 				if (resultParams.length == peekParams.length) {
 					boolean match = true;
 					for (int i = 0; i < resultParams.length; i++) {
@@ -243,7 +253,7 @@ public class DummyRootPolicy {
 				}
 
 			}
-		}
+		} 
 		return false;
 	}
 }
