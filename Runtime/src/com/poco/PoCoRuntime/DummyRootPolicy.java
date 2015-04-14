@@ -46,21 +46,21 @@ public class DummyRootPolicy {
 		boolean posMatch = false;
 		boolean negMatch = false;
 
-		System.out.format("Root policy queried with event: \"%s\"\n",event.getSignature());
+		//System.out.format("Root policy queried with event: \"%s\"\n",event.getSignature());
 		if (result.getPositiveRE() != null && !result.getPositiveRE().equals("null")) {
 			posMatch = true;
-			System.out.format("Child policy returned +`%s'\n",result.positiveRE());
+			//System.out.format("Child policy returned +`%s'\n",result.positiveRE());
 		}
 		if (result.getNegativeRE() != null) {
 			if (!posMatch)
 				negMatch = true;
-			 System.out.format("Child policy returned -`%s'\n",result.negativeRE());
+			 //System.out.format("Child policy returned -`%s'\n",result.negativeRE());
 		}
 		// Neutral case which means should be okay if
 		if (result.getPositiveRE() == null && result.getNegativeRE() == null) {
 			 System.out.println("Child policy returned Neutral");
 		}
-
+		
 		if (posMatch) {
 			//$$AddBCC$$(#javax.mail.Message{$$msg$$},#java.lang.String{domain})
 			//com.poco.RuntimeDemo.ShowDialog(#java.lang.String{$$Attachments_message})
@@ -137,6 +137,7 @@ public class DummyRootPolicy {
 					}
 				}
 			}
+			
 			matcher = pattern.matcher(resultPos);
 			boolean needUpdate = matcher.find();
 			while (needUpdate) {
@@ -156,11 +157,12 @@ public class DummyRootPolicy {
 			if (resultPos.substring(resultPos.length() - 4, resultPos.length())
 					.equals(".new"))
 				resultPos = resultPos.substring(0, resultPos.length() - 4);
-
-			if (methodMatch(monitoringEvents.peek(), resultPos)) {
+			
+			if(monitoringEvents.isEmpty() && resultPos!=null)
+				promoted =false;
+			else if (methodMatch(monitoringEvents.peek(), resultPos)) {
 				promoted = true;
 			}
-
 			if (promoted) {
 				System.out.println("the action " + monitoringEvents.peek()
 						+ " will be allowed!");
@@ -181,7 +183,7 @@ public class DummyRootPolicy {
 
 		if (negMatch) {
 			// if already on stack, show System.exit(-1);
-			if (monitoringEvents != null
+			if (! monitoringEvents.empty()
 					&& monitoringEvents.peek().contains(
 							result.negativeRE().toString())) {
 				monitoringEvents.pop();
