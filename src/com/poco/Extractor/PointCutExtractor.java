@@ -292,7 +292,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     public void add2NodesNodes4Result(String pointcutStr) {
         pointcutStr = pointcutStr.trim();
-        System.out.println(pointcutStr + "-----isLHS: "+isLHS + "-----isResult: "+isResult);
         if (!isResult) {
             //action on the LHS, add to nodes
             if (isLHS) {
