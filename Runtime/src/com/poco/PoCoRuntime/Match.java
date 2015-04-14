@@ -142,8 +142,16 @@ public class Match implements Matchable {
 			}
 			if (matchString.endsWith("()"))
 				matchString = matchString.substring(0, matchString.length() - 2);
+			
 			if (event.getSignature().contains("java.lang.reflect.Method.invoke")) {
 				if(event.getPromotedMethod().contains(matchString)) {
+					pattern = Pattern.compile(resultMatchStr);
+					matcher = pattern.matcher(event.getResult().toString());
+					boolean result =matcher.find();
+					return result;
+				}
+			} else {
+				if(event.getSignature().contains(matchString)) {
 					pattern = Pattern.compile(resultMatchStr);
 					matcher = pattern.matcher(event.getResult().toString());
 					boolean result =matcher.find();
