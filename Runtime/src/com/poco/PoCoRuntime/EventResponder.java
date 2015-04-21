@@ -1,4 +1,4 @@
-package com.poco.PoCoRuntime;
+package com.poco;
 
 /**
  * Abstract class that any class capable of responding to a PoCo event must inherit from
@@ -6,4 +6,8 @@ package com.poco.PoCoRuntime;
  * implements both the Queryable and Matchable interfaces.
  */
 public abstract class EventResponder implements Queryable, Matchable {
+	protected boolean isQueried = false;
+	public void resetIsQueried(){
+		isQueried = false;
+	}
 }
