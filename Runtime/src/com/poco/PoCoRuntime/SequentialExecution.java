@@ -82,15 +82,13 @@ public class SequentialExecution extends AbstractExecution implements
 		if (exhausted) {
 			return null;
 		}
-		
 		getCurrentChildModifier();
-	
 		EventResponder currentChild = children.get(currentCursor);
-		
 		if (currentChild.accepts(event)) {
 			if (!currentChildIsZeroPlus && !currentChildIsOnePlus) 
 				advanceCursor(); 
 			SRE res = currentChild.query(event);
+			currentChild.resetIsQueried();
 			return res;
 		} else { //not accepting 
 			if (currentChildIsZeroPlus) { 
@@ -99,6 +97,7 @@ public class SequentialExecution extends AbstractExecution implements
 				return this.query(event);
 			} else { 
 				// CurrentChild doesn't accept and can't be skipped
+				currentChild.resetIsQueried();
 				return null;
 			}
 		}
