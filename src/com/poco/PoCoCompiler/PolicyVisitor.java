@@ -419,6 +419,27 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 String sreName = "sre" + sreNum++;
                 sreNames.push(sreName);
                 outLine(3, "SRE %s = new SRE(null, null);", sreName);
+
+                if(ctx.PLUS() != null) {
+                    String  funReg = "(.+)\\((.*)\\)";
+                    Pattern funPtn = Pattern.compile(funReg);
+                    Matcher funMth = funPtn.matcher(ctx.re().getText().trim());
+                    String objReg = "#(.+)\\{(.+)\\}";
+                    Pattern objPtn = Pattern.compile(objReg);
+                    Matcher objMth = objPtn.matcher(ctx.re().getText().trim());
+                    //not a function call but an object value, then it is the case of update the return value
+                    if (!funMth.find() && objMth.find()) {
+                        if (!objMth.group(1).trim().startsWith("$$")) {
+                            outLine(3, "%s.setPositiveRE(\"%s\");", sreNames.peek(), ctx.re().getText().trim());
+                            sreNames.pop();
+                            if (!sreNames.empty())
+                                setSREvalue(sreNames.peek(), sreName);
+                            outLine(3, "%s.setSRE(%s);", currentExchange, sreName);
+                            return null;
+                        }
+                    }
+                }
+
                 isSre = true;
                 isSrePos = (ctx.PLUS() != null);
                 visitRe(ctx.re());
@@ -470,6 +491,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 if (!sreNames.empty())
                     setSREvalue(sreNames.peek(), sreName);
             } else if (ctx.qid() != null) {   //$qid case
+
                 //for qid case, currently put the qid info in the positiveRE, so when
                 //SreUop is null, then we will check if it is pos or neg, when
                 //SreUop is not null, then we treat pos differently
