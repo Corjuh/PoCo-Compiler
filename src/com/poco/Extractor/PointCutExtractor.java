@@ -7,6 +7,7 @@ import org.antlr.v4.runtime.misc.NotNull;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
+import java.util.Stack;
 
 /**
  * Created by caoyan on 11/7/14.
@@ -15,6 +16,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     private HashMap<String, HashSet<String>> nodes = new HashMap<String, HashSet<String>>();
     //use this to distinguish the result from the action for generating advices
     private Hashtable<String, HashSet<String>> nodes4Promoter = new Hashtable<String, HashSet<String>>();
+    //used for the monitor the result for promoted methods
     private Hashtable<String, HashSet<String>> nodes4PromoterRes = new Hashtable<String, HashSet<String>>();
     private Hashtable<String, HashSet<String>> nodes4Result = new Hashtable<String, HashSet<String>>();
     private String pointcutStr;
@@ -29,9 +31,16 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     private boolean varBinding = false;
     private String policyName = "";
 
+    //update return value case can only happen when LHS of => is result and RHS of => is object
+    //so now if LHS is result then push the the method onto resultMethodName stack
+    //when RHS is object and resultMethodName stack is not empty, then record the value for the method
+    private Stack<String> resultMethodName;
+    private Hashtable<String, String> updateValue = new Hashtable<>();
+
     public PointCutExtractor(Closure closure) {
         this.closure = closure;
         pointcutStr = "";
+        this.resultMethodName = new Stack<>();
     }
 
     private static String scrubString(String input) {
@@ -44,7 +53,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         visitChildren(ctx);
         return null;
     }
-
 
     @Override
     public Void visitRe(@NotNull PoCoParser.ReContext ctx) {
@@ -103,7 +111,11 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                         add2NodesNodes4Result(pointcutStr);
                     }
                 } else {
-                    pointcutStr = pointcutStr + ctx.function().fxnname().getText();
+                    String funStr = ctx.function().fxnname().getText().trim();
+                    if(funStr.split(" ").length == 2)
+                        pointcutStr = funStr;
+                    else
+                        pointcutStr = pointcutStr + funStr;
                     if (ctx.function().arglist() != null) {
                         if (ctx.function().arglist().getText().length() == 0) {
                             pointcutStr += "()";
@@ -117,6 +129,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                     add2NodesNodes4Result(pointcutStr);
                 }
             } else if (ctx.object() != null) {
+                if(!resultMethodName.empty())
+
                 if (ctx.object().POUND() != null)
                     pointcutStr = ctx.object().re().getText();
                 else if (ctx.object().qid() != null) {
@@ -209,6 +223,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         } else if (ctx.matchs() != null) {
             visitMatchs(ctx.matchs());
             visitSre(ctx.sre());
+            if(!resultMethodName.empty())
+                resultMethodName.pop();
         }
         return null;
     }
@@ -249,6 +265,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         } else {
             isResult = true;
             isLHS = true;
+            resultMethodName.push(ctx.re(0).getText());
             visitRe(ctx.re(0));
             isLHS = false;
             isResult = false;
@@ -321,7 +338,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             } else { //need monitor the result
                 if (nodes.containsKey(pointcutStr)) {
                     varBind4thisPC.addAll(nodes.get(pointcutStr));
-                    nodes.remove(pointcutStr);
+                    nodes.put(pointcutStr, varBind4thisPC);
                 }
                 if (nodes4Result.containsKey(pointcutStr))
                     varBind4thisPC.addAll(nodes4Result.get(pointcutStr));
