@@ -6,7 +6,6 @@ package com.poco;
  */
 public class AlternationExecution extends SequentialExecution
 {
-	private Boolean isQueried = false;
     private Boolean resultBool = false;
 	private SRE resultSRE = null;
 	
@@ -19,9 +18,7 @@ public class AlternationExecution extends SequentialExecution
     	if (children.size() == 0){
 			return null;
 		}
-
 		if (!isQueried) {
-			isQueried = true;
 			if (children.get(0).accepts(event))  {
 				resultBool = true;
 				resultSRE = children.get(0).query(event);
@@ -29,6 +26,7 @@ public class AlternationExecution extends SequentialExecution
 				resultBool = children.get(1).accepts(event);
 				resultSRE = children.get(1).query(event);
 			}
+			isQueried = true;
 			return resultSRE;
 		}
 		else {
