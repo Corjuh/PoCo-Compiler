@@ -55,6 +55,7 @@ public class Compiler {
     ArrayList<String> extractedPCs = new ArrayList<String>();
     Hashtable<String, HashSet<String>> extractedPtCuts = null;
     //add this in order to generate the different kinds of advices for pointcuts
+    Hashtable<String, HashSet<String>> extractedPtCuts4Promoter = null;
     Hashtable<String, HashSet<String>> extractedPtCuts4Results = null;
 
     /**  All method signatures from files in scanFilePaths */
@@ -69,7 +70,7 @@ public class Compiler {
     private Hashtable<String, String> monitoredPC = new Hashtable<String, String>();
     private HashSet<String> varNeedBind;
     private HashSet<String> objParams;
-
+    int pointcutNum = 0;
     /**
      * Writes a Collection object to a file, separated by newlines.
      * @param items object adhering to the Collection interface
@@ -266,35 +267,37 @@ public class Compiler {
         PointCutExtractor pcExtractor = new PointCutExtractor(this.closure);
         pcExtractor.visit(parseTree);
         this.extractedPtCuts = pcExtractor.getPCStrings();
-        this.extractedPtCuts4Results = pcExtractor.getPCStrs4Results();
+        this.extractedPtCuts4Promoter = pcExtractor.getPCStrs4Promoter();
+        this.extractedPtCuts4Results = pcExtractor.getPCStrs4Result();
         this.objParams = pcExtractor.getObjParams();
-        Set<String> set = this.extractedPtCuts.keySet();
-        /*for (String entry : this.extractedPtCuts) {
+        /*Set<String> set = this.extractedPtCuts.keySet();
+        for (String entry : set)
             extractedPCs.add(entry);
-        }
-        for (String entry : this.extractedPtCuts4Results) {
+        set = this.extractedPtCuts4Promoter.keySet();
+        for (String entry : set)
             extractedPCs.add(entry);
-        }
+
         // Write REs to a file
-        Path policyExtractPath = outputDir.resolve(policyName + "_extracts.txt");
+        //Path policyExtractPath = outputDir.resolve(policyName + "_extracts.txt");
         //writeToFile(extractedREs, policyExtractPath);
-        writeToFile(extractedPCs, policyExtractPath);
+        //writeToFile(extractedPCs, policyExtractPath);
         // Extract all method signatures from jar/class files
-        vOut("Extracting method signatures from scan files...\n");*/
-        /*this.extractedMethodSignatures = new LinkedHashSet<>();
-        for (Path scanFilePath : scanFilePaths) {
+        //vOut("Extracting method signatures from scan files...\n");*/
+        this.extractedMethodSignatures = new LinkedHashSet<>();
+
+        //Modify temporarily
+        /*for (Path scanFilePath : scanFilePaths) {
             this.extractedMethodSignatures.addAll(new MethodSignaturesExtract(scanFilePath).getMethodSignatures());
-        }
+        }*/
         // Write the extracted methods to a file
         Path methodExtractPath = outputDir.resolve(policyName + "_allmethods.txt");
-        writeToFile(extractedMethodSignatures, methodExtractPath);*/
+        writeToFile(extractedMethodSignatures, methodExtractPath);
     }
 
     /**
      * Runs static analysis on policy. doExtract() must have already been called
      */
-    private void doStaticAnalysis()
-    {
+    private void doStaticAnalysis() {
         vOut("Performing static analysis...\n");
         ANTLRInputStream antlrStream = null;
 
@@ -311,7 +314,7 @@ public class Compiler {
 
     /**
      * Maps the REs from the PoCo policy to the extracted method signatures.
-     *
+     * <p/>
      * Step #3 in the compilation process. doParse() and doExtract() should be called prior.
      */
     private void doMapping() {
@@ -328,7 +331,6 @@ public class Compiler {
     }
 
     /**
-     *
      * Step #4 in the compilation process.
      */
     private void doGenerateAspectJ() {
@@ -360,135 +362,11 @@ public class Compiler {
         jOut(1, "Object around(): PC4Reflection()   { ");
         jOut(2, "return new SRE(null,\".\"); ");
         jOut(1, "}\n");
-        int pointcutNum = 0;
 
-        Set<String> keys = this.extractedPtCuts.keySet();
-        for (Iterator<String> key = keys.iterator(); key.hasNext(); ) {
-            String entry = key.next();
-            varNeedBind = this.extractedPtCuts.get(entry);
-            System.out.println("entry:" + entry);
-            // $$SendMail$$($$msg$$) ||  $$SendMail$$
-            if (entry.startsWith("$$")) {
-                String varName = entry.substring(2, entry.length());
-                if (varName.indexOf('(') != -1) {//is function format
-                    varName = varName.substring(0, varName.indexOf('(')-2);
-                }
-            }
-            //argTypeList:  Integer, String
-            String argList4PC = "";
-            //argList4PC :  Integer value0, String value1
-            String argList4Call = "";
-            //this one will use for generate monitor values for defining the around advice
-            //the different btw this and monitorVals is that, in advice, * should be deleted.
-            //e.g., pointcut PointCut1(String value0):call(java.io.File.new(..,String)) && args(*,value0);
-            //      Object around(String value0): PointCut1(value0) {.....}
-            String argLs4Around = "";
+        genAdvice(extractedPtCuts, 0);
+        genAdvice(extractedPtCuts4Results,1); //only result need gen after advice
 
-            //argList4Call: value0, value1
-            String argTypeList = "";
-            //aspect will only monitor the values that matches
-            String monitorVals = "";
-
-            //get the var name that need 2B dynamically updated
-            String[] argsList = getArgsLstArray(entry);
-            if (argsList != null) {
-                int count = 0;
-                for (int i = 0; i < argsList.length; i++) {
-                    String str = getArgsType(argsList[i], 1);
-                    if (!str.equals("..")) {
-                        String varTyp = getArgsType(argsList[i], 1);
-                        argTypeList += varTyp;
-                        argList4PC += varTyp + " value" + count;
-                        if (getArgsType(argsList[i], 2) != null) {
-                            monitorVals += argList4PC + getArgsType(argsList[i], 2);
-                            if (i != argsList.length - 1)
-                                monitorVals += ",";
-                        }
-                        argLs4Around += "value" + count;
-                        argList4Call += "value" + count++;
-                        if (i != argsList.length - 1) {
-                            argTypeList  += ",";
-                            argList4PC   += ",";
-                            argList4Call += ",";
-                            argLs4Around += ",";
-                        }
-                    }else {
-                        argList4Call +="*";
-                        if (i != argsList.length - 1)
-                            argList4Call += ",";
-                    }
-
-                }
-                argTypeList  = trimLastPunctuation(argTypeList, ",");
-                argList4PC   = trimLastPunctuation(argList4PC, ",");
-                argList4Call = trimLastPunctuation(argList4Call, ",");
-                argLs4Around = trimLastPunctuation(argLs4Around, ",");
-                monitorVals  = trimLastPunctuation(monitorVals, ",");
-            }
-            //if argTypeList is empty then no need for define argument for pointcut
-            if (argTypeList != null) {
-                jOut(1, "pointcut PointCut%d(%s):", pointcutNum, argList4PC);
-                String callStr = getPCMethodName(entry);
-                if (callStr.substring(0, 2).equals("$$")) {
-                    if (closure.getContext(callStr.substring(2, callStr.length()-2)) != null)
-                        callStr = closure.getContext(callStr.substring(2, callStr.length()-2));
-                    String funName = getPCMethodName(callStr);
-                    //if the method signature included the return type(if user included the return
-                    // type then has to have space btw return type and method name) then just use it,
-                    //if not, we will consider any none constructor method(.new) with * return type
-                    if (funName.split(" ").length == 1 && !funName.substring(funName.length() - 4, funName.length()).equals(".new")) {
-                        funName = "* " + funName;
-                    }
-                    String argTyps = "";
-                    //callStr = java.io.File($FileType) | java.io.File(\*, $FileType);
-                    int index = 0;
-                    while (index < callStr.length() && callStr.indexOf("(", index) != -1 && callStr.indexOf(")", index + 1) != -1) {
-                        int startIndex = callStr.indexOf("(", index);
-                        int endIndex = callStr.indexOf(")", index + 1);
-                        String strInPara = callStr.substring(startIndex + 1, endIndex);
-                        if (endIndex > startIndex) {
-                            argTyps = getArgsTyp4PC(strInPara);
-                            index = endIndex + (argTyps.length() - strInPara.length());
-                            String fstPart = callStr.substring(0, startIndex + 1);
-                            if (endIndex < callStr.length() - 1) {
-                                String sndPart = callStr.substring(endIndex, callStr.length());
-                                callStr = fstPart + argTyps + sndPart;
-                            } else if (endIndex == callStr.length() - 1) {
-                                callStr = fstPart + argTyps + ")";
-                                break;
-                            }
-                        }
-                    }
-                } else {
-                    String funName = getPCMethodName(entry);
-                    String args = "";
-                    if (entry.indexOf("(") != -1 && entry.indexOf(")") != -1) {
-                        args = getArgsTyp4PC(entry.substring(entry.indexOf("("), entry.length()));
-                    }
-                    callStr = funName + "(" + args + ")";
-                }
-                callStr = callStr.replace("\\", "");
-                if (argTypeList != "") {
-                    jOut(2, "call(%s) && args(%s);\n", callStr, argList4Call);
-                } else {
-                    if (entry.contains("(..)")) {
-                        jOut(2, "call(%s);\n", callStr + "(..)");
-                    } else {
-                        jOut(2, "call(%s);\n", callStr);
-                    }
-                }
-                outAdvicePrologue("PointCut" + pointcutNum, argList4PC, argLs4Around, monitorVals);
-                pointcutNum++;
-            } else {
-                jOut(1, "pointcut PointCut%d():", pointcutNum);
-                String callStr = getPCMethodName(entry);
-                jOut(2, "call(%s(..));\n", callStr);
-                outAdvicePrologue("PointCut" + pointcutNum, argList4PC, argLs4Around, monitorVals);
-                pointcutNum++;
-            }
-        }
-
-        if (this.extractedPtCuts4Results.size() > 0) {
+        if (this.extractedPtCuts4Promoter.size() > 0) {
             jOut(1, "pointcut PointCut%d(Method run):", pointcutNum);
             jOut(2, "target(run) &&call(Object Method.invoke(..));\n");
             outAdvicePrologue4Result("PointCut" + pointcutNum);
@@ -507,6 +385,108 @@ public class Compiler {
 
         aspectWriter.close();
         aspectWriter = null;
+    }
+
+    private void genAdvice(Hashtable<String, HashSet<String>> pointcuts, int mode) {
+        Set<String> keys = pointcuts.keySet();
+        for (Iterator<String> key = keys.iterator(); key.hasNext(); ) {
+            int thisNodeMode = mode;
+            String entry = key.next();
+
+            if(mode ==0 && extractedPtCuts4Results.containsKey(entry)) {
+                extractedPtCuts4Results.remove(entry);
+                thisNodeMode = 2;
+            }
+            varNeedBind = pointcuts.get(entry);
+            System.out.println("entry:" + entry);
+            //argTypeList:  Integer, String
+            String argList4PC = "";
+            //argList4PC :  Integer value0, String value1
+            String argList4Call = "";
+            //this one will use for generate monitor values for defining the around advice
+            //the different btw this and monitorVals is that, in advice, * should be deleted.
+            //e.g., pointcut PointCut1(String value0):call(java.io.File.new(..,String)) && args(*,value0);
+            //      Object around(String value0): PointCut1(value0) {.....}
+            String argLs4Around = "";
+            //argList4Call: value0, value1
+            String argTypeList = "";
+            //aspect will only monitor the values that matches
+            String monitorVals = "";
+
+            String callStr = getPCMethodName(entry);
+            if (callStr.substring(0, 2).equals("$$")) {
+                if (closure.getContext(callStr.substring(2, callStr.length() - 2)) != null) {
+                    callStr = closure.getContext(callStr.substring(2, callStr.length() - 2));
+                }
+            }
+            //capture return type of the monitoring method t
+            //if the method signature included the return type(if user included the return
+            // type then has to have space btw return type and method name) then just use it,
+            //if not, we will consider any none constructor method(.new) with * return type
+            String funReturnType = getPCMethodName(callStr).split(" ")[0];
+            String funName = getPCMethodName(callStr);
+            if (funName.split(" ").length == 1 && !funName.substring(funName.length()- 4, funName.length()).equals(".new")) {
+                funName = "* " + funName;
+            }
+            //get the var name that need 2B dynamically updated
+            String[] argsList = getArgsLstArray(entry);
+            if (argsList != null) {
+                int count = 0;
+                for (int i = 0; i < argsList.length; i++) {
+                    String str = getArgsType(argsList[i], 1);
+                    if (!str.equals("..")) {
+                        String varTyp = getArgsType(argsList[i], 1);
+                        argTypeList += varTyp;
+                        argList4PC += varTyp + " value" + count;
+                        if (getArgsType(argsList[i], 2) != null) {
+                            monitorVals += argList4PC + getArgsType(argsList[i], 2);
+                            if (i != argsList.length - 1)
+                                monitorVals += ",";
+                        }
+                        argLs4Around += "value" + count;
+                        argList4Call += "value" + count++;
+                        if (i != argsList.length - 1) {
+                            argTypeList += ",";
+                            argList4PC += ",";
+                            argList4Call += ",";
+                            argLs4Around += ",";
+                        }
+                    } else {
+                        argList4Call += "*";
+                        if (i != argsList.length - 1)
+                            argList4Call += ",";
+                    }
+
+                }
+                argTypeList = trimLastPunctuation(argTypeList, ",");
+                argList4PC = trimLastPunctuation(argList4PC, ",");
+                argList4Call = trimLastPunctuation(argList4Call, ",");
+                argLs4Around = trimLastPunctuation(argLs4Around, ",");
+                monitorVals = trimLastPunctuation(monitorVals, ",");
+            }
+            //if argTypeList is empty then no need for define argument for pointcut
+            if (argTypeList != null) {
+                jOut(1, "pointcut PointCut%d(%s):", pointcutNum, argList4PC);
+
+                String args = "";
+                if (entry.indexOf("(") != -1 && entry.indexOf(")") != -1) {
+                    args = getArgsTyp4PC(entry.substring(entry.indexOf("("), entry.length()));
+                }
+                callStr = (funName + "(" + args + ")").replace("\\", "");
+                if (argTypeList.trim().length() >0) {
+                    jOut(2, "call(%s) && args(%s);\n", callStr, argList4Call);
+                } else {
+                    jOut(2, "call(%s);\n", callStr);
+                }
+                outAdvicePrologue("PointCut" + pointcutNum, argList4PC, argLs4Around, monitorVals,funReturnType,thisNodeMode);
+            } else {
+                jOut(1, "pointcut PointCut%d():", pointcutNum);
+                callStr = getPCMethodName(entry);
+                jOut(2, "call(%s(..));\n", callStr);
+                outAdvicePrologue("PointCut" + pointcutNum, argList4PC, argLs4Around, monitorVals,funReturnType, thisNodeMode);
+            }
+            pointcutNum++;
+        }
     }
 
     private void outAspectEpilogue() {
@@ -615,7 +595,7 @@ public class Compiler {
         jOut(1, "private DummyRootPolicy root = new DummyRootPolicy( new %s() );\n", childName);
     }
 
-    private void outAdvicePrologue(String pointcutName, String aroundlist, String arglist, String monitorVal) {
+    private void outAdvicePrologue(String pointcutName, String aroundlist, String arglist, String monitorVal,String funReturnType, int mode) {
          /* aroundlist: String value0,int value1; arglist: value0,value1; monitorVal String value0$$*.class$$*/
         if (monitorVal != null && monitorVal.length() > 0)
             jOut(1, "Object around(%s): %s(%s) {", aroundlist, pointcutName, arglist);
@@ -645,12 +625,17 @@ public class Compiler {
                         varTyps[i] = matcher2.group(1).toString().trim().split(" ")[0];
                         varNams[i] = matcher2.group(1).toString().trim().split(" ")[1];
                         varVals[i] = matcher2.group(2).toString().trim();
-
-                        if(varNeedBind!= null && varNeedBind.contains(varVals[i]))
+                        if (varNeedBind != null && varNeedBind.contains(varVals[i]))
                             monitoredPC.put(varVals[i], varNams[i]);
                         varVals[i] = "$$" + varVals[i];
                     }
                 }
+            }
+            //add for case when need monitor both before and after running
+            jOut(2, "Object ret = null;");
+            if(mode == 2) {
+                jOut(2, "int mode =0;");
+                jOut(2, "if (mode == 0) {");
             }
             String[] conditionState = genCoditionStatements(varTyps, varNams, varVals);
             if (conditionState != null && conditionState[0] != null && conditionState[0].length() > 0) {
@@ -661,11 +646,38 @@ public class Compiler {
                         jOut(3, str);
                 }
                 outAdviceProlog4DynBind(3);
-                jOut(3, "root.queryAction(new Event(thisJoinPoint));");
-                jOut(3, "return proceed(%s);", arglist);
-                jOut(2, "}");
-                jOut(2, "else");
-                jOut(3, "return proceed(%s);", arglist);
+
+                if(mode ==0 ) { //monitor the action
+                    jOut(3, "root.queryAction(new Event(thisJoinPoint));");
+                    jOut(3, "ret = proceed(%s);", arglist);
+                    jOut(2, "}");
+                    jOut(2, "else  ret = proceed(%s);", arglist);
+                    jOut(2, "return ret;");
+                } else if(mode == 1 ) { // monitor the result
+                    jOut(3, "ret = proceed(%s);", arglist);
+                    jOut(3, "Event event = new Event(thisJoinPoint);");
+                    jOut(3, "event.setEventType(\"Result\");");
+                    jOut(3, "event.setResult(ret);");
+                    jOut(3, "root.queryAction(event);");
+                    jOut(3, "return event.getResult();");
+                    jOut(2, "}");
+                    jOut(2, "else   return proceed(%s);", arglist);
+                }else { //mode == 2 which means monitor both before and after running
+                    jOut(3, "root.queryAction(new Event(thisJoinPoint));");
+                    jOut(3, "ret = proceed(%s);", arglist);
+                    jOut(3, "mode = 1;");
+                    jOut(2, "}");
+                    jOut(2, "else  ret = proceed(%s);", arglist);
+                    jOut(2, "}");
+                    jOut(2, "if(mode ==1) {");
+                    jOut(3, "Event event = new Event(thisJoinPoint);");
+                    jOut(3, "event.setEventType(\"Result\");");
+                    jOut(3, "event.setResult(ret);");
+                    jOut(3, "root.queryAction(event);");
+                    jOut(3, "return event.getResult();");
+                    jOut(2, "}");
+                    jOut(2, "return ret;");
+                }
                 jOut(1, "}\n");
             } else {
                 outAdviceProlog4DynBind(2);
@@ -674,8 +686,17 @@ public class Compiler {
                 jOut(1, "}\n");
             }
         } else {
-            jOut(2, "root.queryAction(new Event(thisJoinPoint));");
-            jOut(2, "return proceed();");
+            if(mode ==0 ) { //monitor the action
+                jOut(2, "root.queryAction(new Event(thisJoinPoint));");
+                jOut(2, "return proceed();");
+            }else {
+                jOut(2, "Object ret = proceed();", arglist);
+                jOut(2, "Event event = new Event(thisJoinPoint);");
+                jOut(2, "event.setEventType(\"Result\");");
+                jOut(2, "event.setResult(ret);");
+                jOut(2, "root.queryAction(event);");
+                jOut(2, "return event.getResult();");
+            }
             jOut(1, "}\n");
         }
     }
@@ -693,7 +714,7 @@ public class Compiler {
                 if (varVals[i] == null) {
                     continue;
                 }
-                if (varVals[i].startsWith("$$")&&!varVals[i].startsWith("$$$"))
+                if (varVals[i].startsWith("$$") && !varVals[i].startsWith("$$$"))
                     temp = genCoditionStatement(varTyps[i], varNams[i],
                             varVals[i].substring(2, varVals[i].length()), 1);
                 else
@@ -739,7 +760,6 @@ public class Compiler {
                 default:
                     str = "String.valueOf(" + valName + ")";
             }
-
             if (mode == 0)
                 resultStr[0] = "SREUtil.StringMatch(" + str + ", \"" + matchVal + "\")";
             else //if(mode == 1)
@@ -756,7 +776,11 @@ public class Compiler {
         jOut(2, "if (matchingStack(className)) {");
         jOut(3, "Object ret = proceed(run);");
         jOut(3, "Event event = new Event(thisJoinPoint);");
-        jOut(3, "event.eventType = \"Result\";");
+        jOut(3, "event.setEventType(\"Result\");");
+        jOut(3, "String methodName = run.getDeclaringClass().toString()+\".\"+run.getName();");
+        jOut(3, "if (methodName.startsWith(\"class \"))");
+        jOut(4, "methodName = methodName.substring(6,methodName.length());");
+        jOut(3, "event.setPromotedMethod(methodName);");
         jOut(3, "event.setResult(ret);");
         jOut(3, "root.queryAction(event);");
         jOut(3, "return ret;");
@@ -836,8 +860,8 @@ public class Compiler {
             if (matcher.find()) {
                 String temp = matcher.group(1).toString().trim();
                 if (index == 1) {
-                    if(temp.endsWith("$$"))
-                        temp = temp.substring(0,temp.length()-2);
+                    if (temp.endsWith("$$"))
+                        temp = temp.substring(0, temp.length() - 2);
                     String varType = closure.getType(temp).trim();
                     if (varType == null || varType.length() == 0)
                         return "java.lang.String";
@@ -846,7 +870,7 @@ public class Compiler {
                 } else { //if index == 2;
                     String value = closure.getContext(temp);
                     if (value == null)
-                        return "$$" + temp.trim()+"$$";
+                        return "$$" + temp.trim() + "$$";
                     else
                         return "$$$" + value.trim() + "$$$";
                 }
@@ -887,9 +911,12 @@ public class Compiler {
 
     private void genVarClosure(String aspectName) {
         Set<Map.Entry<String, VarTypeVal>> entrySet = closure.getClosures().entrySet();
+        //if both empty no need for gening constructor
+        if((entrySet== null||entrySet.size()<=1) && (objParams== null||entrySet.size() ==0))
+            return;
         jOut(1, "public " + aspectName + "() {");
         for (Map.Entry entry : entrySet) {
-            if(entry.getKey().equals("PolicyName"))
+            if (entry.getKey().equals("PolicyName"))
                 continue;
             String varContext = ((VarTypeVal) entry.getValue()).getVarContext();
             if (varContext == null || varContext.equals("%"))
