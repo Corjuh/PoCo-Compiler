@@ -39,32 +39,50 @@ public class DummyRootPolicy {
 		SRE result = child.query(event);
 		// when accept is false, the returned SRE value is NULL
 		if (result == null) {
+			System.out.println("Null");
 			System.exit(-1);
 			// return;
 		}
-
+		
 		boolean posMatch = false;
 		boolean negMatch = false;
-
-		//System.out.format("Root policy queried with event: \"%s\"\n",event.getSignature());
-		if (result.getPositiveRE() != null && !result.getPositiveRE().equals("null")) {
+		
+		//System.out.format("Root policy queried with event: \"%s\"\n", event.getSignature());
+		if (result.getPositiveRE() != null
+				&& !result.getPositiveRE().equals("null")) {
 			posMatch = true;
-			//System.out.format("Child policy returned +`%s'\n",result.positiveRE());
+			//System.out.format("Child policy returned +`%s'\n", result.positiveRE());
 		}
 		if (result.getNegativeRE() != null) {
 			if (!posMatch)
 				negMatch = true;
-			 //System.out.format("Child policy returned -`%s'\n",result.negativeRE());
+			//System.out.format("Child policy returned -`%s'\n", result.negativeRE());
 		}
 		// Neutral case which means should be okay if
 		if (result.getPositiveRE() == null && result.getNegativeRE() == null) {
-			 System.out.println("Child policy returned Neutral");
+			// System.out.println("Child policy returned Neutral");
 		}
-		
+
 		if (posMatch) {
-			//$$AddBCC$$(#javax.mail.Message{$$msg$$},#java.lang.String{domain})
-			//com.poco.RuntimeDemo.ShowDialog(#java.lang.String{$$Attachments_message})
+			// $$AddBCC$$(#javax.mail.Message{$$msg$$},#java.lang.String{domain})
+			// com.poco.RuntimeDemo.ShowDialog(#java.lang.String{$$Attachments_message})
 			String resultPos = result.positiveRE();
+			
+			String  funReg = "(.+)\\((.*)\\)";
+			Pattern funPtn = Pattern.compile(funReg);
+			Matcher funMth = funPtn.matcher(resultPos);
+
+			String  objReg = "#(.+)\\{(.+)\\}";
+			Pattern objPtn = Pattern.compile(objReg);
+			Matcher objMth = objPtn.matcher(resultPos);
+			
+			//not a function call but an object value, then it is the case of update the return value
+			if (!funMth.find() && objMth.find()) {
+				event.setResult(genNewResult(objMth.group(1).trim(), objMth
+						.group(2).trim()));
+				return;
+			}
+
 			String reg = "(.*)(\\$\\$(.+)\\$\\$)(.*)";
 			Pattern pattern = Pattern.compile(reg);
 			Matcher matcher;
@@ -87,10 +105,11 @@ public class DummyRootPolicy {
 				// #java.lang.String{domain}
 				for (int i = 0; i < paramStrs.length; i++) {
 					String value = paramStrs[i];
-					int leftIndex  = value.indexOf('{');
+					int leftIndex = value.indexOf('{');
 					int rightIndex = value.indexOf('}');
-					if (leftIndex != -1 && rightIndex != -1 && rightIndex>leftIndex)
-						value = value.substring(leftIndex+1, rightIndex);
+					if (leftIndex != -1 && rightIndex != -1
+							&& rightIndex > leftIndex)
+						value = value.substring(leftIndex + 1, rightIndex);
 					if (value != null && value.length() > 0) {
 						matcher = pattern.matcher(value);
 						if (matcher.find()) {// it is variable (e.g., $$msg)
@@ -104,15 +123,17 @@ public class DummyRootPolicy {
 									String id = matcher.group(3).trim();
 									String val = DataWH.closure.get(id);
 									if (val != null) {
-										str = str.replace(matcher.group(2), val);
+										str = str
+												.replace(matcher.group(2), val);
 										matcher = pattern.matcher(str);
 									} else
 										break;
 								}
 								obj4Args[i] = new String(str);
 							} else
-								obj4Args[i] = DataWH.dataVal.get(matcher.group(3).trim()).getObj();
-							
+								obj4Args[i] = DataWH.dataVal.get(
+										matcher.group(3).trim()).getObj();
+
 						} else {
 							String regex = "#(.+)\\{(.+)\\}";
 							Pattern patternType = Pattern.compile(regex);
@@ -125,6 +146,7 @@ public class DummyRootPolicy {
 								case "java.lang.String":
 									obj4Args[i] = new String(value);
 									break;
+								case "int":
 								case "Integer":
 									obj4Args[i] = new Integer(value);
 									break;
@@ -137,13 +159,12 @@ public class DummyRootPolicy {
 					}
 				}
 			}
-			
 			matcher = pattern.matcher(resultPos);
 			boolean needUpdate = matcher.find();
 			while (needUpdate) {
 				// need delete (, otherwise cause issues.
 				String replaceStr = DataWH.closure.get(matcher.group(3).trim());
-				if (replaceStr.indexOf('(') != -1)
+				if (resultPos.indexOf('(') != -1 && replaceStr.indexOf('(') != -1)
 					replaceStr = replaceStr.substring(0,
 							replaceStr.indexOf('('));
 				resultPos = resultPos.replace(matcher.group(2).trim(),
@@ -154,12 +175,15 @@ public class DummyRootPolicy {
 			boolean promoted = false;
 			// have to manipulate the string for new case, since signature will
 			// not include new keyword
-			if (resultPos.substring(resultPos.length() - 4, resultPos.length())
+			if (resultPos.indexOf('(') != -1) {
+				String funName = resultPos.substring(0,resultPos.indexOf('('));
+				String argPrt = resultPos.substring(resultPos.indexOf('('),resultPos.length());
+				if(funName.substring(funName.length() - 4, funName.length())
 					.equals(".new"))
-				resultPos = resultPos.substring(0, resultPos.length() - 4);
-			
-			if(monitoringEvents.isEmpty() && resultPos!=null)
-				promoted =false;
+					resultPos = funName.substring(0, funName.length() - 4) + argPrt;
+			}
+			if (monitoringEvents.isEmpty() && resultPos != null)
+				promoted = false;
 			else if (methodMatch(monitoringEvents.peek(), resultPos)) {
 				promoted = true;
 			}
@@ -174,6 +198,7 @@ public class DummyRootPolicy {
 					if (index > -1)
 						methodname = resultPos.substring(0, index);
 					promotedEvents.push(methodname.trim());
+					
 					Promoter.Reflect(resultPos, obj4Args);
 				} catch (Exception ex) {
 					ex.printStackTrace();
@@ -183,7 +208,7 @@ public class DummyRootPolicy {
 
 		if (negMatch) {
 			// if already on stack, show System.exit(-1);
-			if (! monitoringEvents.empty()
+			if (!monitoringEvents.empty()
 					&& monitoringEvents.peek().contains(
 							result.negativeRE().toString())) {
 				monitoringEvents.pop();
@@ -194,6 +219,42 @@ public class DummyRootPolicy {
 			return;
 		if (negMatch)
 			System.exit(-1);
+	}
+
+	private Object genNewResult(String type, String value) {
+		Object retObj = null;
+		String  reg = "\\$\\$(.*)\\$\\$";
+		Pattern ptn = Pattern.compile(reg);
+		Matcher mth = ptn.matcher(value);
+		if(!mth.find()) {
+			switch (type) {
+			case "int":
+			case "Integer":
+				retObj = new Integer(value);
+				break;
+			case "long":
+				retObj = new Long(value);
+				break;
+			case "double":
+				retObj = new Double(value);
+				break;
+			case "float":
+				retObj = new Float(value);
+				break;
+			case "boolean":
+				retObj = new Boolean(value);
+				break;
+			case "char":
+				retObj = new Character(value.charAt(0));
+				break;
+			default:
+				retObj = new String(value);
+			}
+		}
+		else { //if the value is from the dataHW used and saved early
+			retObj = DataWH.dataVal.get(mth.group(1).trim()).getObj();
+		}
+		return retObj;
 	}
 
 	/**
@@ -221,7 +282,7 @@ public class DummyRootPolicy {
 			if (peekMethodName.split(" ").length == 2)
 				peekMethodName = peekMethodName.split(" ")[1];
 			String strParams = matcher1.group(2).trim();
-			if(strParams.length() ==0)  
+			if (strParams.length() == 0)
 				peekParams = null;
 			else
 				peekParams = strParams.split(",");
@@ -231,31 +292,29 @@ public class DummyRootPolicy {
 			if (resultMethodName.split(" ").length == 2)
 				resultMethodName = resultMethodName.split(" ")[1];
 			String strParams = matcher2.group(2).trim();
-			if(strParams.length() ==0)  
+			if (strParams.length() == 0)
 				resultParams = null;
 			else
 				resultParams = strParams.split(",");
-
 		}
-		
-		
+
 		if (peekMethodName.equals(resultMethodName)) {
 			if (resultParams == null) {
 				return true;
-			}else {
+			} else {
 				if (resultParams.length == peekParams.length) {
-					boolean match = true;
+					/*boolean match = true;
 					for (int i = 0; i < resultParams.length; i++) {
 						if (!resultParams[i].contains(peekParams[i])) {
 							match = false;
 							break;
 						}
 					}
-					return match;
+					return match;*/
+					return true;
 				}
-
 			}
-		} 
+		}
 		return false;
 	}
 }
