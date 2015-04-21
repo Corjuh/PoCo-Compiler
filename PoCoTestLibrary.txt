@@ -1,12 +1,90 @@
 Trivial(): <_ => Neutral>*
 =================================================================================
 =================================================================================
+Test():
+(<Result(`int com.poco.Test.foo(%)',   `#int{1}') => +`#int{11}'>
+|<Result(`int com.poco.Test.foo(%)', `#int{2}') => +`#int{22}'>)*
+
+*******************************ChangeReturnVal.java*******************************
+public class ChangeReturnVal {
+    public static void main(String[] args) {
+	Test a = new Test();
+        int result = a.foo(1);
+	System.out.println("-------------------"+result);
+        result = a.foo(2);
+        System.out.println("-------------------"+result);
+    } 
+}
+class Test { public int foo(int x) { return x; } }
+
+***********************************AspectTest.aj***********************************
+public aspect AspectTest {
+    private DummyRootPolicy root = new DummyRootPolicy( new Test() );
+    pointcut PC4Reflection():
+        call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
+    Object around(): PC4Reflection()   {   return new SRE(null,".");  }
+    pointcut PointCut0(): call(int com.poco.Test.foo(..));
+    Object around(): PointCut0() {
+        Object ret = proceed();
+        Event event = new Event(thisJoinPoint);
+        event.setEventType("Result");
+        event.setResult(ret);
+        root.queryAction(event);
+        return event.getResult();
+    }
+    class Test extends Policy {
+        public Test() {
+            try {
+                SequentialExecution rootExec = new SequentialExecution("none");
+                SequentialExecution groupedExec0 = new SequentialExecution("*");
+                AlternationExecution alterExec1 = new AlternationExecution("none");
+                SequentialExecution exec2 = new SequentialExecution("none");
+                Exchange exch0 = new Exchange();
+                Matchs matchs0 = new Matchs();
+                Match match0 = new Match();
+                match0.setAsResult();
+                match0.setMatchString("int com.poco.Test.foo");
+                match0.setResultMatchStr("1");
+                matchs0.addChild(match0);
+                exch0.addMatcher(matchs0);
+                SRE sre0 = new SRE(null, null);
+                sre0.setPositiveRE("#int{11}");
+                exch0.setSRE(sre0);
+                exec2.addChild(exch0);
+                alterExec1.addChild(exec2);
+                SequentialExecution exec3 = new SequentialExecution("none");
+                Exchange exch1 = new Exchange();
+                Matchs matchs1 = new Matchs();
+                Match match1 = new Match();
+                match1.setAsResult();
+                match1.setMatchString("int com.poco.Test.foo");
+                match1.setResultMatchStr("2");
+                matchs1.addChild(match1);
+                exch1.addMatcher(matchs1);
+                SRE sre1 = new SRE(null, null);
+                sre1.setPositiveRE("#int{22}");
+                exch1.setSRE(sre1);
+                exec3.addChild(exch1);
+                alterExec1.addChild(exec3);
+                groupedExec0.addChild(alterExec1);
+                rootExec.addChild(groupedExec0);
+                rootExec.getCurrentChildModifier();
+                setRootExecution(rootExec);
+            } catch (PoCoException pex) {
+                System.out.println(pex.getMessage());
+                pex.printStackTrace();
+                System.exit(-1);
+            }
+        }
+    }
+}
+=================================================================================
+=================================================================================
 NoCreateClassFiles() :
 <_ => -`java.io.File.<init>(#java.lang.String{%.class})|java.io.File.<init>(\*, #java.lang.String{%.class})'>*
 
 **********************************************RuntimeDemo.java********************************************
 import java.io.File;  
-import java.net.URI;
 public class RuntimeDemo {
      public static void main(String[] args) {
 	  System.out.println("............Starting to execute............\n");
@@ -14,49 +92,43 @@ public class RuntimeDemo {
                File file = new File("data.class"); 
                File parent = new File("aFolder");
                File aFile = new File(parent, "aFile.class");
-               System.out.println(aFile);//\aFolder\aFile.txt*/ 
+               System.out.println(aFile);//\aFolder\aFile.class*/ 
                File file2 = new File("Documents", "data.class"); // new File(String, String) 
-	  } catch (Exception e) {
-	       e.printStackTrace();
-	  }
+	  } catch (Exception e) {  e.printStackTrace();}
 	  System.out.println("............End executing............\n");
     }
 }
 **********************************************AspectNoCreateClassFiles.aj********************************************
 import com.poco.PoCoRuntime.*;
 import java.lang.reflect.Method;
-public aspect AspectNoCreateClassFiles {
-package com.poco; 
-import java.lang.reflect.Method;
-
 public aspect AspectDisSysCalls {
-    private DummyRootPolicy root = new DummyRootPolicy(new NoCreateClassFiles() );
-    public AspectDisSysCalls() {}
+    private DummyRootPolicy root = new DummyRootPolicy( new DisSysCalls() );
     pointcut PC4Reflection():
         call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
-
     Object around(): PC4Reflection()   { 
         return new SRE(null,"."); 
     }
     pointcut PointCut0(java.lang.String value0):
         call(java.io.File.new(..,java.lang.String)) && args(*,value0);
-
     Object around(java.lang.String value0): PointCut0(value0) {
+        Object ret = null;
         if (SREUtil.StringMatch(String.valueOf(value0), "*.class")) {
             root.queryAction(new Event(thisJoinPoint));
-            return proceed(value0);
-        } else
-            return proceed(value0);
+            ret = proceed(value0);
+        }
+        else  ret = proceed(value0);
+        return ret;
     }
-
     pointcut PointCut1(java.lang.String value0):
         call(java.io.File.new(java.lang.String)) && args(value0);
-
     Object around(java.lang.String value0): PointCut1(value0) {
+        Object ret = null;
         if (SREUtil.StringMatch(String.valueOf(value0), "*.class")) {
             root.queryAction(new Event(thisJoinPoint));
-            return proceed(value0);
-        } else return proceed(value0);
+            ret = proceed(value0);
+        }
+        else  ret = proceed(value0);
+        return ret;
     }
     class NoCreateClassFiles extends Policy {
         public NoCreateClassFiles() {
@@ -93,9 +165,7 @@ AllowOnlyMIME() : //add 2080 for testing security issue
 <_ => -`java.net.ServerSocket.<init>($ports)'>*
  
 /*****---------------------**  RuntimeDemo.java **----------------------*****/
-package com.poco; 
 import java.net.ServerSocket;
-import java.net.Socket;
 public class RuntimeDemo {
      public static void main(String[] args) {
           System.out.println("............Starting to execute............\n");
@@ -114,16 +184,14 @@ import java.lang.reflect.Method;
 public aspect AspectAllowOnlyMIME { 
     private DummyRootPolicy root = new DummyRootPolicy( new AllowOnlyMIME() );
 
-    public AspectDisSysCalls() {
+    public AspectAllowOnlyMIME() {
         DataWH.closure.put("AllowOnlyMIME_ports", "143|993|25|110|995|2080");
         DataWH.dataVal.put("AllowOnlyMIME_ports",new TypeVal("java.lang.String","143|993|25|110|995|2080"));
     }
     pointcut PC4Reflection():
         call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
 
-    Object around(): PC4Reflection()   { 
-        return new SRE(null,"."); 
-    }
+    Object around(): PC4Reflection()   {   return new SRE(null,".");  }
     pointcut PointCut0(int value0):
         call(java.net.ServerSocket.new(int)) && args(value0);
 
@@ -164,23 +232,18 @@ var call: RE
 @message(call)[`#java.lang.String{Allowing a dangerous file is creating via\: $call \?}'] :RE
 map (Union, -`java.io.FileWriter.<init>($ext()) | java.io.FileWriter.<init>($ext(),boolean)',
      <!Action(`java.io.FileWriter.<init>($ext())| java.io.FileWriter.<init>($ext(),boolean)') => Neutral>*
-     < Action(`@call[java.io.FileWriter.<init>($ext())| | java.io.FileWriter.<init>($ext(),boolean)]') => +`com.poco.RuntimeDemo.ShowDialog($message)'>
+     < Action(`@call[java.io.FileWriter.<init>($ext()) | java.io.FileWriter.<init>($ext(),boolean)]') => +`com.poco.RuntimeDemo.ShowDialog($message)'>
      <!Result(`com.poco.RuntimeDemo.ShowDialog($message)', `%') => +`com.poco.RuntimeDemo.ShowDialog($message)'>*
      ( <Result(`com.poco.RuntimeDemo.ShowDialog($message)', `#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$call'>
               | <_ => Neutral>)
 )*
-
 -----------------------------------------------------AspectAttachments-------------------------------------------
-package com.poco;
+import com.poco.PoCoRuntime.*;
 import java.lang.reflect.Method;
-public aspect AspectAttachments {
-package com.poco; 
-import java.lang.reflect.Method;
-
 public aspect AspectDisSysCalls {
-    private DummyRootPolicy root = new DummyRootPolicy( new Attachments() );
+    private DummyRootPolicy root = new DummyRootPolicy( new DisSysCalls() );
     public AspectDisSysCalls() {
-        DataWH.closure.put("Attachments_call", "java.io.FileWriter.new($$Attachments_ext$$)");
+        DataWH.closure.put("Attachments_call", " java.io.FileWriter.new($$Attachments_ext$$)");
         DataWH.closure.put("Attachments_ext", ".exe|.vbs|.hta|.mdb|.bad");
         DataWH.closure.put("Attachments_message", "Allowing a dangerous file is creating via: $$Attachments_call$$?");
         DataWH.dataVal.put("Attachments_ext",new TypeVal("java.lang.String", ".exe|.vbs|.hta|.mdb|.bad"));
@@ -188,28 +251,30 @@ public aspect AspectDisSysCalls {
     }
     pointcut PC4Reflection():
         call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
-
     Object around(): PC4Reflection()   { 
         return new SRE(null,"."); 
     }
     pointcut PointCut0(java.lang.String value0,boolean value1):
         call(java.io.FileWriter.new(java.lang.String,boolean)) && args(value0,value1);
-
     Object around(java.lang.String value0,boolean value1): PointCut0(value0,value1) {
+        Object ret = null;
         if (SREUtil.StringMatch(String.valueOf(value0), ".exe|.vbs|.hta|.mdb|.bad")) {
             root.queryAction(new Event(thisJoinPoint));
-            return proceed(value0,value1);
-        }
-        else  return proceed(value0,value1);
+            ret = proceed(value0,value1);
+        }else
+            ret = proceed(value0,value1);
+        return ret;
     }
     pointcut PointCut1(java.lang.String value0):
         call(java.io.FileWriter.new(java.lang.String)) && args(value0);
-
     Object around(java.lang.String value0): PointCut1(value0) {
+        Object ret = null;
         if (SREUtil.StringMatch(String.valueOf(value0), ".exe|.vbs|.hta|.mdb|.bad")) {
             root.queryAction(new Event(thisJoinPoint));
-            return proceed(value0);
-        }else return proceed(value0);
+            ret = proceed(value0);
+        } else
+            ret = proceed(value0);
+        return ret;
     }
     pointcut PointCut2(Method run):
         target(run) &&call(Object Method.invoke(..));
@@ -220,11 +285,16 @@ public aspect AspectDisSysCalls {
         if (matchingStack(className)) {
             Object ret = proceed(run);
             Event event = new Event(thisJoinPoint);
-            event.eventType = "Result";
+            event.setEventType("Result");
+            String methodName = run.getDeclaringClass().toString()+"."+run.getName();
+            if (methodName.startsWith("class "))
+                methodName = methodName.substring(6,methodName.length());
+            event.setPromotedMethod(methodName);
             event.setResult(ret);
             root.queryAction(event);
             return ret;
-        }else  return proceed(run);
+        } else
+            return proceed(run);
     }
     private boolean matchingStack(String runningMethod) {
         if (root.promotedEvents != null)
@@ -241,7 +311,65 @@ public aspect AspectDisSysCalls {
                 MapExecution mapExec0 = new MapExecution("*");
                 mapExec0.setOperator("Union");
                 SRE sre0 = new SRE(null, null);
-
+                sre0.setNegativeRE("java.io.FileWriter");
+                mapExec0.setMatchSre(sre0);
+                sre0.setNegativeRE("");
+                mapExec0.setMatchSre(sre0);
+                sre0.setNegativeRE("java.io.FileWriter");
+                mapExec0.setMatchSre(sre0);
+                SequentialExecution exec1 = new SequentialExecution("*");
+                Exchange exch0 = new Exchange();
+                Matchs matchs0 = new Matchs();
+                matchs0.setNOT(true);
+                Match match0 = new Match();
+                match0.setAsAction();
+                match0.setMatchString("java.io.FileWriter");
+                match0.setAsAction();
+                match0.setMatchString("java.io.FileWriter");
+                matchs0.addChild(match0);
+                exch0.addMatcher(matchs0);
+                SRE sre1 = new SRE(null, null);
+                exch0.setSRE(sre1);
+                exec1.addChild(exch0);
+                mapExec0.addChild(exec1);
+                SequentialExecution exec2 = new SequentialExecution("none");
+                Exchange exch1 = new Exchange();
+                Matchs matchs1 = new Matchs();
+                Match match1 = new Match();
+                match1.setAsAction();
+                match1.setMatchString("java.io.FileWriter");
+                match1.setAsAction();
+                match1.setMatchString("");
+                match1.setAsAction();
+                match1.setMatchString("java.io.FileWriter");
+                matchs1.addChild(match1);
+                exch1.addMatcher(matchs1);
+                SRE sre2 = new SRE(null, null);
+                sre2.setPositiveRE("com.poco.RuntimeDemo.ShowDialog(#java.lang.String{$$Attachments_message$$})");
+                exch1.setSRE(sre2);
+                exec2.addChild(exch1);
+                mapExec0.addChild(exec2);
+                SequentialExecution exec3 = new SequentialExecution("*");
+                Exchange exch2 = new Exchange();
+                Matchs matchs2 = new Matchs();
+                matchs2.setNOT(true);
+                Match match2 = new Match();
+                match2.setAsResult();
+                match2.setMatchString("com.poco.RuntimeDemo.ShowDialog()");
+                match2.setResultMatchStr(".");
+                matchs2.addChild(match2);
+                exch2.addMatcher(matchs2);
+                SRE sre3 = new SRE(null, null);
+                sre3.setPositiveRE("com.poco.RuntimeDemo.ShowDialog(#java.lang.String{$$Attachments_message$$})");
+                exch2.setSRE(sre3);
+                exec3.addChild(exch2);
+                mapExec0.addChild(exec3);
+                SequentialExecution groupedExec4 = new SequentialExecution("none");
+                AlternationExecution alterExec5 = new AlternationExecution("none");
+                SequentialExecution exec6 = new SequentialExecution("none");
+                Exchange exch3 = new Exchange();
+                Matchs matchs3 = new Matchs();
+                Match match3 = new Match();
                 match3.setAsResult();
                 match3.setMatchString("com.poco.RuntimeDemo.ShowDialog()");
                 match3.setResultMatchStr("0");
@@ -412,21 +540,22 @@ var msg: RE
 map(  Union, -`$SendMail(@msg[%])',
     <! Action(`$SendMail(@msg[%])') => Neutral >*
     <  Action(`$SendMail(@msg[%])') => +`$logMessage($msg)'> 
-    <!(Result(`$logMessage($msg)', `%') || Result(`$SendMail(%)', `%')) => +`$logMessage($msg)'>*
-   (<  Result(`$SendMail(%)',`%') => Neutral>|<Result(`$logMessage($msg)',`%') => +`$Confirm($msg)'>)
-    <!(Result(`$Confirm($msg)',`%')||Result(`$SendMail(%)',`%')) => +`$Confirm($msg)'>*
-    (< Result(`$SendMail(%)', `%') => Neutral>
+    <!(Result(`$logMessage($msg)', `%') || Result(`$SendMail($msg)', `%')) => +`$logMessage($msg)'>*
+   (<  Result(`$SendMail($msg)',`%') => Neutral>|<Result(`$logMessage($msg)',`%') => +`$Confirm($msg)'>)
+    <!(Result(`$Confirm($msg)',`%')||Result(`$SendMail($msg)',`%')) => +`$Confirm($msg)'>*
+    (< Result(`$SendMail($msg)', `%') => Neutral>
    | (<Result(`$Confirm($msg)',`#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$AddBCC($msg,#java.lang.String{aa\@bb.com})'>
      |<Result(`$Confirm($msg)',`#Integer{#javax.swing.JOptionPane{NO_OPTION}}') => -`$SendMail(%)'>)
     )    
-    <!(Result(`$AddBCC($msg,#java.lang.String{aa\@bb.com})',`%')||Result(`$SendMail(%)',`%'))=>+`$AddBCC($msg,#java.lang.String{aa\@bb.com})'>*
-     ( <Result(`$SendMail(%)', `%') => Neutral>
+    <!(Result(`$AddBCC($msg,#java.lang.String{aa\@bb.com})',`%')||Result(`$SendMail($msg)',`%'))=>+`$AddBCC($msg,#java.lang.String{aa\@bb.com})'>*
+     ( <Result(`$SendMail($msg)', `%') => Neutral>
      | <Result(`$AddBCC($msg,#java.lang.String{aa\@bb.com})', `%') => +`$ConcatContactMsg($msg, $ContactInfo)'>
      )
-     <!(Result(`$ConcatContactMsg($msg,$ContactInfo)', `%')||Result(`$SendMail(%)', `%')) => +`$ConcatContactMsg($msg, $ContactInfo)'>*
-     ( <Result(`$SendMail(%)',`%')=>Neutral>|<Result(`$ConcatContactMsg($msg,$ContactInfo)',`%') => +`$SendMail($msg)'>)    
-)* 
+     <!(Result(`$ConcatContactMsg($msg,$ContactInfo)', `%')||Result(`$SendMail($msg)', `%')) => +`$ConcatContactMsg($msg, $ContactInfo)'>*
+     ( <Result(`$SendMail($msg)',`%')=>Neutral>|<Result(`$ConcatContactMsg($msg,$ContactInfo)',`%') => +`$SendMail($msg)'>)    
+)*  
 ********************************************************AspectOutgoingMail*******************************************************
+import com.poco.PoCoRuntime.*;
 import java.lang.reflect.Method;
 public aspect AspectOutgoingMail {
     private DummyRootPolicy root = new DummyRootPolicy( new OutgoingMail() );
@@ -434,7 +563,7 @@ public aspect AspectOutgoingMail {
         DataWH.closure.put("OutgoingMail_msg", ".*");
         DataWH.closure.put("OutgoingMail_ConcatContactMsg", "String com.poco.MailUtil.concatContactMsg(#javax.mail.Message{$msg},#java.lang.String{$ContactInfo})");
         DataWH.closure.put("OutgoingMail_ContactInfo", "ContactInfo");
-        DataWH.closure.put("OutgoingMail_SendMail", "javax.mail.Transport.send(#javax.mail.Message{$msg})");
+        DataWH.closure.put("OutgoingMail_SendMail", "void javax.mail.Transport.send(#javax.mail.Message{$msg})");
         DataWH.closure.put("OutgoingMail_logMessage", "com.poco.MailUtil.logMessage(#javax.mail.Message{$msg})");
         DataWH.closure.put("OutgoingMail_AddBCC", "com.poco.MailUtil.addBcc(#javax.mail.Message{$msg})");
         DataWH.closure.put("OutgoingMail_Confirm", "com.poco.MailUtil.confirm(#javax.mail.Message{$msg})");
@@ -443,35 +572,52 @@ public aspect AspectOutgoingMail {
     }
     pointcut PC4Reflection():
         call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
-    Object around(): PC4Reflection()   { 
-        return new SRE(null,"."); 
-    }
+    Object around(): PC4Reflection()   {  return new SRE(null,"."); }
     pointcut PointCut0(javax.mail.Message value0):
-        call(* javax.mail.Transport.send(javax.mail.Message)) && args(value0);
-
+        call(void javax.mail.Transport.send(javax.mail.Message)) && args(value0);    
     Object around(javax.mail.Message value0): PointCut0(value0) {
+        Object ret = null;
+        int mode =0;
+        if (mode == 0) {
         if (SREUtil.StringMatch(String.valueOf(value0), DataWH.closure.get("OutgoingMail_msg"))) {
             String typeVal; 
             typeVal = DataWH.dataVal.get("OutgoingMail_msg").getType();
             DataWH.dataVal.remove("OutgoingMail_msg");
             DataWH.dataVal.put("OutgoingMail_msg", new TypeVal(typeVal, value0));
             root.queryAction(new Event(thisJoinPoint));
-            return proceed(value0);
-        } else return proceed(value0);
+            ret = proceed(value0);
+            mode = 1;
+        }
+        else  ret = proceed(value0);
+        }
+        if(mode ==1) {
+            Event event = new Event(thisJoinPoint);
+            event.setEventType("Result");
+            event.setResult(ret);
+            root.queryAction(event);
+            return event.getResult();
+        }
+        return ret;
     }
+
     pointcut PointCut1(Method run):
         target(run) &&call(Object Method.invoke(..));
+
     Object around(Method run): PointCut1(run) {
         String className = SREUtil.trimClassName(run.getDeclaringClass().toString());
         className =SREUtil.concatClsMethod(className, run.getName());
         if (matchingStack(className)) {
             Object ret = proceed(run);
             Event event = new Event(thisJoinPoint);
-            event.eventType = "Result";
+            event.setEventType("Result");
+            String methodName = run.getDeclaringClass().toString()+"."+run.getName();
+            if (methodName.startsWith("class "))
+                methodName = methodName.substring(6,methodName.length());
+            event.setPromotedMethod(methodName);
             event.setResult(ret);
             root.queryAction(event);
             return ret;
-        }  else  return proceed(run);
+        } else  return proceed(run);
     }
     private boolean matchingStack(String runningMethod) {
         if (root.promotedEvents != null)
@@ -520,128 +666,236 @@ public aspect AspectOutgoingMail {
                 Exchange exch2 = new Exchange();
                 Matchs matchs2 = new Matchs();
                 matchs2.setNOT(true);
+                Matchs matchs3 = new Matchs();
+                matchs3.setOR(true);
                 Match match2 = new Match();
                 match2.setAsResult();
                 match2.setMatchString("$$OutgoingMail_logMessage$$()");
                 match2.setResultMatchStr(".");
-                matchs2.addChild(match2);
+                matchs3.addChild(match2);
+                Match match3 = new Match();
+                match3.setAsResult();
+                match3.setMatchString("$$OutgoingMail_SendMail$$()");
+                match3.setResultMatchStr(".");
+                matchs3.addChild(match3);
+                matchs2.addChild(matchs3);
                 exch2.addMatcher(matchs2);
                 SRE sre3 = new SRE(null, null);
                 sre3.setPositiveRE("$$OutgoingMail_logMessage$$(#javax.mail.Message{$$OutgoingMail_msg$$})");
                 exch2.setSRE(sre3);
                 exec3.addChild(exch2);
                 mapExec0.addChild(exec3);
-                SequentialExecution exec4 = new SequentialExecution("none");
+                SequentialExecution groupedExec4 = new SequentialExecution("none");
+                AlternationExecution alterExec5 = new AlternationExecution("none");
+                SequentialExecution exec6 = new SequentialExecution("none");
                 Exchange exch3 = new Exchange();
-                Matchs matchs3 = new Matchs();
-                Match match3 = new Match();
-                match3.setAsResult();
-                match3.setMatchString("$$OutgoingMail_logMessage$$()");
-                match3.setResultMatchStr(".");
-                matchs3.addChild(match3);
-                exch3.addMatcher(matchs3);
-                SRE sre4 = new SRE(null, null);
-                sre4.setPositiveRE("$$OutgoingMail_Confirm$$(#javax.mail.Message{$$OutgoingMail_msg$$})");
-                exch3.setSRE(sre4);
-                exec4.addChild(exch3);
-                mapExec0.addChild(exec4);
-                SequentialExecution exec5 = new SequentialExecution("*");
-                Exchange exch4 = new Exchange();
                 Matchs matchs4 = new Matchs();
-                matchs4.setNOT(true);
                 Match match4 = new Match();
                 match4.setAsResult();
-                match4.setMatchString("$$OutgoingMail_Confirm$$()");
+                match4.setMatchString("$$OutgoingMail_SendMail$$()");
                 match4.setResultMatchStr(".");
                 matchs4.addChild(match4);
-                exch4.addMatcher(matchs4);
-                SRE sre5 = new SRE(null, null);
-                sre5.setPositiveRE("$$OutgoingMail_Confirm$$(#javax.mail.Message{$$OutgoingMail_msg$$})");
-                exch4.setSRE(sre5);
-                exec5.addChild(exch4);
-                mapExec0.addChild(exec5);
-                SequentialExecution groupedExec6 = new SequentialExecution("none");
-                AlternationExecution alterExec7 = new AlternationExecution("none");
-                SequentialExecution exec8 = new SequentialExecution("none");
-                Exchange exch5 = new Exchange();
+                exch3.addMatcher(matchs4);
+                SRE sre4 = new SRE(null, null);
+                exch3.setSRE(sre4);
+                exec6.addChild(exch3);
+                alterExec5.addChild(exec6);
+                SequentialExecution exec7 = new SequentialExecution("none");
+                Exchange exch4 = new Exchange();
                 Matchs matchs5 = new Matchs();
                 Match match5 = new Match();
                 match5.setAsResult();
-                match5.setMatchString("$$OutgoingMail_Confirm$$()");
-                match5.setResultMatchStr("0");
+                match5.setMatchString("$$OutgoingMail_logMessage$$()");
+                match5.setResultMatchStr(".");
                 matchs5.addChild(match5);
-                exch5.addMatcher(matchs5);
-                SRE sre6 = new SRE(null, null);
-                sre6.setPositiveRE("$$OutgoingMail_AddBCC$$(#javax.mail.Message{$$OutgoingMail_msg$$},#java.lang.String{aa\\@bb.com})");
-                exch5.setSRE(sre6);
-                exec8.addChild(exch5);
-                alterExec7.addChild(exec8);
-                SequentialExecution exec9 = new SequentialExecution("none");
-                Exchange exch6 = new Exchange();
-                SRE sre7 = new SRE(null, null);
-                exch6.setSRE(sre7);
-                exec9.addChild(exch6);
-                alterExec7.addChild(exec9);
-                groupedExec6.addChild(alterExec7);
-                mapExec0.addChild(groupedExec6);
-                SequentialExecution exec10 = new SequentialExecution("*");
-                Exchange exch7 = new Exchange();
+                exch4.addMatcher(matchs5);
+                SRE sre5 = new SRE(null, null);
+                sre5.setPositiveRE("$$OutgoingMail_Confirm$$(#javax.mail.Message{$$OutgoingMail_msg$$})");
+                exch4.setSRE(sre5);
+                exec7.addChild(exch4);
+                alterExec5.addChild(exec7);
+                groupedExec4.addChild(alterExec5);
+                mapExec0.addChild(groupedExec4);
+                SequentialExecution exec8 = new SequentialExecution("*");
+                Exchange exch5 = new Exchange();
                 Matchs matchs6 = new Matchs();
                 matchs6.setNOT(true);
+                Matchs matchs7 = new Matchs();
+                matchs7.setOR(true);
                 Match match6 = new Match();
                 match6.setAsResult();
-                match6.setMatchString("$$OutgoingMail_AddBCC$$()");
+                match6.setMatchString("$$OutgoingMail_Confirm$$()");
                 match6.setResultMatchStr(".");
-                matchs6.addChild(match6);
-                exch7.addMatcher(matchs6);
-                SRE sre8 = new SRE(null, null);
-                sre8.setPositiveRE("$$OutgoingMail_AddBCC$$(#javax.mail.Message{$$OutgoingMail_msg$$},#java.lang.String{aa\\@bb.com})");
-                exch7.setSRE(sre8);
-                exec10.addChild(exch7);
-                mapExec0.addChild(exec10);
-                SequentialExecution exec11 = new SequentialExecution("none");
-                Exchange exch8 = new Exchange();
-                Matchs matchs7 = new Matchs();
+                matchs7.addChild(match6);
                 Match match7 = new Match();
                 match7.setAsResult();
-                match7.setMatchString("$$OutgoingMail_AddBCC$$()");
+                match7.setMatchString("$$OutgoingMail_SendMail$$()");
                 match7.setResultMatchStr(".");
                 matchs7.addChild(match7);
-                exch8.addMatcher(matchs7);
-                SRE sre9 = new SRE(null, null);
-                sre9.setPositiveRE("$$OutgoingMail_ConcatContactMsg$$(#javax.mail.Message{$$OutgoingMail_msg$$},#java.lang.String{$$OutgoingMail_ContactInfo$$})");
-                exch8.setSRE(sre9);
-                exec11.addChild(exch8);
-                mapExec0.addChild(exec11);
-                SequentialExecution exec12 = new SequentialExecution("*");
-                Exchange exch9 = new Exchange();
+                matchs6.addChild(matchs7);
+                exch5.addMatcher(matchs6);
+                SRE sre6 = new SRE(null, null);
+                sre6.setPositiveRE("$$OutgoingMail_Confirm$$(#javax.mail.Message{$$OutgoingMail_msg$$})");
+                exch5.setSRE(sre6);
+                exec8.addChild(exch5);
+                mapExec0.addChild(exec8);
+                SequentialExecution groupedExec9 = new SequentialExecution("none");
+                AlternationExecution alterExec10 = new AlternationExecution("none");
+                SequentialExecution exec11 = new SequentialExecution("none");
+                Exchange exch6 = new Exchange();
                 Matchs matchs8 = new Matchs();
-                matchs8.setNOT(true);
                 Match match8 = new Match();
                 match8.setAsResult();
-                match8.setMatchString("$$OutgoingMail_ConcatContactMsg$$()");
+                match8.setMatchString("$$OutgoingMail_SendMail$$()");
                 match8.setResultMatchStr(".");
                 matchs8.addChild(match8);
-                exch9.addMatcher(matchs8);
-                SRE sre10 = new SRE(null, null);
-                sre10.setPositiveRE("$$OutgoingMail_ConcatContactMsg$$(#javax.mail.Message{$$OutgoingMail_msg$$},#java.lang.String{$$OutgoingMail_ContactInfo$$})");
-                exch9.setSRE(sre10);
-                exec12.addChild(exch9);
-                mapExec0.addChild(exec12);
-                SequentialExecution exec13 = new SequentialExecution("none");
-                Exchange exch10 = new Exchange();
+                exch6.addMatcher(matchs8);
+                SRE sre7 = new SRE(null, null);
+                exch6.setSRE(sre7);
+                exec11.addChild(exch6);
+                alterExec10.addChild(exec11);
+                SequentialExecution groupedExec12 = new SequentialExecution("none");
+                AlternationExecution alterExec13 = new AlternationExecution("none");
+                SequentialExecution exec14 = new SequentialExecution("none");
+                Exchange exch7 = new Exchange();
                 Matchs matchs9 = new Matchs();
                 Match match9 = new Match();
                 match9.setAsResult();
-                match9.setMatchString("$$OutgoingMail_ConcatContactMsg$$()");
-                match9.setResultMatchStr(".");
+                match9.setMatchString("$$OutgoingMail_Confirm$$()");
+                match9.setResultMatchStr("0");
                 matchs9.addChild(match9);
-                exch10.addMatcher(matchs9);
+                exch7.addMatcher(matchs9);
+                SRE sre8 = new SRE(null, null);
+                sre8.setPositiveRE("$$OutgoingMail_AddBCC$$(#javax.mail.Message{$$OutgoingMail_msg$$},#java.lang.String{aa\\@bb.com})");
+                exch7.setSRE(sre8);
+                exec14.addChild(exch7);
+                alterExec13.addChild(exec14);
+                SequentialExecution exec15 = new SequentialExecution("none");
+                Exchange exch8 = new Exchange();
+                Matchs matchs10 = new Matchs();
+                Match match10 = new Match();
+                match10.setAsResult();
+                match10.setMatchString("$$OutgoingMail_Confirm$$()");
+                match10.setResultMatchStr("1");
+                matchs10.addChild(match10);
+                exch8.addMatcher(matchs10);
+                SRE sre9 = new SRE(null, null);
+                sre9.setNegativeRE("$$OutgoingMail_SendMail$$");
+                exch8.setSRE(sre9);
+                exec15.addChild(exch8);
+                alterExec13.addChild(exec15);
+                groupedExec12.addChild(alterExec13);
+                alterExec10.addChild(groupedExec12);
+                groupedExec9.addChild(alterExec10);
+                mapExec0.addChild(groupedExec9);
+                SequentialExecution exec16 = new SequentialExecution("*");
+                Exchange exch9 = new Exchange();
+                Matchs matchs11 = new Matchs();
+                matchs11.setNOT(true);
+                Matchs matchs12 = new Matchs();
+                matchs12.setOR(true);
+                Match match11 = new Match();
+                match11.setAsResult();
+                match11.setMatchString("$$OutgoingMail_AddBCC$$");
+                match11.setResultMatchStr(".");
+                matchs12.addChild(match11);
+                Match match12 = new Match();
+                match12.setAsResult();
+                match12.setMatchString("$$OutgoingMail_SendMail$$");
+                match12.setResultMatchStr(".");
+                matchs12.addChild(match12);
+                matchs11.addChild(matchs12);
+                exch9.addMatcher(matchs11);
+                SRE sre10 = new SRE(null, null);
+                sre10.setPositiveRE("$$OutgoingMail_AddBCC$$(#javax.mail.Message{$$OutgoingMail_msg$$},#java.lang.String{aa\\@bb.com})");
+                exch9.setSRE(sre10);
+                exec16.addChild(exch9);
+                mapExec0.addChild(exec16);
+                SequentialExecution groupedExec17 = new SequentialExecution("none");
+                AlternationExecution alterExec18 = new AlternationExecution("none");
+                SequentialExecution exec19 = new SequentialExecution("none");
+                Exchange exch10 = new Exchange();
+                Matchs matchs13 = new Matchs();
+                Match match13 = new Match();
+                match13.setAsResult();
+                match13.setMatchString("$$OutgoingMail_SendMail$$()");
+                match13.setResultMatchStr(".");
+                matchs13.addChild(match13);
+                exch10.addMatcher(matchs13);
                 SRE sre11 = new SRE(null, null);
-                sre11.setPositiveRE("$$OutgoingMail_SendMail$$(#javax.mail.Message{$$OutgoingMail_msg$$})");
                 exch10.setSRE(sre11);
-                exec13.addChild(exch10);
-                mapExec0.addChild(exec13);
+                exec19.addChild(exch10);
+                alterExec18.addChild(exec19);
+                SequentialExecution exec20 = new SequentialExecution("none");
+                Exchange exch11 = new Exchange();
+                Matchs matchs14 = new Matchs();
+                Match match14 = new Match();
+                match14.setAsResult();
+                match14.setMatchString("$$OutgoingMail_AddBCC$$()");
+                match14.setResultMatchStr(".");
+                matchs14.addChild(match14);
+                exch11.addMatcher(matchs14);
+                SRE sre12 = new SRE(null, null);
+                sre12.setPositiveRE("$$OutgoingMail_ConcatContactMsg$$(#javax.mail.Message{$$OutgoingMail_msg$$},#java.lang.String{$$OutgoingMail_ContactInfo$$})");
+                exch11.setSRE(sre12);
+                exec20.addChild(exch11);
+                alterExec18.addChild(exec20);
+                groupedExec17.addChild(alterExec18);
+                mapExec0.addChild(groupedExec17);
+                SequentialExecution exec21 = new SequentialExecution("*");
+                Exchange exch12 = new Exchange();
+                Matchs matchs15 = new Matchs();
+                matchs15.setNOT(true);
+                Matchs matchs16 = new Matchs();
+                matchs16.setOR(true);
+                Match match15 = new Match();
+                match15.setAsResult();
+                match15.setMatchString("$$OutgoingMail_ConcatContactMsg$$()");
+                match15.setResultMatchStr(".");
+                matchs16.addChild(match15);
+                Match match16 = new Match();
+                match16.setAsResult();
+                match16.setMatchString("$$OutgoingMail_SendMail$$()");
+                match16.setResultMatchStr(".");
+                matchs16.addChild(match16);
+                matchs15.addChild(matchs16);
+                exch12.addMatcher(matchs15);
+                SRE sre13 = new SRE(null, null);
+                sre13.setPositiveRE("$$OutgoingMail_ConcatContactMsg$$(#javax.mail.Message{$$OutgoingMail_msg$$},#java.lang.String{$$OutgoingMail_ContactInfo$$})");
+                exch12.setSRE(sre13);
+                exec21.addChild(exch12);
+                mapExec0.addChild(exec21);
+                SequentialExecution groupedExec22 = new SequentialExecution("none");
+                AlternationExecution alterExec23 = new AlternationExecution("none");
+                SequentialExecution exec24 = new SequentialExecution("none");
+                Exchange exch13 = new Exchange();
+                Matchs matchs17 = new Matchs();
+                Match match17 = new Match();
+                match17.setAsResult();
+                match17.setMatchString("$$OutgoingMail_SendMail$$()");
+                match17.setResultMatchStr(".");
+                matchs17.addChild(match17);
+                exch13.addMatcher(matchs17);
+                SRE sre14 = new SRE(null, null);
+                exch13.setSRE(sre14);
+                exec24.addChild(exch13);
+                alterExec23.addChild(exec24);
+                SequentialExecution exec25 = new SequentialExecution("none");
+                Exchange exch14 = new Exchange();
+                Matchs matchs18 = new Matchs();
+                Match match18 = new Match();
+                match18.setAsResult();
+                match18.setMatchString("$$OutgoingMail_ConcatContactMsg$$()");
+                match18.setResultMatchStr(".");
+                matchs18.addChild(match18);
+                exch14.addMatcher(matchs18);
+                SRE sre15 = new SRE(null, null);
+                sre15.setPositiveRE("$$OutgoingMail_SendMail$$(#javax.mail.Message{$$OutgoingMail_msg$$})");
+                exch14.setSRE(sre15);
+                exec25.addChild(exch14);
+                alterExec23.addChild(exec25);
+                groupedExec22.addChild(alterExec23);
+                mapExec0.addChild(groupedExec22);
                 rootExec.addChild(mapExec0);
                 rootExec.getCurrentChildModifier();
                 setRootExecution(rootExec);
@@ -715,44 +969,6 @@ public class MailUtil {
 		return "done";
 	}
 }
-
-
-OutgoingMail(String ContactInfo) : 
-@msg[`#String{%}'] : RE 
-map(Union, -`$SendMail(@msg[%])',
-    <!Action(`$SendMail(@msg[%])') => Neutral >*
-    <Action(`$SendMail(@msg[%])') => +`log($msg)'> 
-    <!(Result(`log($msg)', `%') || Result(`$SendMail(%)', `%')) => +`log($msg)'>*
-    (
-        <Result(`$SendMail(%)', `%') => Neutral>
-        | <Result(`log($msg)', `%') => +`$Confirm($msg)'>
-        <!(Result(`$Confirm($msg)', `%')||Result(`$SendMail(%)', `%')) => +`$Confirm($msg)'>*
-        (
-            <Result(`$SendMail(%)', `%') => Neutral>
-            | <Result(`$Confirm($msg)', `!#Integer{JOptionPane.OK_OPTION}') => +`null'>
-            | <Result(`$Confirm($msg)', `#Integer{JOptionPane.OK_OPTION}') => +`$msg.AddBCC(#String{user\@domain})'>
-            <!(Result(`$msg.AddBCC(#String{user\@domain})', `%')||Result(`$SendMail(%)', `%')) => +`$msg.AddBCC(#String{user\@domain})'>*
-            (
-                <Result(`$SendMail(%)', `%') => Neutral>
-                | <Result(`%', `@msg[%]') => +`$msg.getContent()'>
-                <!(Result(`$msg.getContent()', `%')||Result(`$SendMail(%)', `%'))=> +`$msg.getContent()'>*
-                <Result(`$msg.getContent()', `@content[%]') => +`strCat($content, $ContactInfo)'>
-                <!(Result(`strCat($content, $ContactInfo)', `%')||Result(`$SendMail(%)', `%')) => +`strCat($content, $ContactInfo)'>*
-                (
-                    <Result(`$SendMail(%)', `%') => Neutral>
-                    | <Result(`strCat($content, $ContactInfo)',`@content[%]') => +`$msg.setContent($content)'>
-                    <!(Result(`$msg.setContent($content)', `%')||Result(`$SendMail(%)', `%')) => +`$msg.setContent($content)'>*
-                    (
-                        <Result(`$SendMail(%)', `%') => Neutral>
-                        | <Result(`$msg.setContent($content)', `@msg[%]') => +`mail.SendMail($msg)'>
-                        <!(Result(`mail.SendMail($msg)', `%') ||Result(`$SendMail(%)', `%')) => +`mail.SendMail($msg)'>*
-                        <!Result(`mail.SendMail($msg)', `%') => +`mail.SendMail($msg)'>
-                    )
-                )
-            )
-        )
-    )
-)*
 =================================================================================
 
 IncomingMail() :
