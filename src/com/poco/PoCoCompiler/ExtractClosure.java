@@ -42,7 +42,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
     public Void visitPocopol(@NotNull PoCoParser.PocopolContext ctx) {
         // need handle when policy has parameteres (e.g., OutgoingMail(String ContactInfo))
         closure = new Closure();
-        policyName = ctx.id().getText().trim()+"_";
+        policyName = ctx.id().getText().trim() + "_";
         if (ctx.paramlist() != null && ctx.paramlist().getText().trim().length() > 0) {
             PoCoParser.ParamlistContext paraList = ctx.paramlist();
             while (paraList != null) {
@@ -139,14 +139,27 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
         return null;
     }
 
+    @Override
+    public Void visitIre(@NotNull PoCoParser.IreContext ctx) {
+        if (ctx.ACTION() != null) {
+            if(ctx.re(0).AT() != null)
+            visitRe(ctx.re(0));
+        } else {
+            visitRe(ctx.re(0));
+            visitRe(ctx.re(1));
+
+        }
+
+
+        return null;
+    }
+
     public Void visitRe(@NotNull PoCoParser.ReContext ctx) {
-        if (ctx.AT() != null) {
+        if (ctx.AT() != null  ) {
             binding = ctx.id().getText();
             visitChildren(ctx);
             binding = null;
         } else {
-            if (binding == null)
-                return null;
             if (frmOpparlist == false) {
                 if (ctx.function() != null) {
                     closureVal = "* ";
@@ -170,12 +183,17 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                     } else {
                         closureVal += "()";
                     }
-                    String existTyp = closure.loadClosure(policyName + binding).getVarType();
-                    if (existTyp == null)
+                    String existTyp;
+                    if (closure.loadClosure(policyName + binding) != null) {
+                        if (closure.loadClosure(policyName + binding).getVarType() == null)
+                            existTyp = "java.lang.String";
+                        else
+                            existTyp = closure.loadClosure(policyName + binding).getVarType();
+                    }
+                    else
                         existTyp = "java.lang.String";
                     closure.updateClosure(policyName + binding, new VarTypeVal(existTyp, closureVal));
-                    binding = null;
-                } else if (ctx.object() != null) {
+                 } else if (ctx.object() != null) {
                 } else {
                     visitChildren(ctx);
                 }
@@ -188,7 +206,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                         closureVal += "($$" + policyName + strval + "$$)";
                     } else
                         throw new NullPointerException("No such var exist.");
-                }  else if (ctx.object() != null) {
+                } else if (ctx.object() != null) {
                     if (ctx.object().POUND() != null) {
                         //format as #qid{re}
                         closureVal = closureVal + "(" + ctx.object().qid().getText();
@@ -213,7 +231,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                     visitRe(ctx.re(0));
                     visitRe(ctx.re(1));
                 } else {
-                    if (ctx.getText().trim().length() > 0 ) {
+                    if (ctx.getText().trim().length() > 0) {
                         String reg = "\\((.+)\\)";
                         Pattern pattern = Pattern.compile(reg);
                         Matcher matcher = pattern.matcher(ctx.getText().trim());
@@ -222,13 +240,11 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                     }
                 }
             }
-            return null;
         }
-
         return null;
     }
 
-    private  String getObjVal(String str) {
+    private String getObjVal(String str) {
         String tempStr = "";
         String returnStr = "";
         String reg = "#(.+)\\{(.+)\\}";
@@ -246,7 +262,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                 returnStr += tempStr.substring(0, tempStr.indexOf('$'));
                 tempStr = tempStr.substring(tempStr.indexOf('$'), tempStr.length());
                 if (tempStr.indexOf(' ') != -1) {
-                    returnStr += "$$"+policyName + tempStr.substring(1, tempStr.indexOf(' '))+"$$";
+                    returnStr += "$$" + policyName + tempStr.substring(1, tempStr.indexOf(' ')) + "$$";
                     tempStr = tempStr.substring(tempStr.indexOf(' ') + 1, tempStr.length());
                 }
             }
