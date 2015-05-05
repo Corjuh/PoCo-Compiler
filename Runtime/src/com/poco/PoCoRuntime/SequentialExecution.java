@@ -1,4 +1,4 @@
-package com.poco;
+package com.poco.PoCoRuntime;
 
 /**
  * Created by cjuhlin on 8/23/14.
@@ -8,8 +8,8 @@ public class SequentialExecution extends AbstractExecution implements
 	protected int currentCursor = 0;
 	protected boolean exhausted = false;
 
-	private boolean currentChildIsZeroPlus = false;
-	private boolean currentChildIsOnePlus = false;
+	protected boolean currentChildIsZeroPlus = false;
+	protected boolean currentChildIsOnePlus = false;
 
 	public SequentialExecution(String modifier) throws PoCoException {
 		super(modifier);
@@ -56,12 +56,12 @@ public class SequentialExecution extends AbstractExecution implements
 	 * front when we reach the end. while advance cursor, we also should update
 	 * the modifier so that we always get current execution's modifier
 	 */
-	private void advanceCursor() {
+	protected void advanceCursor() {
 		if (isZeroPlus || isOnePlus)
 			currentCursor = (currentCursor + 1) % children.size();
 		else
 			currentCursor++;
-
+		
 		if (currentCursor >= children.size()) {
 			exhausted = true; 
 		} else {
@@ -84,12 +84,13 @@ public class SequentialExecution extends AbstractExecution implements
 		}
 		getCurrentChildModifier();
 		EventResponder currentChild = children.get(currentCursor);
+		
 		if (currentChild.accepts(event)) {
-			if (!currentChildIsZeroPlus && !currentChildIsOnePlus) 
+			if (!currentChildIsZeroPlus && !currentChildIsOnePlus) {
 				advanceCursor(); 
-			SRE res = currentChild.query(event);
-			currentChild.resetIsQueried();
-			return res;
+			}
+			resultSRE = currentChild.query(event);
+			return resultSRE;
 		} else { //not accepting 
 			if (currentChildIsZeroPlus) { 
 				// We can skip a zero-plus (*) modifier 
@@ -97,7 +98,6 @@ public class SequentialExecution extends AbstractExecution implements
 				return this.query(event);
 			} else { 
 				// CurrentChild doesn't accept and can't be skipped
-				currentChild.resetIsQueried();
 				return null;
 			}
 		}
