@@ -10,6 +10,9 @@ public abstract class AbstractExecution extends EventResponder implements Matcha
     protected boolean isZeroPlus, isOnePlus;
     protected ArrayList<EventResponder> children = new ArrayList<>();
 
+    protected Boolean resultBool = false;
+    protected SRE resultSRE = null;
+
     public AbstractExecution(String modifier) throws PoCoException {
         interpretModifier(modifier);
     }
@@ -35,18 +38,15 @@ public abstract class AbstractExecution extends EventResponder implements Matcha
                 throw new PoCoException("Incorrect execution modifier " + modifier);
         }
     }
-
     public void addChild(EventResponder child) {
         children.add(child);
     }
-
     public ArrayList<EventResponder> getChildren() {
         return children;
     }
     public boolean isZeroPlus() {
         return isZeroPlus;
     }
-
     public boolean isOnePlus() {
         return isOnePlus;
     }
