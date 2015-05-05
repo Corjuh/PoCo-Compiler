@@ -1,4 +1,4 @@
-package com.poco;
+package com.poco.PoCoRuntime;
 
 import java.util.Stack;
 import java.util.regex.Matcher;
@@ -20,7 +20,7 @@ public class DummyRootPolicy {
 		this.monitoringEvents = new Stack<>();
 		this.promotedEvents = new Stack<>();
 	}
-
+	
 	public void setChild(Policy child) {
 		this.child = child;
 	}
@@ -39,7 +39,7 @@ public class DummyRootPolicy {
 		SRE result = child.query(event);
 		// when accept is false, the returned SRE value is NULL
 		if (result == null) {
-			System.out.println("Null");
+			System.out.println("--Null");
 			System.exit(-1);
 			// return;
 		}
@@ -49,7 +49,7 @@ public class DummyRootPolicy {
 		
 		//System.out.format("Root policy queried with event: \"%s\"\n", event.getSignature());
 		if (result.getPositiveRE() != null
-				&& !result.getPositiveRE().equals("null")) {
+				&& (result.getPositiveRE().trim().length() !=0 && !result.getPositiveRE().equals("null"))) {
 			posMatch = true;
 			//System.out.format("Child policy returned +`%s'\n", result.positiveRE());
 		}
@@ -91,6 +91,7 @@ public class DummyRootPolicy {
 			int numOfArgs = 0;
 			String[] paramStrs = null;
 			Object[] obj4Args = null;
+			
 			int lParen = resultPos.indexOf('(');
 			int rParen = resultPos.indexOf(')');
 			// get the parameter part of the string
@@ -113,6 +114,8 @@ public class DummyRootPolicy {
 					if (value != null && value.length() > 0) {
 						matcher = pattern.matcher(value);
 						if (matcher.find()) {// it is variable (e.g., $$msg)
+							
+							
 							if (DataWH.dataVal.get(matcher.group(3).trim())
 									.getType().equals("java.lang.String")) {
 								String str = DataWH.dataVal
@@ -182,6 +185,7 @@ public class DummyRootPolicy {
 					.equals(".new"))
 					resultPos = funName.substring(0, funName.length() - 4) + argPrt;
 			}
+			
 			if (monitoringEvents.isEmpty() && resultPos != null)
 				promoted = false;
 			else if (methodMatch(monitoringEvents.peek(), resultPos)) {
@@ -189,7 +193,7 @@ public class DummyRootPolicy {
 			}
 			if (promoted) {
 				System.out.println("the action " + monitoringEvents.peek()
-						+ " will be allowed!");
+						+ " will be allowed!"); 
 				monitoringEvents.pop();
 			} else {
 				try {
@@ -198,14 +202,13 @@ public class DummyRootPolicy {
 					if (index > -1)
 						methodname = resultPos.substring(0, index);
 					promotedEvents.push(methodname.trim());
-					
 					Promoter.Reflect(resultPos, obj4Args);
 				} catch (Exception ex) {
 					ex.printStackTrace();
 				}
 			}
 		}
-
+		
 		if (negMatch) {
 			// if already on stack, show System.exit(-1);
 			if (!monitoringEvents.empty()
@@ -214,7 +217,6 @@ public class DummyRootPolicy {
 				monitoringEvents.pop();
 			}
 		}
-
 		if (posMatch)
 			return;
 		if (negMatch)
