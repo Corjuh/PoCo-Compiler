@@ -7,7 +7,7 @@ public class AlternationExecution extends SequentialExecution {
 	@Override
 	public String toString() {
 		return "AlternationExecution [currentCursor=" + currentCursor
-				+ ", children=" + children + ", isQueried=" + isQueried
+				+ ", children=" + children + ", isQueried="
 				+ ", resultBool=" + resultBool + ", resultSRE=" + resultSRE
 				+ "]";
 	}
