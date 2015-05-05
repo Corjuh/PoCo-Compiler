@@ -393,12 +393,12 @@ public class Compiler {
             int thisNodeMode = mode;
             String entry = key.next();
 
-            if(mode ==0 && extractedPtCuts4Results.containsKey(entry)) {
+            if (mode == 0 && extractedPtCuts4Results.containsKey(entry)) {
                 extractedPtCuts4Results.remove(entry);
                 thisNodeMode = 2;
             }
             varNeedBind = pointcuts.get(entry);
-            System.out.println("entry:" + entry);
+
             //argTypeList:  Integer, String
             String argList4PC = "";
             //argList4PC :  Integer value0, String value1
@@ -425,7 +425,7 @@ public class Compiler {
             //if not, we will consider any none constructor method(.new) with * return type
             String funReturnType = getPCMethodName(callStr).split(" ")[0];
             String funName = getPCMethodName(callStr);
-            if (funName.split(" ").length == 1 && !funName.substring(funName.length()- 4, funName.length()).equals(".new")) {
+            if (funName.split(" ").length == 1 && !funName.substring(funName.length() - 4, funName.length()).equals(".new")) {
                 funName = "* " + funName;
             }
             //get the var name that need 2B dynamically updated
@@ -452,11 +452,11 @@ public class Compiler {
                             argLs4Around += ",";
                         }
                     } else {
+                        argTypeList  += "..";
                         argList4Call += "*";
                         if (i != argsList.length - 1)
                             argList4Call += ",";
                     }
-
                 }
                 argTypeList = trimLastPunctuation(argTypeList, ",");
                 argList4PC = trimLastPunctuation(argList4PC, ",");
@@ -464,8 +464,8 @@ public class Compiler {
                 argLs4Around = trimLastPunctuation(argLs4Around, ",");
                 monitorVals = trimLastPunctuation(monitorVals, ",");
             }
-            //if argTypeList is empty then no need for define argument for pointcut
-            if (argTypeList != null) {
+            //if no values need to be monitored then no need for define argument for pointcut
+            if (monitorVals != null && monitorVals.length() > 0) {
                 jOut(1, "pointcut PointCut%d(%s):", pointcutNum, argList4PC);
 
                 String args = "";
@@ -473,17 +473,19 @@ public class Compiler {
                     args = getArgsTyp4PC(entry.substring(entry.indexOf("("), entry.length()));
                 }
                 callStr = (funName + "(" + args + ")").replace("\\", "");
-                if (argTypeList.trim().length() >0) {
+                if (argTypeList.trim().length() > 0) {
                     jOut(2, "call(%s) && args(%s);\n", callStr, argList4Call);
                 } else {
                     jOut(2, "call(%s);\n", callStr);
                 }
-                outAdvicePrologue("PointCut" + pointcutNum, argList4PC, argLs4Around, monitorVals,funReturnType,thisNodeMode);
+
+                outAdvicePrologue("PointCut" + pointcutNum, argList4PC, argLs4Around, monitorVals, funReturnType, thisNodeMode);
             } else {
                 jOut(1, "pointcut PointCut%d():", pointcutNum);
                 callStr = getPCMethodName(entry);
-                jOut(2, "call(%s(..));\n", callStr);
-                outAdvicePrologue("PointCut" + pointcutNum, argList4PC, argLs4Around, monitorVals,funReturnType, thisNodeMode);
+                System.out.println("argTypeList: " + argTypeList);
+                jOut(2, "call(%s(%s));\n", callStr, argTypeList);
+                outAdvicePrologue("PointCut" + pointcutNum, argList4PC, argLs4Around, monitorVals, funReturnType, thisNodeMode);
             }
             pointcutNum++;
         }
@@ -595,13 +597,8 @@ public class Compiler {
         jOut(1, "private DummyRootPolicy root = new DummyRootPolicy( new %s() );\n", childName);
     }
 
-    private void outAdvicePrologue(String pointcutName, String aroundlist, String arglist, String monitorVal,String funReturnType, int mode) {
+    private void outAdvicePrologue(String pointcutName, String aroundlist, String arglist, String monitorVal, String funReturnType, int mode) {
          /* aroundlist: String value0,int value1; arglist: value0,value1; monitorVal String value0$$*.class$$*/
-        if (monitorVal != null && monitorVal.length() > 0)
-            jOut(1, "Object around(%s): %s(%s) {", aroundlist, pointcutName, arglist);
-        else
-            jOut(1, "Object around(): %s() {", pointcutName);
-
         if (monitorVal != null && monitorVal.length() > 0) {
             String[] typeValArray = monitorVal.split(",");
             String[] varTyps = new String[typeValArray.length];
@@ -631,66 +628,89 @@ public class Compiler {
                     }
                 }
             }
-            //add for case when need monitor both before and after running
+            if (monitorVal != null && monitorVal.length() > 0)
+                jOut(1, "Object around(%s): %s(%s) {", aroundlist, pointcutName, arglist);
+            else
+                jOut(1, "Object around(): %s() {", pointcutName);
+
             jOut(2, "Object ret = null;");
-            if(mode == 2) {
-                jOut(2, "int mode =0;");
-                jOut(2, "if (mode == 0) {");
-            }
             String[] conditionState = genCoditionStatements(varTyps, varNams, varVals);
             if (conditionState != null && conditionState[0] != null && conditionState[0].length() > 0) {
                 jOut(2, "if (" + conditionState[0] + ") {");
+
                 if (conditionState[1] != null && conditionState[1].length() > 0) {
                     String[] updates = conditionState[1].split("&&");
                     for (String str : updates)
                         jOut(3, str);
                 }
-                outAdviceProlog4DynBind(3);
+                outAdviceProlog4DynBind(3,0);
 
-                if(mode ==0 ) { //monitor the action
+                if (mode == 0) { //monitor the action
                     jOut(3, "root.queryAction(new Event(thisJoinPoint));");
                     jOut(3, "ret = proceed(%s);", arglist);
+                    outAdviceProlog4DynBind(3, 1);
                     jOut(2, "}");
                     jOut(2, "else  ret = proceed(%s);", arglist);
                     jOut(2, "return ret;");
-                } else if(mode == 1 ) { // monitor the result
+                } else { //if(mode == 1  || mode ==2) { // monitor the result
                     jOut(3, "ret = proceed(%s);", arglist);
+                    outAdviceProlog4DynBind(3, 1);
                     jOut(3, "Event event = new Event(thisJoinPoint);");
                     jOut(3, "event.setEventType(\"Result\");");
                     jOut(3, "event.setResult(ret);");
                     jOut(3, "root.queryAction(event);");
-                    jOut(3, "return event.getResult();");
+                    jOut(3, "return ret;");
                     jOut(2, "}");
                     jOut(2, "else   return proceed(%s);", arglist);
-                }else { //mode == 2 which means monitor both before and after running
-                    jOut(3, "root.queryAction(new Event(thisJoinPoint));");
-                    jOut(3, "ret = proceed(%s);", arglist);
-                    jOut(3, "mode = 1;");
-                    jOut(2, "}");
-                    jOut(2, "else  ret = proceed(%s);", arglist);
-                    jOut(2, "}");
-                    jOut(2, "if(mode ==1) {");
-                    jOut(3, "Event event = new Event(thisJoinPoint);");
-                    jOut(3, "event.setEventType(\"Result\");");
-                    jOut(3, "event.setResult(ret);");
-                    jOut(3, "root.queryAction(event);");
-                    jOut(3, "return event.getResult();");
-                    jOut(2, "}");
-                    jOut(2, "return ret;");
                 }
-                jOut(1, "}\n");
             } else {
-                outAdviceProlog4DynBind(2);
+                outAdviceProlog4DynBind(2,0);
                 jOut(2, "root.queryAction(new Event(thisJoinPoint));");
+                outAdviceProlog4DynBind(2, 1);
                 jOut(2, "return proceed(%s);", arglist);
+            }
+            jOut(1, "}\n");
+
+            //need generate the before advice for the case need monitor before and after of one method
+            if (mode == 2) {
+                if (monitorVal != null && monitorVal.length() > 0)
+                    jOut(1, "before(%s): %s(%s) {", aroundlist, pointcutName, arglist);
+                else
+                    jOut(1, "before(): %s() {", pointcutName);
+
+                if (conditionState != null && conditionState[0] != null && conditionState[0].length() > 0) {
+                    jOut(2, "if (" + conditionState[0] + ") {");
+                    if (conditionState[1] != null && conditionState[1].length() > 0) {
+                        String[] updates = conditionState[1].split("&&");
+                        for (String str : updates)
+                            jOut(3, str);
+                    }
+                    outAdviceProlog4DynBind(3,0);
+                    jOut(3, "root.queryAction(new Event(thisJoinPoint));");
+                    outAdviceProlog4DynBind(3,1);
+                    jOut(3, "return;");
+                    jOut(2, "}");
+                    jOut(2, "else   return;");
+                } else {
+                    outAdviceProlog4DynBind(2,0);
+                    outAdviceProlog4DynBind(2,1);
+                    jOut(3, "return;");
+                }
                 jOut(1, "}\n");
             }
         } else {
-            if(mode ==0 ) { //monitor the action
+            if (monitorVal != null && monitorVal.length() > 0)
+                jOut(1, "Object around(%s): %s(%s) {", aroundlist, pointcutName, arglist);
+            else
+                jOut(1, "Object around(): %s() {", pointcutName);
+            if (mode == 0) { //monitor the action
+                outAdviceProlog4DynBind(2,0);
                 jOut(2, "root.queryAction(new Event(thisJoinPoint));");
                 jOut(2, "return proceed();");
-            }else {
+            } else {
+                outAdviceProlog4DynBind(2,0);
                 jOut(2, "Object ret = proceed();", arglist);
+                outAdviceProlog4DynBind(2,1);
                 jOut(2, "Event event = new Event(thisJoinPoint);");
                 jOut(2, "event.setEventType(\"Result\");");
                 jOut(2, "event.setResult(ret);");
@@ -790,15 +810,30 @@ public class Compiler {
         jOut(1, "}\n");
     }
 
-    private void outAdviceProlog4DynBind(int offset) {
-        if (monitoredPC != null && monitoredPC.size() > 0) {
-            jOut(offset, "String typeVal; ");
-            Set<String> set = monitoredPC.keySet();
-            for (Iterator<String> it = set.iterator(); it.hasNext(); ) {
-                String varName = it.next();
-                jOut(offset, "typeVal = DataWH.dataVal.get(\"" + varName + "\").getType();");
-                jOut(offset, "DataWH.dataVal.remove(\"" + varName + "\");");
-                jOut(offset, "DataWH.dataVal.put(\"" + varName + "\", new TypeVal(typeVal, " + monitoredPC.get(varName) + "));");
+    private void outAdviceProlog4DynBind(int offset, int mode) {
+        if(mode ==0) {
+            if (monitoredPC != null && monitoredPC.size() > 0) {
+                Set<String> set = monitoredPC.keySet();
+                jOut(offset, "String typeVal; ");
+                for (Iterator<String> it = set.iterator(); it.hasNext(); ) {
+                    String varName = it.next();
+                    if (varNeedBind.contains(varName))
+                        varNeedBind.remove(varName);
+                    jOut(offset, "typeVal = DataWH.dataVal.get(\"" + varName + "\").getType();");
+                    jOut(offset, "DataWH.dataVal.remove(\"" + varName + "\");");
+                    jOut(offset, "DataWH.dataVal.put(\"" + varName + "\", new TypeVal(typeVal, " + monitoredPC.get(varName) + "));");
+                }
+            }
+        }else {
+            if (varNeedBind != null) {
+                for (String str : varNeedBind) {
+                    jOut(offset, "if(DataWH.dataVal.get(\"" + str + "\")!=null) {");
+                    jOut(offset+1, "String typeVal;");
+                    jOut(offset+1, "typeVal = DataWH.dataVal.get(\"" + str + "\").getType();");
+                    jOut(offset+1, "DataWH.dataVal.remove(\"" + str + "\");");
+                    jOut(offset+1, "DataWH.dataVal.put(\"" + str + "\", new TypeVal(typeVal, ret));");
+                    jOut(offset, "}");
+                }
             }
         }
     }
