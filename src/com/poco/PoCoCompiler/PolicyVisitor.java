@@ -73,6 +73,11 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     private String transactions = null;
     private String policyName = null;
 
+    //use to store the compound RE string.
+    // e.g., map (Union,  -`$GetMail()|Message{%}.getSubject()', ...>*
+    private String compoundRe  = null;
+    private boolean isCompoundRe = false;
+
     /**
      * Constructor
      *
@@ -199,6 +204,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             executionNames.push(executionName);
             outLine(3, "MapExecution %s = new MapExecution(\"%s\");", executionName, modifier);
             outLine(3, "%s.setOperator(\"%s\");", executionName, ctx.map().srebop().getText());
+
             isMapSre = true;
             visitSre(ctx.map().sre());
             isMapSre = false;
@@ -420,6 +426,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 sreNames.push(sreName);
                 outLine(3, "SRE %s = new SRE(null, null);", sreName);
 
+                //Add to support the case that manipulates the return value of a method call
                 if(ctx.PLUS() != null) {
                     String  funReg = "(.+)\\((.*)\\)";
                     Pattern funPtn = Pattern.compile(funReg);
@@ -455,7 +462,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 isSreBop1 = true;
                 isSreBop2 = false;
                 visitSre(ctx.sre(0));
-
                 isSreBop1 = false;
                 isSreBop2 = true;
                 visitSre(ctx.sre(1));
@@ -491,7 +497,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 if (!sreNames.empty())
                     setSREvalue(sreNames.peek(), sreName);
             } else if (ctx.qid() != null) {   //$qid case
-
                 //for qid case, currently put the qid info in the positiveRE, so when
                 //SreUop is null, then we will check if it is pos or neg, when
                 //SreUop is not null, then we treat pos differently
@@ -545,8 +550,43 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                         isSkip = true;
                 }
             }
-        } else if (ctx.rebop() != null) {
-            visitChildren(ctx);
+        }else if(ctx.LPAREN() !=null && ctx.re(0) !=null) {
+            visitRe(ctx.re(0));
+        }else if (ctx.rebop() != null) {
+            compoundRe = "";
+            isCompoundRe = true;
+            visitRe(ctx.re(0));
+            visitRe(ctx.re(1));
+            compoundRe = compoundRe.trim();
+            while(compoundRe.endsWith("|"))
+                compoundRe = compoundRe.substring(0, compoundRe.length() - 1).trim();
+            if (isSre) {
+                if (isSrePos)
+                    outLine(3, "%s.setPositiveRE(\"%s\");", sreNames.peek(), compoundRe.replace("\\", "\\\\").trim());
+                else
+                    outLine(3, "%s.setNegativeRE(\"%s\");", sreNames.peek(), compoundRe.replace("\\", "\\\\").trim());
+                if (isMapSre)
+                    outLine(3, "%s.setMatchSre(%s);", executionNames.peek(), sreNames.peek());
+                //if it is Bopsre case, we will need postpone setSRE till pop to the right Sre
+                if (isReturnValue && !isSreBop2 && !isSreBop1)
+                    outLine(3, "%s.setSRE(%s);", currentExchange, sreNames.peek());
+            } else if (isIre) {
+                if (isAction) {
+                    outLine(3, "%s.setAsAction();", currentMatch);
+                    outLine(3, "%s.setMatchString(\"%s\");", currentMatch, compoundRe.replace("\\", "\\\\").trim());
+                } else {
+                    if (!isResultMatch) {
+                        outLine(3, "%s.setAsResult();", currentMatch);
+                        outLine(3, "%s.setMatchString(\"%s\");", currentMatch, compoundRe.replace("\\", "\\\\").trim());
+                    } else
+                        outLine(3, "%s.setResultMatchStr(\"%s\");", currentMatch, compoundRe.replace("\\", "\\\\").trim());
+                }
+            } else if (isMatch) {
+                outLine(3, "%s.setMatchString(\"%s\");", currentMatch, compoundRe.replace("\\", "\\\\").trim());
+            }
+
+
+            isCompoundRe = false;
         } else if (ctx.AT() != null) { //binding variable
             if (ctx.id() != null && closure == null)
                 throw new NullPointerException("No such var exist.");
@@ -556,9 +596,10 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 if (isResultMatch)
                     outLine(3, "%s.setResultMatchStr(\".\");", scrubString(currentMatch));
             } else if (isAction && isCombinedMatch) {
-                //System.out.println(ctx.getText());
                 outLine(3, "%s.setMatchString(\".\");", currentMatch);
             }
+        }else if(ctx.getText().trim().equals("()")){
+            ;
         } else {
             if (isSkip == true) {
                 isSkip = false;
@@ -629,30 +670,34 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                     content = scrubString(ctx.getText());
                 }
             }
-
-            if (isSre) {
-                if (isSrePos)
-                    outLine(3, "%s.setPositiveRE(\"%s\");", sreNames.peek(), content.replace("\\", "\\\\").trim());
-                else
-                    outLine(3, "%s.setNegativeRE(\"%s\");", sreNames.peek(), content.replace("\\", "\\\\").trim());
-                if (isMapSre)
-                    outLine(3, "%s.setMatchSre(%s);", executionNames.peek(), sreNames.peek());
-                //if it is Bopsre case, we will need postpone setSRE till pop to the right Sre
-                if (isReturnValue && !isSreBop2 && !isSreBop1)
-                    outLine(3, "%s.setSRE(%s);", currentExchange, sreNames.peek());
-            } else if (isIre) {
-                if (isAction) {
-                    outLine(3, "%s.setAsAction();", currentMatch);
-                    outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content.replace("\\", "\\\\").trim());
-                } else {
-                    if (!isResultMatch) {
-                        outLine(3, "%s.setAsResult();", currentMatch);
+            if (isCompoundRe){
+                compoundRe +=content + "|";
+            }
+            else {
+                if (isSre) {
+                    if (isSrePos)
+                        outLine(3, "%s.setPositiveRE(\"%s\");", sreNames.peek(), content.replace("\\", "\\\\").trim());
+                    else
+                        outLine(3, "%s.setNegativeRE(\"%s\");", sreNames.peek(), content.replace("\\", "\\\\").trim());
+                    if (isMapSre)
+                        outLine(3, "%s.setMatchSre(%s);", executionNames.peek(), sreNames.peek());
+                    //if it is Bopsre case, we will need postpone setSRE till pop to the right Sre
+                    if (isReturnValue && !isSreBop2 && !isSreBop1)
+                        outLine(3, "%s.setSRE(%s);", currentExchange, sreNames.peek());
+                } else if (isIre) {
+                    if (isAction) {
+                        outLine(3, "%s.setAsAction();", currentMatch);
                         outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content.replace("\\", "\\\\").trim());
-                    } else
-                        outLine(3, "%s.setResultMatchStr(\"%s\");", currentMatch, content.replace("\\", "\\\\").trim());
+                    } else {
+                        if (!isResultMatch) {
+                            outLine(3, "%s.setAsResult();", currentMatch);
+                            outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content.replace("\\", "\\\\").trim());
+                        } else
+                            outLine(3, "%s.setResultMatchStr(\"%s\");", currentMatch, content.replace("\\", "\\\\").trim());
+                    }
+                } else if (isMatch) {
+                    outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content.replace("\\", "\\\\").trim());
                 }
-            } else if (isMatch) {
-                outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content.replace("\\", "\\\\").trim());
             }
         }
         return null;
