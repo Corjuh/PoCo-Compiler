@@ -6,6 +6,7 @@ import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseVisitor;
 import org.antlr.v4.runtime.misc.NotNull;
 
+import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -14,6 +15,15 @@ import java.util.regex.Pattern;
  */
 public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
     private Closure closure;
+    private boolean frmOpparlist = false;
+    private String closureVal;
+    private String policyName = "";
+    private Stack<String> bindings;
+
+    public ExtractClosure(Closure closure) {
+        this.closure = closure;
+        this.bindings = new Stack<>();
+    }
 
     public Closure getClosure() {
         return closure;
@@ -22,15 +32,6 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
     public void setClosure(Closure closure) {
         this.closure = closure;
     }
-
-    public ExtractClosure(Closure closure) {
-        this.closure = closure;
-    }
-
-    private boolean frmOpparlist = false;
-    private String closureVal;
-    private String binding;
-    private String policyName = "";
 
     /**
      * Generates code for class representing a PoCo policy. This is the first visit method called.
@@ -99,13 +100,19 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
         Matcher matcher;
 
         //regex for function def.
-        String reg1 = "(.+)\\((.+)\\)";
+        String reg1 = "(.+)\\((.*)\\)";
         Pattern pattern1 = Pattern.compile(reg1);
         Matcher matcher1 = pattern1.matcher(str);
 
         //@SendMail(msg)[`javax.mail.Transport.send(#javax.mail.Message{$msg})']: RE
         if (matcher1.find()) {
             String strFunNm = matcher1.group(1).toString().trim();
+            String funTyp = "java.lang.String";
+            if (strFunNm.split("\\s+").length == 2) {
+                String temp = strFunNm.split("\\s+")[0].trim();
+                if (!temp.equals("void") && !temp.equals("*"))
+                    funTyp = temp;
+            }
             //e.g.,  #javax.mail.Message{$msg}
             String args = matcher1.group(2).toString().trim();
             String[] strArgs = args.split(",");
@@ -126,7 +133,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                     }
                 }
             }
-            varTyCal = new VarTypeVal("java.lang.String", strFunNm + "(" + args + ")");
+            varTyCal = new VarTypeVal(funTyp, strFunNm + "(" + args + ")");
         } else {    //@ports()[!`#int{143|993|25|110|995|2080}'] :RE
             matcher = pattern.matcher(str);
             if (matcher.find()) {
@@ -142,101 +149,111 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitIre(@NotNull PoCoParser.IreContext ctx) {
         if (ctx.ACTION() != null) {
-            if(ctx.re(0).AT() != null)
-            visitRe(ctx.re(0));
+            if (ctx.re(0).AT() != null)
+                visitRe(ctx.re(0));
         } else {
             visitRe(ctx.re(0));
             visitRe(ctx.re(1));
-
         }
-
-
         return null;
     }
 
     public Void visitRe(@NotNull PoCoParser.ReContext ctx) {
-        if (ctx.AT() != null  ) {
-            binding = ctx.id().getText();
+        if (ctx.AT() != null) {
+            bindings.push(ctx.id().getText());
             visitChildren(ctx);
-            binding = null;
+            bindings.pop();
         } else {
-            if (frmOpparlist == false) {
-                if (ctx.function() != null) {
-                    closureVal = "* ";
-                    if (ctx.function().INIT() != null) {
-                        closureVal = ctx.function().fxnname().getText() + "new";
-                    } else {
-                        //has return value type
-                        if (ctx.function().fxnname().getText().trim().split(" ").length == 2)
-                            closureVal = ctx.function().fxnname().getText();
-                        else
-                            closureVal += ctx.function().fxnname().getText();
-                    }
-                    if (ctx.function().arglist() != null) {
-                        if (ctx.function().arglist().getText().length() == 0) {
-                            closureVal += "()";
+            if (!bindings.empty()) {
+                if (frmOpparlist == false) {
+                    if (ctx.function() != null) {
+                        closureVal = "* ";
+                        if (ctx.function().INIT() != null) {
+                            closureVal = ctx.function().fxnname().getText() + "new";
                         } else {
-                            frmOpparlist = true;
-                            visitChildren(ctx);
-                            frmOpparlist = false;
+                            //has return value type
+                            if (ctx.function().fxnname().getText().trim().split(" ").length == 2)
+                                closureVal = ctx.function().fxnname().getText();
+                            else
+                                closureVal += ctx.function().fxnname().getText();
+                        }
+                        if (ctx.function().arglist() != null) {
+                            if (ctx.function().arglist().getText().length() == 0) {
+                                closureVal += "()";
+                            } else {
+                                frmOpparlist = true;
+                                visitChildren(ctx);
+                                frmOpparlist = false;
+                            }
+                        } else {
+                            closureVal += "()";
+                        }
+                        String existTyp;
+                        if (closure.loadClosure(policyName + bindings.peek()) != null) {
+                            if (closure.loadClosure(policyName + bindings.peek()).getVarType() == null)
+                                existTyp = "java.lang.String";
+                            else
+                                existTyp = closure.loadClosure(policyName + bindings.peek()).getVarType();
+                        } else
+                            existTyp = "java.lang.String";
+                            closure.updateClosure(policyName + bindings.peek(), new VarTypeVal(existTyp, closureVal));
+
+                    } else if (ctx.DOLLAR() != null) {
+                        if (closure.loadClosure(policyName + ctx.qid().getText()) != null) {
+                            String newTyp = closure.loadClosure(policyName + ctx.qid().getText()).getVarType();
+                            String oldTyp = "";
+                            if (closure.loadClosure(policyName + bindings.peek()).getVarType() != null)
+                                oldTyp = closure.loadClosure(policyName + bindings.peek()).getVarType();
+                            if (!newTyp.equals(oldTyp)) {
+                                String varContext = closure.loadClosure(policyName + ctx.qid().getText()).getVarContext();
+                                closure.updateClosure(policyName + bindings.peek(), new VarTypeVal(newTyp, varContext));
+
+                            }
                         }
                     } else {
-                        closureVal += "()";
+                        visitChildren(ctx);
                     }
-                    String existTyp;
-                    if (closure.loadClosure(policyName + binding) != null) {
-                        if (closure.loadClosure(policyName + binding).getVarType() == null)
-                            existTyp = "java.lang.String";
-                        else
-                            existTyp = closure.loadClosure(policyName + binding).getVarType();
-                    }
-                    else
-                        existTyp = "java.lang.String";
-                    closure.updateClosure(policyName + binding, new VarTypeVal(existTyp, closureVal));
-                 } else if (ctx.object() != null) {
-                } else {
-                    visitChildren(ctx);
-                }
-            } else {  //ptFromOpparamlist = true
-                if (ctx.rewild() != null) {
-                    closureVal = closureVal + "(..)";
-                } else if (ctx.qid() != null) {
-                    String strval = ctx.qid().getText().trim();
-                    if (closure != null && closure.isContains(policyName + strval)) {
-                        closureVal += "($$" + policyName + strval + "$$)";
-                    } else
-                        throw new NullPointerException("No such var exist.");
-                } else if (ctx.object() != null) {
-                    if (ctx.object().POUND() != null) {
-                        //format as #qid{re}
-                        closureVal = closureVal + "(" + ctx.object().qid().getText();
-                        String reStr = ctx.object().re().getText();
-                        //if reStr does not contain the "$", means the value is static,
-                        //so we can check it statically, otherwise we have to check it dynamically
-                        if (!reStr.contains("$")) {
-                            if (reStr.equals("%"))
-                                closureVal += "$$$*.*$$$";
-                            else
-                                closureVal += "$$$" + reStr.replaceAll("%", "*") + "$$$";
-                        } else { //so the value will be dynamic
-                            closureVal += reStr;
-                        }
-                        closureVal += ")";
-                    } else if (ctx.id() != null) {
-                        closureVal = closureVal + "(" + ctx.id().getText() + ")";
-                    } else {  //Null case
+                } else {  //ptFromOpparamlist = true
+                    if (ctx.rewild() != null) {
                         closureVal = closureVal + "(..)";
-                    }
-                } else if (ctx.rebop() != null) {
-                    visitRe(ctx.re(0));
-                    visitRe(ctx.re(1));
-                } else {
-                    if (ctx.getText().trim().length() > 0) {
-                        String reg = "\\((.+)\\)";
-                        Pattern pattern = Pattern.compile(reg);
-                        Matcher matcher = pattern.matcher(ctx.getText().trim());
-                        if (matcher.find())
-                            closureVal = closureVal + "(" + ctx.getText() + ")";
+                    } else if (ctx.qid() != null) {
+                        String strval = ctx.qid().getText().trim();
+                        if (closure != null && closure.isContains(policyName + strval)) {
+                            closureVal += "($$" + policyName + strval + "$$)";
+                        } else
+                            throw new NullPointerException("No such var exist.");
+                    } else if (ctx.object() != null) {
+                        if (ctx.object().POUND() != null) {
+                            //format as #qid{re}
+                            closureVal = closureVal + "(" + ctx.object().qid().getText();
+                            String reStr = ctx.object().re().getText();
+                            //if reStr does not contain the "$", means the value is static,
+                            //so we can check it statically, otherwise we have to check it dynamically
+                            if (!reStr.contains("$")) {
+                                if (reStr.equals("%"))
+                                    closureVal += "$$$*.*$$$";
+                                else
+                                    closureVal += "$$$" + reStr.replaceAll("%", "*") + "$$$";
+                            } else { //so the value will be dynamic
+                                closureVal += reStr;
+                            }
+                            closureVal += ")";
+                        } else if (ctx.id() != null) {
+                            closureVal = closureVal + "(" + ctx.id().getText() + ")";
+                        } else {  //Null case
+                            closureVal = closureVal + "(..)";
+                        }
+                    } else if (ctx.rebop() != null) {
+                        visitRe(ctx.re(0));
+                        visitRe(ctx.re(1));
+                    } else {
+                        if (ctx.getText().trim().length() > 0) {
+                            String reg = "\\((.+)\\)";
+                            Pattern pattern = Pattern.compile(reg);
+                            Matcher matcher = pattern.matcher(ctx.getText().trim());
+                            if (matcher.find())
+                                closureVal = closureVal + "(" + ctx.getText() + ")";
+                        }
                     }
                 }
             }
