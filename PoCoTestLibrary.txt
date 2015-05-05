@@ -99,17 +99,22 @@ public class RuntimeDemo {
     }
 }
 **********************************************AspectNoCreateClassFiles.aj********************************************
-import com.poco.PoCoRuntime.*;
+import com.poco.PoCoRuntime.*; 
 import java.lang.reflect.Method;
-public aspect AspectDisSysCalls {
-    private DummyRootPolicy root = new DummyRootPolicy( new DisSysCalls() );
+
+public aspect AspectNoCreateClassFiles {
+    private DummyRootPolicy root = new DummyRootPolicy( new NoCreateClassFiles() );
+    
     pointcut PC4Reflection():
         call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
+
     Object around(): PC4Reflection()   { 
         return new SRE(null,"."); 
     }
+
     pointcut PointCut0(java.lang.String value0):
         call(java.io.File.new(..,java.lang.String)) && args(*,value0);
+
     Object around(java.lang.String value0): PointCut0(value0) {
         Object ret = null;
         if (SREUtil.StringMatch(String.valueOf(value0), "*.class")) {
@@ -119,8 +124,10 @@ public aspect AspectDisSysCalls {
         else  ret = proceed(value0);
         return ret;
     }
+
     pointcut PointCut1(java.lang.String value0):
         call(java.io.File.new(java.lang.String)) && args(value0);
+
     Object around(java.lang.String value0): PointCut1(value0) {
         Object ret = null;
         if (SREUtil.StringMatch(String.valueOf(value0), "*.class")) {
@@ -130,6 +137,7 @@ public aspect AspectDisSysCalls {
         else  ret = proceed(value0);
         return ret;
     }
+
     class NoCreateClassFiles extends Policy {
         public NoCreateClassFiles() {
             try {
@@ -160,7 +168,8 @@ public aspect AspectDisSysCalls {
 DisSysCalls() : <_ => -`Runtime.exec(%)'>*
 =================================================================================
 =================================================================================
-AllowOnlyMIME() : //add 2080 for testing security issue
+//add 2080 for testing security issue
+AllowOnlyMIME() : 
 @ports()[!`#int{143|993|25|110|995|2080}'] :RE
 <_ => -`java.net.ServerSocket.<init>($ports)'>*
  
@@ -179,28 +188,37 @@ public class RuntimeDemo {
 }
 
 /*****--------------------**  AspectAllowOnlyMIME.aj **---------------------*****/
-package com.poco;
+import com.poco.PoCoRuntime.*;  
 import java.lang.reflect.Method;
-public aspect AspectAllowOnlyMIME { 
+
+public aspect AspectAllowOnlyMIME {
     private DummyRootPolicy root = new DummyRootPolicy( new AllowOnlyMIME() );
 
     public AspectAllowOnlyMIME() {
         DataWH.closure.put("AllowOnlyMIME_ports", "143|993|25|110|995|2080");
         DataWH.dataVal.put("AllowOnlyMIME_ports",new TypeVal("java.lang.String","143|993|25|110|995|2080"));
     }
+    
     pointcut PC4Reflection():
         call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
 
-    Object around(): PC4Reflection()   {   return new SRE(null,".");  }
+    Object around(): PC4Reflection()   { 
+        return new SRE(null,"."); 
+    }
+
     pointcut PointCut0(int value0):
         call(java.net.ServerSocket.new(int)) && args(value0);
 
     Object around(int value0): PointCut0(value0) {
+        Object ret = null;
         if (SREUtil.StringMatch(new Integer(value0).toString(), "143|993|25|110|995|2080")) {
             root.queryAction(new Event(thisJoinPoint));
-            return proceed(value0);
-        } else   return proceed(value0);
+            ret = proceed(value0);
+        }
+        else  ret = proceed(value0);
+        return ret;
     }
+
     class AllowOnlyMIME extends Policy {
         public AllowOnlyMIME() {
             try {
@@ -237,7 +255,7 @@ map (Union, -`java.io.FileWriter.<init>($ext()) | java.io.FileWriter.<init>($ext
      ( <Result(`com.poco.RuntimeDemo.ShowDialog($message)', `#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$call'>
               | <_ => Neutral>)
 )*
------------------------------------------------------AspectAttachments-------------------------------------------
+---------------------------------------------------AspectAttachments.aj-------------------------------------------
 import com.poco.PoCoRuntime.*;
 import java.lang.reflect.Method;
 public aspect AspectDisSysCalls {
@@ -407,8 +425,8 @@ public class RuntimeDemo {
 		System.out.println("............Starting to execute............\n"); 
 		FileWriter fw;
 		try {
-			//fw = new FileWriter("mytextfile.vbs");
-			fw = new FileWriter("mytextfile.vbs", true);
+			fw = new FileWriter("mytextfile.vbs");
+			//fw = new FileWriter("mytextfile.vbs", true);
 			fw.write("This is a test demo for attachment policy");
 			fw.write(System.lineSeparator());
 			fw.write("The attachments policy, which intercepts atctions that would create \n");
@@ -427,15 +445,203 @@ public class RuntimeDemo {
 =================================================================================
 ConfirmAndAllowOnlyHTTP() :
 var call :RE
-@ports[`#Integer{80|443}'] :RE
-@message(call)[`#String{Allow to establish network connection via port\: $ports \?}'] :RE
-map (Union, -`ServerSocket.<init>($ports)',
-     <!Action(`ServerSocket.<init>($ports)') => Neutral>* 
-     <Action(`@call[ServerSocket.<init>($ports)]') => +`JOptionPane.showConfirmDialog($message)'>
-     ( <Result(`JOptionPane.showConfirmDialog($message)', `#Integer{JOptionPane.OK_OPTION}') => +`$call'>
-               | <_ => Neutral>)
+@ports()[`#int{80|443}'] :RE
+@message(call)[`#java.lang.String{Allow to establish network connection via port\: $ports \?}'] :RE
+map (Union,  -`java.net.ServerSocket.<init>($ports)',
+     <!Action(`java.net.ServerSocket.<init>($ports)') => Neutral>* 
+     <Action(`@call[java.net.ServerSocket.<init>($ports)]')  => +`com.poco.RuntimeDemo.ShowDialog($message)'>*
+     ( <Result(`com.poco.RuntimeDemo.ShowDialog($message)', `#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$call'>
+              | <_ =>  -`$call'>)
 )*
+
+
+----------------------------------------RuntimeDemo.java------------------------------------------
+package com.poco;
+import java.net.ServerSocket;
+
+import javax.swing.JOptionPane;
+public class RuntimeDemo {
+     public static void main(String[] args) {
+          System.out.println("............Starting to execute............\n");
+          try {
+               ServerSocket socket = new ServerSocket(2080); 
+          } catch (Exception e) {
+               e.printStackTrace();
+	  }
+     	  System.out.println("............End executing............\n");
+     }      
+     public int ShowDialog(String s) {
+ 	int option = JOptionPane.showConfirmDialog(null, s, "Warning", 0);
+    	return option;
+    }
+}
+----------------------------------------AspectConfirmAndAllowOnlyHTTP.aj------------------------------------------
+import com.poco.PoCoRuntime.*;
+import java.lang.reflect.Method;
+
+public aspect AspectConfirmAndAllowOnlyHTTP {
+    private DummyRootPolicy root = new DummyRootPolicy( new ConfirmAndAllowOnlyHTTP() );
+
+    public AspectConfirmAndAllowOnlyHTTP() {
+        DataWH.closure.put("ConfirmAndAllowOnlyHTTP_ports", "80|443|2080");
+        DataWH.closure.put("ConfirmAndAllowOnlyHTTP_message", "Allow to establish network connection via port: $$ConfirmAndAllowOnlyHTTP_ports$$?");
+        DataWH.closure.put("ConfirmAndAllowOnlyHTTP_call", "java.net.ServerSocket.new($$ConfirmAndAllowOnlyHTTP_ports$$)");
+        DataWH.dataVal.put("ConfirmAndAllowOnlyHTTP_ports",new TypeVal("java.lang.String","80|443"));
+        DataWH.dataVal.put("ConfirmAndAllowOnlyHTTP_message",new TypeVal("java.lang.String", "Allow to establish network connection via port: $$ConfirmAndAllowOnlyHTTP_ports$$?"));
+    }
+    
+    pointcut PC4Reflection():
+        call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
+
+    Object around(): PC4Reflection()   { 
+        return new SRE(null,"."); 
+    }
+
+    pointcut PointCut0(int value0):
+        call(java.net.ServerSocket.new(int)) && args(value0);
+
+    Object around(int value0): PointCut0(value0) {
+        Object ret = null;
+        if (SREUtil.StringMatch(new Integer(value0).toString(), "80|443")) {
+            root.queryAction(new Event(thisJoinPoint));
+            ret = proceed(value0);
+            if(DataWH.dataVal.get("ConfirmAndAllowOnlyHTTP_call")!=null) {
+                String typeVal;
+                typeVal = DataWH.dataVal.get("ConfirmAndAllowOnlyHTTP_call").getType();
+                DataWH.dataVal.remove("ConfirmAndAllowOnlyHTTP_call");
+                DataWH.dataVal.put("ConfirmAndAllowOnlyHTTP_call", new TypeVal(typeVal, ret));
+            }
+        }
+        else  ret = proceed(value0);
+        return ret;
+    }
+
+    pointcut PointCut1(Method run):
+        target(run) &&call(Object Method.invoke(..));
+
+    Object around(Method run): PointCut1(run) {
+        String className = SREUtil.trimClassName(run.getDeclaringClass().toString());
+        className =SREUtil.concatClsMethod(className, run.getName());
+
+        if (matchingStack(className)) {
+            Object ret = proceed(run);
+            Event event = new Event(thisJoinPoint);
+            event.setEventType("Result");
+            String methodName = run.getDeclaringClass().toString()+"."+run.getName();
+            if (methodName.startsWith("class "))
+                methodName = methodName.substring(6,methodName.length());
+            event.setPromotedMethod(methodName);
+            event.setResult(ret);
+            root.queryAction(event);
+            return ret;
+        }
+        else
+            return proceed(run);
+    }
+
+    private boolean matchingStack(String runningMethod) {
+        if (root.promotedEvents != null)
+            if(root.promotedEvents.peek().equals(runningMethod)) {
+                root.promotedEvents.pop();
+                return true;
+            }
+        return false;
+    }
+
+    class ConfirmAndAllowOnlyHTTP extends Policy {
+        public ConfirmAndAllowOnlyHTTP() {
+            try {
+                SequentialExecution rootExec = new SequentialExecution("none");
+                MapExecution mapExec0 = new MapExecution("*");
+                mapExec0.setOperator("Union");
+                SRE sre0 = new SRE(null, null);
+                sre0.setNegativeRE("java.net.ServerSocket");
+                mapExec0.setMatchSre(sre0);
+                SequentialExecution exec1 = new SequentialExecution("*");
+                Exchange exch0 = new Exchange();
+                Matchs matchs0 = new Matchs();
+                matchs0.setNOT(true);
+                Match match0 = new Match();
+                match0.setAsAction();
+                match0.setMatchString("java.net.ServerSocket");
+                matchs0.addChild(match0);
+                exch0.addMatcher(matchs0);
+                SRE sre1 = new SRE(null, null);
+                exch0.setSRE(sre1);
+                exec1.addChild(exch0);
+                mapExec0.addChild(exec1);
+                SequentialExecution exec2 = new SequentialExecution("*");
+                Exchange exch1 = new Exchange();
+                Matchs matchs1 = new Matchs();
+                Match match1 = new Match();
+                match1.setAsAction();
+                match1.setMatchString("java.net.ServerSocket");
+                matchs1.addChild(match1);
+                exch1.addMatcher(matchs1);
+                SRE sre2 = new SRE(null, null);
+                sre2.setPositiveRE("com.poco.RuntimeDemo.ShowDialog(#java.lang.String{$$ConfirmAndAllowOnlyHTTP_message$$})");
+                exch1.setSRE(sre2);
+                exec2.addChild(exch1);
+                mapExec0.addChild(exec2);
+                SequentialExecution groupedExec3 = new SequentialExecution("none");
+                AlternationExecution alterExec4 = new AlternationExecution("none");
+                SequentialExecution exec5 = new SequentialExecution("none");
+                Exchange exch2 = new Exchange();
+                Matchs matchs2 = new Matchs();
+                Match match2 = new Match();
+                match2.setAsResult();
+                match2.setMatchString("com.poco.RuntimeDemo.ShowDialog()");
+                match2.setResultMatchStr("0");
+                matchs2.addChild(match2);
+                exch2.addMatcher(matchs2);
+                SRE sre3 = new SRE(null, null);
+                sre3.setPositiveRE("$$ConfirmAndAllowOnlyHTTP_call$$");
+                exch2.setSRE(sre3);
+                exec5.addChild(exch2);
+                alterExec4.addChild(exec5);
+                SequentialExecution exec6 = new SequentialExecution("none");
+                Exchange exch3 = new Exchange();
+                Match match3 = new Match("");
+                exch3.addMatcher(match3);
+                SRE sre4 = new SRE(null, null);
+                sre4.setNegativeRE("$$ConfirmAndAllowOnlyHTTP_call$$");
+                exch3.setSRE(sre4);
+                exec6.addChild(exch3);
+                alterExec4.addChild(exec6);
+                groupedExec3.addChild(alterExec4);
+                mapExec0.addChild(groupedExec3);
+                rootExec.addChild(mapExec0);
+                rootExec.getCurrentChildModifier();
+                setRootExecution(rootExec);
+            } catch (PoCoException pex) {
+                System.out.println(pex.getMessage());
+                pex.printStackTrace();
+                System.exit(-1);
+            }
+        }
+    }
+}
 =================================================================================
+ClassLoaders() :
+
+var call      : RE
+var exception : RE
+var stacktrace: RE
+map (Union, -`ClassLoader.<init>(%)',
+     <!Action(`ClassLoader.<init>(%)') => Neutral>* 
+     <Action(`@call[ClassLoader.<init>(%)]') => +`Exception.<init>()'>
+     <!(Result(`Exception.<init>()', `%')||Result(`ClassLoader.<init>(%)', `%')) => +`Exception.<init>()'>* 
+     ( <Result(`ClassLoader.<init>(%)', `%') => Neutral> | <Result(`@exception[Exception.<init>()]', `%') => +`$exception'>)
+       <!(Result(`$exception', `%')||Result(`ClassLoader.<init>(%)', `%')) => +`$exception'>*
+     ( <Result(`ClassLoader.<init>(%)', `%') => Neutral>
+     | <Result(`$exception', `@stacktrace[%]') =>  +`IsTrustedPackage($stacktrace)'>)
+     <!(Result(`IsTrustedPackage($stacktrace)', `%')||Result(`ClassLoader.<init>(%)', `%')) => +`IsTrustedPackage($stacktrace)'>*
+     (  <Result(`ClassLoader.<init>(%)', `%') => Neutral>
+      | (<Result(`IsTrustedPackage($stacktrace)', `#Boolean{true}') =>  +`$call'>
+        | <Result(`IsTrustedPackage($stacktrace)', `#Boolean{false}') => Neutral>))
+)*
+
+
 ClassLoaders() :
 
 var call      : RE
@@ -528,7 +734,7 @@ var perc :RE
      | <_ => Neutral> )*
 )*
 
-=================================================================================
+==============================================================================================================
 OutgoingMail(java.lang.String ContactInfo) :
 var msg: RE
 @SendMail(msg)  [`void javax.mail.Transport.send(#javax.mail.Message{$msg})']: RE
@@ -554,11 +760,13 @@ map(  Union, -`$SendMail(@msg[%])',
      <!(Result(`$ConcatContactMsg($msg,$ContactInfo)', `%')||Result(`$SendMail($msg)', `%')) => +`$ConcatContactMsg($msg, $ContactInfo)'>*
      ( <Result(`$SendMail($msg)',`%')=>Neutral>|<Result(`$ConcatContactMsg($msg,$ContactInfo)',`%') => +`$SendMail($msg)'>)    
 )*  
-********************************************************AspectOutgoingMail*******************************************************
+********************************************************AspectOutgoingMail.aj*******************************************************
 import com.poco.PoCoRuntime.*;
-import java.lang.reflect.Method;
+import java.lang.reflect.Method; 
+
 public aspect AspectOutgoingMail {
     private DummyRootPolicy root = new DummyRootPolicy( new OutgoingMail() );
+
     public AspectOutgoingMail() {
         DataWH.closure.put("OutgoingMail_msg", ".*");
         DataWH.closure.put("OutgoingMail_ConcatContactMsg", "String com.poco.MailUtil.concatContactMsg(#javax.mail.Message{$msg},#java.lang.String{$ContactInfo})");
@@ -570,34 +778,44 @@ public aspect AspectOutgoingMail {
         DataWH.dataVal.put("OutgoingMail_msg",new TypeVal("javax.mail.Message",  null));
         DataWH.dataVal.put("OutgoingMail_ContactInfo",new TypeVal("java.lang.String", "ContactInfo"));
     }
+    
     pointcut PC4Reflection():
         call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
-    Object around(): PC4Reflection()   {  return new SRE(null,"."); }
+
+    Object around(): PC4Reflection()   { 
+        return new SRE(null,"."); 
+    }
+
     pointcut PointCut0(javax.mail.Message value0):
-        call(void javax.mail.Transport.send(javax.mail.Message)) && args(value0);    
+        call(void javax.mail.Transport.send(javax.mail.Message)) && args(value0);
+
     Object around(javax.mail.Message value0): PointCut0(value0) {
         Object ret = null;
-        int mode =0;
-        if (mode == 0) {
+        if (SREUtil.StringMatch(String.valueOf(value0), DataWH.closure.get("OutgoingMail_msg"))) {
+            String typeVal; 
+            typeVal = DataWH.dataVal.get("OutgoingMail_msg").getType();
+            DataWH.dataVal.remove("OutgoingMail_msg");
+            DataWH.dataVal.put("OutgoingMail_msg", new TypeVal(typeVal, value0));
+            ret = proceed(value0);
+            Event event = new Event(thisJoinPoint);
+            event.setEventType("Result");
+            event.setResult(ret);
+            root.queryAction(event);
+            return ret;
+        }
+        else   return proceed(value0);
+    }
+
+    before(javax.mail.Message value0): PointCut0(value0) {
         if (SREUtil.StringMatch(String.valueOf(value0), DataWH.closure.get("OutgoingMail_msg"))) {
             String typeVal; 
             typeVal = DataWH.dataVal.get("OutgoingMail_msg").getType();
             DataWH.dataVal.remove("OutgoingMail_msg");
             DataWH.dataVal.put("OutgoingMail_msg", new TypeVal(typeVal, value0));
             root.queryAction(new Event(thisJoinPoint));
-            ret = proceed(value0);
-            mode = 1;
+            return;
         }
-        else  ret = proceed(value0);
-        }
-        if(mode ==1) {
-            Event event = new Event(thisJoinPoint);
-            event.setEventType("Result");
-            event.setResult(ret);
-            root.queryAction(event);
-            return event.getResult();
-        }
-        return ret;
+        else   return;
     }
 
     pointcut PointCut1(Method run):
@@ -606,6 +824,7 @@ public aspect AspectOutgoingMail {
     Object around(Method run): PointCut1(run) {
         String className = SREUtil.trimClassName(run.getDeclaringClass().toString());
         className =SREUtil.concatClsMethod(className, run.getName());
+
         if (matchingStack(className)) {
             Object ret = proceed(run);
             Event event = new Event(thisJoinPoint);
@@ -617,8 +836,11 @@ public aspect AspectOutgoingMail {
             event.setResult(ret);
             root.queryAction(event);
             return ret;
-        } else  return proceed(run);
+        }
+        else
+            return proceed(run);
     }
+
     private boolean matchingStack(String runningMethod) {
         if (root.promotedEvents != null)
             if(root.promotedEvents.peek().equals(runningMethod)) {
@@ -627,6 +849,7 @@ public aspect AspectOutgoingMail {
             }
         return false;
     }
+
     class OutgoingMail extends Policy {
         public OutgoingMail() {
             try {
@@ -970,22 +1193,262 @@ public class MailUtil {
 	}
 }
 =================================================================================
-
 IncomingMail() :
 var result : RE
-map (Union,  -`$GetMail | #Message{%}.getSubject()',
-    <!Result(`($GetMail | #Message{%}.getSubject())', `%') => Neutral>*
+var msg: RE
+@GetMail()[`javax.mail.Message javax.mail.Folder.getMessage(int)']  :RE
+@getSubject()[`java.lang.String javax.mail.Message.getSubject()']  :RE
+@logMessage(msg)[`java.lang.String com.poco.MailUtil.logMessage(#javax.mail.Message{$msg})']: RE
+@spamifySubject(result) [`javax.mail.Message com.poco.MailUtil.spamifySubject(#java.lang.String{$result})']: RE
+
+map (Union,  -`$GetMail|$getSubject',
+    <!Result(`($GetMail|$getSubject)', `%') => Neutral>*
     (
-        <Result(`$GetMail', `@result[%]') => +`log($result)'>
-        <!Result(`log($result)', `%') => +`log($result)'>*
-    )
-    |
-    (
-        <Result(`@message[#Message{%}].getSubject()', `%') => +`spamifySubject($message)'>
-        <!Result(`spamifySubject($message)', `%') => +`spamifySubject($message)'>*
-    )
+      (
+        <Result(`@msg[$GetMail]',`%') => +`$logMessage($msg)'>
+        <!Result(`$logMessage($msg)',`%') => +`$logMessage($msg)'>*
+      )
+    | (
+        <Result(`@result[$getSubject]',`%') => +`$spamifySubject($result)'>
+        <!Result(`$spamifySubject($result)', `%') => +`$spamifySubject($result)'>*
+       )
+    )*
 )*
 
+------------------------------------------------------------FetchEmail.java---------------------------------------------------
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.util.Properties;
+
+import javax.mail.Folder;
+import javax.mail.Message;
+import javax.mail.MessagingException;
+import javax.mail.NoSuchProviderException;
+import javax.mail.Session;
+import javax.mail.Store;
+
+public class FetchEmail {
+	public static void main(String args[]) {
+		Properties props = System.getProperties();
+		props.setProperty("mail.store.protocol", "imaps");
+		try {
+			Session session = Session.getDefaultInstance(props, null);
+			Store store = session.getStore("imaps");
+			store.connect("imap.gmail.com", "ta4poco@gmail.com", "poco123cse");
+			Folder inbox = store.getFolder("Inbox");
+			inbox.open(Folder.READ_ONLY);
+			BufferedReader optionReader = new BufferedReader(
+					new InputStreamReader(System.in));
+
+			Message msg = inbox.getMessage(2);
+			try {
+				System.out.println("DATE: " + msg.getSentDate().toString());
+				System.out.println("FROM: " + msg.getFrom()[0].toString());
+				System.out.println("SUBJECT: " + msg.getSubject().toString());
+				System.out.println("CONTENT: " + msg.getContent().toString());
+				System.out.println("******************************************");
+			} catch (Exception e) {
+				System.out.println("No Information");
+			}
+		} catch (NoSuchProviderException e) {
+			System.out.println(e.toString());
+			System.exit(1);
+		} catch (MessagingException e) {
+			System.out.println(e.toString());
+			System.exit(2);
+		}
+	}
+}
+
+**************************************************AspectIncomingMail.aj**************************************************
+package com.poco;
+import java.lang.reflect.Method;
+
+public aspect AspectIncomingMaill {
+    private DummyRootPolicy root = new DummyRootPolicy( new IncomingMail() );
+
+    public AspectIncomingMaill() {
+        DataWH.closure.put("IncomingMail_spamifySubject", "javax.mail.Message com.poco.MailUtil.spamifySubject(#java.lang.String{$result})");
+        DataWH.closure.put("IncomingMail_msg", ".*");
+        DataWH.closure.put("IncomingMail_getSubject", "java.lang.String javax.mail.Message.getSubject()");
+        DataWH.closure.put("IncomingMail_logMessage", "java.lang.String com.poco.MailUtil.logMessage(#javax.mail.Message{$msg})");
+        DataWH.closure.put("IncomingMail_GetMail", "javax.mail.Message javax.mail.Folder.getMessage(int)");
+        DataWH.closure.put("IncomingMail_result", ".*");
+        DataWH.dataVal.put("IncomingMail_result",new TypeVal("java.lang.String", ".*"));
+        DataWH.dataVal.put("IncomingMail_msg",new TypeVal("javax.mail.Message",  null));
+    }
+    
+    pointcut PC4Reflection():
+        call (* Method.invoke(Object, Object...)) && !within(com.poco.Promoter);
+
+    Object around(): PC4Reflection()   { 
+        return new SRE(null,"."); 
+    }
+
+    pointcut PointCut0():
+        call(java.lang.String javax.mail.Message.getSubject());
+
+    Object around(): PointCut0() {
+        Object ret = proceed();
+        String typeVal;
+        typeVal = DataWH.dataVal.get("IncomingMail_result").getType();
+        DataWH.dataVal.remove("IncomingMail_result");
+        DataWH.dataVal.put("IncomingMail_result", new TypeVal(typeVal, ret));
+        Event event = new Event(thisJoinPoint);
+        event.setEventType("Result");
+        event.setResult(ret);
+        root.queryAction(event);
+        return event.getResult();
+    }
+
+    pointcut PointCut1():
+        call(javax.mail.Message javax.mail.Folder.getMessage(int));
+
+    Object around(): PointCut1() {
+        Object ret = proceed();
+        String typeVal;
+        typeVal = DataWH.dataVal.get("IncomingMail_msg").getType();
+        DataWH.dataVal.remove("IncomingMail_msg");
+        DataWH.dataVal.put("IncomingMail_msg", new TypeVal(typeVal, ret));
+        Event event = new Event(thisJoinPoint);
+        event.setEventType("Result");
+        event.setResult(ret);
+        root.queryAction(event);
+        return event.getResult();
+    }
+
+    pointcut PointCut2(Method run):
+        target(run) &&call(Object Method.invoke(..));
+
+    Object around(Method run): PointCut2(run) {
+        String className = SREUtil.trimClassName(run.getDeclaringClass().toString());
+        className =SREUtil.concatClsMethod(className, run.getName());
+
+        if (matchingStack(className)) {
+            Object ret = proceed(run);
+            Event event = new Event(thisJoinPoint);
+            event.setEventType("Result");
+            String methodName = run.getDeclaringClass().toString()+"."+run.getName();
+            if (methodName.startsWith("class "))
+                methodName = methodName.substring(6,methodName.length());
+            event.setPromotedMethod(methodName);
+            event.setResult(ret);
+            root.queryAction(event);
+            return ret;
+        }
+        else
+            return proceed(run);
+    }
+
+    private boolean matchingStack(String runningMethod) {
+        if (root.promotedEvents != null)
+            if(root.promotedEvents.peek().equals(runningMethod)) {
+                root.promotedEvents.pop();
+                return true;
+            }
+        return false;
+    }
+
+    class IncomingMail extends Policy {
+        public IncomingMail() {
+            try {
+                SequentialExecution rootExec = new SequentialExecution("none");
+                MapExecution mapExec0 = new MapExecution("*");
+                mapExec0.setOperator("Union");
+                SRE sre0 = new SRE(null, null);
+                sre0.setNegativeRE("$$IncomingMail_GetMail$$|$$IncomingMail_getSubject$$");
+                mapExec0.setMatchSre(sre0);
+                SequentialExecution exec1 = new SequentialExecution("*");
+                Exchange exch0 = new Exchange();
+                Matchs matchs0 = new Matchs();
+                matchs0.setNOT(true);
+                Match match0 = new Match();
+                match0.setAsResult();
+                match0.setMatchString("$$IncomingMail_GetMail$$|$$IncomingMail_getSubject$$");
+                match0.setResultMatchStr(".");
+                matchs0.addChild(match0);
+                exch0.addMatcher(matchs0);
+                SRE sre1 = new SRE(null, null);
+                exch0.setSRE(sre1);
+                exec1.addChild(exch0);
+                mapExec0.addChild(exec1);
+                SequentialExecution groupedExec2 = new SequentialExecution("*");
+                AlternationExecution alterExec3 = new AlternationExecution("none");
+                SequentialExecution groupedExec4 = new SequentialExecution("none");
+                SequentialExecution exec5 = new SequentialExecution("none");
+                Exchange exch1 = new Exchange();
+                Matchs matchs1 = new Matchs();
+                Match match1 = new Match();
+                match1.setAsResult();
+                match1.setMatchString("$$IncomingMail_GetMail$$");
+                match1.setResultMatchStr(".");
+                matchs1.addChild(match1);
+                exch1.addMatcher(matchs1);
+                SRE sre2 = new SRE(null, null);
+                sre2.setPositiveRE("$$IncomingMail_logMessage$$(#javax.mail.Message{$$IncomingMail_msg$$})");
+                exch1.setSRE(sre2);
+                exec5.addChild(exch1);
+                groupedExec4.addChild(exec5);
+                SequentialExecution exec6 = new SequentialExecution("*");
+                Exchange exch2 = new Exchange();
+                Matchs matchs2 = new Matchs();
+                matchs2.setNOT(true);
+                Match match2 = new Match();
+                match2.setAsResult();
+                match2.setMatchString("$$IncomingMail_logMessage$$()");
+                match2.setResultMatchStr(".");
+                matchs2.addChild(match2);
+                exch2.addMatcher(matchs2);
+                SRE sre3 = new SRE(null, null);
+                sre3.setPositiveRE("$$IncomingMail_logMessage$$(#javax.mail.Message{$$IncomingMail_msg$$})");
+                exch2.setSRE(sre3);
+                exec6.addChild(exch2);
+                groupedExec4.addChild(exec6);
+                alterExec3.addChild(groupedExec4);
+                SequentialExecution groupedExec7 = new SequentialExecution("none");
+                SequentialExecution exec8 = new SequentialExecution("none");
+                Exchange exch3 = new Exchange();
+                Matchs matchs3 = new Matchs();
+                Match match3 = new Match();
+                match3.setAsResult();
+                match3.setMatchString("$$IncomingMail_getSubject$$");
+                match3.setResultMatchStr(".");
+                matchs3.addChild(match3);
+                exch3.addMatcher(matchs3);
+                SRE sre4 = new SRE(null, null);
+                sre4.setPositiveRE("$$IncomingMail_spamifySubject$$(#java.lang.String{$$IncomingMail_result$$})");
+                exch3.setSRE(sre4);
+                exec8.addChild(exch3);
+                groupedExec7.addChild(exec8);
+                SequentialExecution exec9 = new SequentialExecution("*");
+                Exchange exch4 = new Exchange();
+                Matchs matchs4 = new Matchs();
+                matchs4.setNOT(true);
+                Match match4 = new Match();
+                match4.setAsResult();
+                match4.setMatchString("$$IncomingMail_spamifySubject$$()");
+                match4.setResultMatchStr(".");
+                matchs4.addChild(match4);
+                exch4.addMatcher(matchs4);
+                SRE sre5 = new SRE(null, null);
+                sre5.setPositiveRE("$$IncomingMail_spamifySubject$$(#java.lang.String{$$IncomingMail_result$$})");
+                exch4.setSRE(sre5);
+                exec9.addChild(exch4);
+                groupedExec7.addChild(exec9);
+                alterExec3.addChild(groupedExec7);
+                groupedExec2.addChild(alterExec3);
+                mapExec0.addChild(groupedExec2);
+                rootExec.addChild(mapExec0);
+                rootExec.getCurrentChildModifier();
+                setRootExecution(rootExec);
+            } catch (PoCoException pex) {
+                System.out.println(pex.getMessage());
+                pex.printStackTrace();
+                System.exit(-1);
+            }
+        }
+    }
+}
 =================================================================================
 
 import DenyEmails
