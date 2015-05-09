@@ -483,7 +483,6 @@ public class Compiler {
             } else {
                 jOut(1, "pointcut PointCut%d():", pointcutNum);
                 callStr = getPCMethodName(entry);
-                System.out.println("argTypeList: " + argTypeList);
                 jOut(2, "call(%s(%s));\n", callStr, argTypeList);
                 outAdvicePrologue("PointCut" + pointcutNum, argList4PC, argLs4Around, monitorVals, funReturnType, thisNodeMode);
             }
@@ -643,7 +642,7 @@ public class Compiler {
                     for (String str : updates)
                         jOut(3, str);
                 }
-                outAdviceProlog4DynBind(3,0);
+                outAdviceProlog4DynBind(3, 0);
 
                 if (mode == 0) { //monitor the action
                     jOut(3, "root.queryAction(new Event(thisJoinPoint));");
@@ -657,14 +656,17 @@ public class Compiler {
                     outAdviceProlog4DynBind(3, 1);
                     jOut(3, "Event event = new Event(thisJoinPoint);");
                     jOut(3, "event.setEventType(\"Result\");");
-                    jOut(3, "event.setResult(ret);");
+                    jOut(3, "if(ret!=null)");
+                    jOut(4, "event.setResult(ret);");
+                    jOut(3, "else");
+                    jOut(4, "event.setResult(\"done\");");
                     jOut(3, "root.queryAction(event);");
                     jOut(3, "return ret;");
                     jOut(2, "}");
                     jOut(2, "else   return proceed(%s);", arglist);
                 }
             } else {
-                outAdviceProlog4DynBind(2,0);
+                outAdviceProlog4DynBind(2, 0);
                 jOut(2, "root.queryAction(new Event(thisJoinPoint));");
                 outAdviceProlog4DynBind(2, 1);
                 jOut(2, "return proceed(%s);", arglist);
@@ -685,15 +687,15 @@ public class Compiler {
                         for (String str : updates)
                             jOut(3, str);
                     }
-                    outAdviceProlog4DynBind(3,0);
+                    outAdviceProlog4DynBind(3, 0);
                     jOut(3, "root.queryAction(new Event(thisJoinPoint));");
-                    outAdviceProlog4DynBind(3,1);
+                    //before will do not proceed the action, so no variable binding for result
                     jOut(3, "return;");
                     jOut(2, "}");
                     jOut(2, "else   return;");
                 } else {
-                    outAdviceProlog4DynBind(2,0);
-                    outAdviceProlog4DynBind(2,1);
+                    outAdviceProlog4DynBind(2, 0);
+                    //before will do not proceed the action, so no variable binding for result
                     jOut(3, "return;");
                 }
                 jOut(1, "}\n");
@@ -704,20 +706,31 @@ public class Compiler {
             else
                 jOut(1, "Object around(): %s() {", pointcutName);
             if (mode == 0) { //monitor the action
-                outAdviceProlog4DynBind(2,0);
+                outAdviceProlog4DynBind(2, 0);
                 jOut(2, "root.queryAction(new Event(thisJoinPoint));");
                 jOut(2, "return proceed();");
             } else {
-                outAdviceProlog4DynBind(2,0);
+                outAdviceProlog4DynBind(2, 0);
                 jOut(2, "Object ret = proceed();", arglist);
-                outAdviceProlog4DynBind(2,1);
+                outAdviceProlog4DynBind(2, 1);
                 jOut(2, "Event event = new Event(thisJoinPoint);");
                 jOut(2, "event.setEventType(\"Result\");");
-                jOut(2, "event.setResult(ret);");
+                jOut(2, "if(ret!=null)");
+                jOut(3, "event.setResult(ret);");
+                jOut(2, "else");
+                jOut(3, "event.setResult(\"done\");");
                 jOut(2, "root.queryAction(event);");
                 jOut(2, "return event.getResult();");
             }
             jOut(1, "}\n");
+            if (mode == 2) {
+                jOut(1, "before(): %s() {", pointcutName);
+                outAdviceProlog4DynBind(2, 0);
+                jOut(3, "root.queryAction(new Event(thisJoinPoint));");
+                //before will do not proceed the action, so no variable binding for result
+                jOut(3, "return;");
+                jOut(1, "}\n");
+            }
         }
     }
 
@@ -795,6 +808,7 @@ public class Compiler {
         jOut(2, "className =SREUtil.concatClsMethod(className, run.getName());\n");
         jOut(2, "if (matchingStack(className)) {");
         jOut(3, "Object ret = proceed(run);");
+        genVarBing4Prom();
         jOut(3, "Event event = new Event(thisJoinPoint);");
         jOut(3, "event.setEventType(\"Result\");");
         jOut(3, "String methodName = run.getDeclaringClass().toString()+\".\"+run.getName();");
@@ -811,7 +825,7 @@ public class Compiler {
     }
 
     private void outAdviceProlog4DynBind(int offset, int mode) {
-        if(mode ==0) {
+        if (mode == 0) {
             if (monitoredPC != null && monitoredPC.size() > 0) {
                 Set<String> set = monitoredPC.keySet();
                 jOut(offset, "String typeVal; ");
@@ -824,19 +838,20 @@ public class Compiler {
                     jOut(offset, "DataWH.dataVal.put(\"" + varName + "\", new TypeVal(typeVal, " + monitoredPC.get(varName) + "));");
                 }
             }
-        }else {
+        } else {
             if (varNeedBind != null) {
                 for (String str : varNeedBind) {
                     jOut(offset, "if(DataWH.dataVal.get(\"" + str + "\")!=null) {");
-                    jOut(offset+1, "String typeVal;");
-                    jOut(offset+1, "typeVal = DataWH.dataVal.get(\"" + str + "\").getType();");
-                    jOut(offset+1, "DataWH.dataVal.remove(\"" + str + "\");");
-                    jOut(offset+1, "DataWH.dataVal.put(\"" + str + "\", new TypeVal(typeVal, ret));");
+                    jOut(offset + 1, "String typeVal;");
+                    jOut(offset + 1, "typeVal = DataWH.dataVal.get(\"" + str + "\").getType();");
+                    jOut(offset + 1, "DataWH.dataVal.remove(\"" + str + "\");");
+                    jOut(offset + 1, "DataWH.dataVal.put(\"" + str + "\", new TypeVal(typeVal, ret));");
                     jOut(offset, "}");
                 }
             }
         }
     }
+
 
     public static void main(String[] args) {
         Compiler compiler = new Compiler(args);
@@ -947,7 +962,7 @@ public class Compiler {
     private void genVarClosure(String aspectName) {
         Set<Map.Entry<String, VarTypeVal>> entrySet = closure.getClosures().entrySet();
         //if both empty no need for gening constructor
-        if((entrySet== null||entrySet.size()<=1) && (objParams== null||entrySet.size() ==0))
+        if ((entrySet == null || entrySet.size() <= 1) && (objParams == null || entrySet.size() == 0))
             return;
         jOut(1, "public " + aspectName + "() {");
         for (Map.Entry entry : entrySet) {
@@ -958,6 +973,10 @@ public class Compiler {
                 varContext = ".*";
             if (varContext.contains("%."))
                 varContext = varContext.replace("%.", "(.*)\\.");
+            if (varContext.contains("%"))
+                varContext = varContext.replace("%", "(.*)");
+            if (varContext.contains("<init>"))
+                varContext = varContext.replace("<init>", "new");
             varContext = varContext.replace("\\", "\\\\");
             jOut(2, "DataWH.closure.put(\"" + entry.getKey() + "\", \"" + varContext + "\");");
         }
@@ -1019,5 +1038,23 @@ public class Compiler {
             }
         }
         jOut(1, "}");
+    }
+
+    private void genVarBing4Prom() {
+        Set<String> set = extractedPtCuts4Promoter.keySet();
+        int i = 0;
+        for (Iterator<String> it = set.iterator(); it.hasNext(); ) {
+            String varName = it.next();
+            varNeedBind = extractedPtCuts4Promoter.get(varName);
+            if(varNeedBind.size()>0) {
+                String str = (String)varNeedBind.toArray()[0];
+                jOut(3, "if(SREUtil.StringMatch(\"" + varName + "\", className)){");
+                jOut(4, "String typeVal%d;", i);
+                jOut(4, "typeVal%d = DataWH.dataVal.get(\"" + str + "\").getType();",i);
+                jOut(4, "DataWH.dataVal.remove(\"" + str + "\");");
+                jOut(4, "DataWH.dataVal.put(\"ClassLoaders_stacktrace\", new TypeVal(typeVal%d, ret));",i++);
+                jOut(3, "}");
+            }
+        }
     }
 }
