@@ -51,14 +51,17 @@ public class MapExecution extends SequentialExecution implements Queryable,
 			return null;
 		EventResponder currentChild = children.get(currentCursor);
 		if (currentChild.accepts(event)) {
+			String pos = null, neg = null;
 			resultBool = true;
 			if (!getCurrentChildModifier("isZeroPlus")
 					&& !getCurrentChildModifier("isOnePlus")) {
 				advanceCursor();
 			}
 			resultSRE = currentChild.query(event);
-			String pos = resultSRE.getPositiveRE();
-			String neg = resultSRE.getNegativeRE();
+			if (resultSRE != null) {
+				pos = resultSRE.getPositiveRE();
+				neg = resultSRE.getNegativeRE();
+			}
 			if (pos != null)
 				pos = getValue(pos);
 			if (neg != null) {
@@ -135,8 +138,7 @@ public class MapExecution extends SequentialExecution implements Queryable,
 			}
 			String argPrt = strSre.substring(strSre.indexOf('('),
 					strSre.length());
-			if (funName.substring(funName.length() - 4, funName.length())
-					.equals(".new"))
+			if (funName.substring(funName.length()-4,funName.length()).equals(".new"))
 				strSre = funName.substring(0, funName.length() - 4) + argPrt;
 		}
 		return strSre;
