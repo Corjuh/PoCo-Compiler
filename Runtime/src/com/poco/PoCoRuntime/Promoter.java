@@ -25,8 +25,7 @@ public class Promoter {
         // className.funcName(#java.lang.Integer{42},#java.lang.String{402125})
         List<String> toExecute = Parse(pocoString);
         // class we are calling
-        String className = toExecute.get(0)
-                .substring(0, toExecute.get(0).length() - 1).trim();
+        String className = toExecute.get(0).substring(0, toExecute.get(0).length() - 1).trim();
         // the name of function the to be invoked
         String methodName = toExecute.get(1).trim();
         ArrayList<ReflectParameter> rps = null;
@@ -49,7 +48,9 @@ public class Promoter {
             Class cls1 = Class.forName(className);
             Method[] methods = cls1.getMethods();
             Method theMethod = null;
-            int paramCounts = params.size();
+            int paramCounts = 0;
+            if (params != null)
+                paramCounts = params.size();
 
             for (Method method : methods) {
                 // if find the method name
@@ -78,19 +79,7 @@ public class Promoter {
             }
             // found the right method that is we wanted
             if (isfound) {
-                if (paramCounts > 0) {
-                    /*Object[] objs = new Object[paramCounts];
-                    int i = 0;
-                    for (Iterator<ReflectParameter> it = params.iterator(); it
-                            .hasNext();) {
-                        ReflectParameter rp = it.next();
-
-                        if (!rp.GetParameterValue().equalsIgnoreCase("null"))
-                            objs[i] = newInstance4Param(rp.GetParameterType(),
-                                    rp.GetParameterValue());
-                        i++;
-                    }
-                    */
+                if (paramCounts > 0) { 
                     // need check static or not
                     if (Modifier.isStatic(theMethod.getModifiers())) {
                         theMethod.invoke(null, objs);
