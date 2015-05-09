@@ -109,18 +109,34 @@ public class Match implements Matchable {
 			String replaceStr = DataWH.closure.get(matcher.group(3).trim());
 			if (replaceStr.indexOf('(') != -1)
 				replaceStr = replaceStr.substring(0, replaceStr.indexOf('('));
+			if(replaceStr.endsWith(".new"))
+				replaceStr = replaceStr.substring(0, replaceStr.length()-4);
 			matchString = matchString.replace(matcher.group(2).trim(),
 					replaceStr);
 			matcher = pattern.matcher(matchString);
 			needUpdate = matcher.find();
 		}
-
 		// if the matchstrings are compound re, then we need check sub-item
 		String[] matchs = matchString.split("\\|");
 		if (isAction) {
 			for (int i = 0; i < matchs.length; i++) {
 				String[] funRtnTypName = getfunTypName(matchs[i]);
 				String[] sigRtnTypName = getfunTypName(event.getSignature());
+				//this case is that when dealing with catch all the subclasses
+				if(funRtnTypName[1].endsWith("+")) {
+					try {
+						//e.g., com.poco.AClassLoader
+						Class cls1 = Class.forName(sigRtnTypName[1]);
+						//e.g., java.lang.ClassLoader+
+						Class cls2 = Class.forName(funRtnTypName[1].substring(0,funRtnTypName[1].length()-1));
+						if(cls2.isAssignableFrom(cls1))
+							return true;
+						else
+							return false;
+					} catch (ClassNotFoundException e) {
+						e.printStackTrace();
+					}
+				}
 				if (funRtnTypName[0].equals("*")
 						|| sigRtnTypName[0].equals("*")
 						|| funRtnTypName[0].contains(sigRtnTypName[0])) {
@@ -143,7 +159,6 @@ public class Match implements Matchable {
 				// if one of the return type is *, the return type must match.
 				// otherwise check both value
 				if (funRtnTypName[0].equals("*")
-						|| sigRtnTypName[0].equals("*")
 						|| funRtnTypName[0].contains(sigRtnTypName[0])) {
 					if (funRtnTypName[1].endsWith("()"))
 						funRtnTypName[1] = funRtnTypName[1].substring(0,
@@ -175,16 +190,20 @@ public class Match implements Matchable {
 		}
 		return false;
 	}
-	
+
 	public String[] getfunTypName(String funStr) {
 		String[] returnStr = new String[2];
 		String[] temp = funStr.trim().split("\\s+");
 		if (temp.length == 2) {
 			returnStr[0] = temp[0].trim();
 			returnStr[1] = temp[1].trim();
+			if(temp[1].indexOf('(')!=-1)
+				returnStr[1] = temp[1].substring(0, temp[1].indexOf('('));
 		} else {
 			returnStr[0] = "*";
 			returnStr[1] = funStr.trim();
+			if(funStr.indexOf('(')!=-1)
+				returnStr[1] = funStr.substring(0, funStr.indexOf('('));
 		}
 		return returnStr;
 	}
