@@ -12,7 +12,6 @@ import java.util.regex.Pattern;
 public class DummyRootPolicy {
 	private Stack<String> monitoringEvents;
 	private Policy child;
-
 	public Stack<String> promotedEvents;
 
 	public DummyRootPolicy(Policy child) {
@@ -43,10 +42,9 @@ public class DummyRootPolicy {
 			System.exit(-1);
 			// return;
 		}
-		
 		boolean posMatch = false;
 		boolean negMatch = false;
-		
+
 		//System.out.format("Root policy queried with event: \"%s\"\n", event.getSignature());
 		if (result.getPositiveRE() != null
 				&& (result.getPositiveRE().trim().length() !=0 && !result.getPositiveRE().equals("null"))) {
@@ -62,12 +60,11 @@ public class DummyRootPolicy {
 		if (result.getPositiveRE() == null && result.getNegativeRE() == null) {
 			// System.out.println("Child policy returned Neutral");
 		}
-
 		if (posMatch) {
 			// $$AddBCC$$(#javax.mail.Message{$$msg$$},#java.lang.String{domain})
 			// com.poco.RuntimeDemo.ShowDialog(#java.lang.String{$$Attachments_message})
 			String resultPos = result.positiveRE();
-			
+
 			String  funReg = "(.+)\\((.*)\\)";
 			Pattern funPtn = Pattern.compile(funReg);
 			Matcher funMth = funPtn.matcher(resultPos);
@@ -75,14 +72,12 @@ public class DummyRootPolicy {
 			String  objReg = "#(.+)\\{(.+)\\}";
 			Pattern objPtn = Pattern.compile(objReg);
 			Matcher objMth = objPtn.matcher(resultPos);
-			
 			//not a function call but an object value, then it is the case of update the return value
 			if (!funMth.find() && objMth.find()) {
 				event.setResult(genNewResult(objMth.group(1).trim(), objMth
 						.group(2).trim()));
 				return;
 			}
-
 			String reg = "(.*)(\\$\\$(.+)\\$\\$)(.*)";
 			Pattern pattern = Pattern.compile(reg);
 			Matcher matcher;
@@ -91,7 +86,7 @@ public class DummyRootPolicy {
 			int numOfArgs = 0;
 			String[] paramStrs = null;
 			Object[] obj4Args = null;
-			
+
 			int lParen = resultPos.indexOf('(');
 			int rParen = resultPos.indexOf(')');
 			// get the parameter part of the string
@@ -114,8 +109,6 @@ public class DummyRootPolicy {
 					if (value != null && value.length() > 0) {
 						matcher = pattern.matcher(value);
 						if (matcher.find()) {// it is variable (e.g., $$msg)
-							
-							
 							if (DataWH.dataVal.get(matcher.group(3).trim())
 									.getType().equals("java.lang.String")) {
 								String str = DataWH.dataVal
@@ -136,7 +129,6 @@ public class DummyRootPolicy {
 							} else
 								obj4Args[i] = DataWH.dataVal.get(
 										matcher.group(3).trim()).getObj();
-
 						} else {
 							String regex = "#(.+)\\{(.+)\\}";
 							Pattern patternType = Pattern.compile(regex);
@@ -145,17 +137,17 @@ public class DummyRootPolicy {
 							if (matcherType.find()) {
 								// need add more cases
 								switch (matcherType.group(1).trim()) {
-								case "String":
-								case "java.lang.String":
-									obj4Args[i] = new String(value);
-									break;
-								case "int":
-								case "Integer":
-									obj4Args[i] = new Integer(value);
-									break;
-								default:
-									obj4Args[i] = new String(value);
-									break;
+									case "String":
+									case "java.lang.String":
+										obj4Args[i] = new String(value);
+										break;
+									case "int":
+									case "Integer":
+										obj4Args[i] = new Integer(value);
+										break;
+									default:
+										obj4Args[i] = new String(value);
+										break;
 								}
 							}
 						}
@@ -182,14 +174,40 @@ public class DummyRootPolicy {
 				String funName = resultPos.substring(0,resultPos.indexOf('('));
 				String argPrt = resultPos.substring(resultPos.indexOf('('),resultPos.length());
 				if(funName.substring(funName.length() - 4, funName.length())
-					.equals(".new"))
+						.equals(".new"))
 					resultPos = funName.substring(0, funName.length() - 4) + argPrt;
 			}
-			
+
 			if (monitoringEvents.isEmpty() && resultPos != null)
 				promoted = false;
-			else if (methodMatch(monitoringEvents.peek(), resultPos)) {
-				promoted = true;
+			else {
+				if (methodMatch(monitoringEvents.peek(), resultPos))
+					promoted = true;
+				else {
+					//this case is that when dealing with catch all the subclasses
+					//e.g., monitoringEvents: com.poco.AClassLoader()
+					//      resultPos: java.lang.ClassLoader+()
+					String sigFunName =resultPos;
+					String monFunName =  monitoringEvents.peek();
+					if(sigFunName.indexOf('(') != -1)
+						sigFunName = sigFunName.substring(0,sigFunName.indexOf('('));
+					if(monFunName.indexOf('(') != -1)
+						monFunName = monFunName.substring(0,monFunName.indexOf('('));
+					if(sigFunName.endsWith("+")) {
+						try {
+							//e.g., com.poco.AClassLoader
+							Class cls1 = Class.forName(monFunName);
+							//e.g., java.lang.ClassLoader+
+							Class cls2 = Class.forName(sigFunName.substring(0,sigFunName.length()-1));
+							if(cls2.isAssignableFrom(cls1))
+								promoted = true;
+							else
+								promoted = false;
+						} catch (ClassNotFoundException e) {
+							e.printStackTrace();
+						}
+					}
+				}
 			}
 			if (promoted) {
 				System.out.println("the action " + monitoringEvents.peek()
@@ -299,22 +317,12 @@ public class DummyRootPolicy {
 			else
 				resultParams = strParams.split(",");
 		}
-
 		if (peekMethodName.equals(resultMethodName)) {
 			if (resultParams == null) {
 				return true;
 			} else {
-				if (resultParams.length == peekParams.length) {
-					/*boolean match = true;
-					for (int i = 0; i < resultParams.length; i++) {
-						if (!resultParams[i].contains(peekParams[i])) {
-							match = false;
-							break;
-						}
-					}
-					return match;*/
+				if (resultParams.length == peekParams.length)
 					return true;
-				}
 			}
 		}
 		return false;
