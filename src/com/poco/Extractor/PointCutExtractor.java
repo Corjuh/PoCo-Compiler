@@ -28,7 +28,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     private boolean ptFromOpparamlist = false;
     private boolean isResult = false;
     private boolean isLHS = false;
-    private boolean varBinding = false;
     private String policyName = "";
 
     //update return value case can only happen when LHS of => is result and RHS of => is object
@@ -63,13 +62,17 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             } else if (ctx.qid() != null) {
                 if (closure != null && closure.isContains(policyName + ctx.qid().getText())) {
                     String funcStr = closure.getContext(policyName + ctx.qid().getText());
-                    //function name included return type;
-                    if (getFunctionName(funcStr).split(" ").length == 2)
-                        pointcutStr = funcStr;
-                    else if (getFunctionName(funcStr).contains(".new")) {
-                        pointcutStr = funcStr;
-                    } else
-                        pointcutStr += funcStr;
+                    if(funcStr != null) {
+                        funcStr = funcStr.replace(".<init>", ".new").replace("%", "..");
+                        //function name included return type;
+                        if (getFunctionName(funcStr).split(" ").length == 2)
+                            pointcutStr = funcStr;
+                        else if (getFunctionName(funcStr).contains(".new")) {
+                            pointcutStr = funcStr;
+                        } else
+                            pointcutStr += funcStr;
+                    }else
+                        pointcutStr = "$$"+policyName + ctx.qid().getText()+"$$";
                 } else {
                     throw new NullPointerException("No such var exist.");
                 }
@@ -90,9 +93,9 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             } else if (ctx.function() != null) {
                 if (ctx.function().INIT() != null) {
                     // delete * since there is no return val for new
-                    if (pointcutStr == null)
+                    if (pointcutStr == null) {
                         pointcutStr = ctx.function().fxnname().getText() + "new";
-                    else {
+                    } else {
                         if (pointcutStr.length() > 1 && pointcutStr.startsWith("*"))
                             pointcutStr = pointcutStr.substring(1, pointcutStr.length()).trim();
                         pointcutStr += ctx.function().fxnname().getText() + "new";
@@ -112,7 +115,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                     }
                 } else {
                     String funStr = ctx.function().fxnname().getText().trim();
-                    if(funStr.split(" ").length == 2)
+                    if (funStr.split(" ").length == 2)
                         pointcutStr = funStr;
                     else
                         pointcutStr = pointcutStr + funStr;
@@ -129,18 +132,14 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                     add2NodesNodes4Result(pointcutStr);
                 }
             } else if (ctx.object() != null) {
-                if(!resultMethodName.empty())
-
-                if (ctx.object().POUND() != null)
-                    pointcutStr = ctx.object().re().getText();
-                else if (ctx.object().qid() != null) {
-                    pointcutStr = pointcutStr + ctx.object().qid().getText();
-                }
+                if (!resultMethodName.empty())
+                    if (ctx.object().POUND() != null)
+                        pointcutStr = ctx.object().re().getText();
+                    else if (ctx.object().qid() != null)
+                        pointcutStr = pointcutStr + ctx.object().qid().getText();
             } else if (ctx.AT() != null) {
-                varBinding = true;
                 varBind4thisPC.add(policyName + ctx.id().getText());
                 visitChildren(ctx);
-                varBinding = false;
             } else {
                 visitChildren(ctx);
             }
@@ -202,9 +201,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitExecution(@NotNull PoCoParser.ExecutionContext ctx) {
         if (ctx.map() != null) {
-            isLHS = true;
-            visitSre(ctx.map().sre());
-            isLHS = false;
             visitExecution(ctx.map().execution());
         } else {
             visitChildren(ctx);
