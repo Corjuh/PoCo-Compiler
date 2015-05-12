@@ -44,16 +44,17 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
         // need handle when policy has parameteres (e.g., OutgoingMail(String ContactInfo))
         closure = new Closure();
         policyName = ctx.id().getText().trim() + "_";
-        if (ctx.paramlist() != null && ctx.paramlist().getText().trim().length() > 0) {
-            PoCoParser.ParamlistContext paraList = ctx.paramlist();
-            while (paraList != null) {
-                VarTypeVal varTyCal = new VarTypeVal(paraList.qid().getText(), paraList.id().getText());
-                closure.addClosure(policyName + paraList.id().getText(), varTyCal);
-                paraList = paraList.paramlist();
-            }
-        }
-
         visitChildren(ctx);
+        return null;
+    }
+
+    @Override
+    public Void visitParamlist(@NotNull PoCoParser.ParamlistContext ctx) {
+        if(ctx.getText().trim().length() == 0)
+            return null;
+        visitChildren(ctx);
+        VarTypeVal varTyCal = new VarTypeVal(ctx.qid().getText(), ctx.id().getText());
+        closure.addClosure(policyName + ctx.id().getText(), varTyCal);
         return null;
     }
 
@@ -143,18 +144,6 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
             }
         }
         closure.addClosure(policyName + ctx.id().getText(), varTyCal);
-        return null;
-    }
-
-    @Override
-    public Void visitIre(@NotNull PoCoParser.IreContext ctx) {
-        if (ctx.ACTION() != null) {
-            if (ctx.re(0).AT() != null)
-                visitRe(ctx.re(0));
-        } else {
-            visitRe(ctx.re(0));
-            visitRe(ctx.re(1));
-        }
         return null;
     }
 
