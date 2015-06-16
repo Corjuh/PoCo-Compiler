@@ -271,16 +271,6 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
         }
     }
 
-    private String getValFrmClousre(String varName) {
-        String temp = PoCoUtils.attachPolicyName(policyName, varName).substring(1);
-        if (closure != null && closure.loadFrmFunctions(temp) != null)
-            return closure.loadFrmFunctions(temp).getVarContext();
-        else if (closure != null && closure.loadFrmVars(temp) != null)
-            return closure.loadFrmVars(temp).getVarContext();
-        else
-            return varName;
-    }
-
     private boolean isSkipable(String ctxStrVal) {
         return (ctxStrVal.trim().equals("") || ctxStrVal.trim().equals("()"));
     }

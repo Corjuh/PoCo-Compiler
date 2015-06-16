@@ -778,9 +778,13 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             } else {
                 String matchStr = null;
                 if (ctx.qid() != null) {
-                    matchStr = loadFromClosure(policyName + "_" + ctx.qid().getText());
-                    if(matchStr == null)
+                    // if it is a variable, that means we need dynamically check its value at runtime,
+                    //there for we will only store the variable name here
+                    if(closure!= null && closure.isVarsContain(policyName + "_" + ctx.qid().getText())) {
                         matchStr = "$" + policyName + "_" + ctx.qid().getText();
+                    }else {
+                        matchStr = loadFromClosure(policyName + "_" + ctx.qid().getText());
+                    }
                 }
                 else if (ctx.function() != null) {
                     matchStr = ctx.function().fxnname().getText();
