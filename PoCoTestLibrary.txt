@@ -1,0 +1,511 @@
+Trivial(): <_ => Neutral>*
+=================================================================================
+=================================================================================
+Test():
+(<Result(`int com.poco.Test.foo(%)', `#int{1}') => +`#int{11}'>
+|<Result(`int com.poco.Test.foo(%)', `#int{2}') => +`#int{22}'>)*
+
+*******************************ChangeReturnVal.java*******************************
+public class RuntimeDemo {
+    public static void main(String[] args) {
+	Test a = new Test();
+        int result = a.foo(1);
+	System.out.println("-------------------"+result);
+        result = a.foo(2);
+        System.out.println("-------------------"+result);
+    } 
+}
+class Test { public int foo(int x) { return x; } }
+ 
+=================================================================================
+=================================================================================
+NoCreateClassFiles() :
+<_ => -`java.io.File.<init>(#java.lang.String{%.class})|java.io.File.<init>(\*, #java.lang.String{%.class})'>*
+
+**********************************************RuntimeDemo.java********************************************
+import java.io.File;  
+public class RuntimeDemo {
+     public static void main(String[] args) {
+	  System.out.println("............Starting to execute............\n");
+	  try {		
+               File file = new File("data.class"); 
+               File parent = new File("aFolder");
+               File aFile = new File(parent, "aFile.class");
+               System.out.println(aFile);//\aFolder\aFile.class*/ 
+               File file2 = new File("Documents", "data.class"); // new File(String, String) 
+	  } catch (Exception e) {  e.printStackTrace();}
+	  System.out.println("............End executing............\n");
+    }
+}
+ 
+=================================================================================
+=================================================================================
+DisSysCalls() : <_ => -`Runtime.exec(%)'>*
+=================================================================================
+================================================================================= 
+AllowOnlyMIME() : 
+@ports()[!`#int{143|993|25|110|995}'] :RE
+<_ => -`java.net.ServerSocket.<init>($ports)'>*
+ 
+/*****---------------------**  RuntimeDemo.java **----------------------*****/
+import java.net.ServerSocket;
+public class RuntimeDemo {
+     public static void main(String[] args) {
+          System.out.println("............Starting to execute............\n");
+          try {
+               ServerSocket socket = new ServerSocket(2080); 
+          } catch (Exception e) {
+               e.printStackTrace();
+	  }
+     	  System.out.println("............End executing............\n");
+     } 
+}
+ 
+=================================================================================
+=================================================================================
+Attachments() :
+var call: RE
+@ext()[`#java.lang.String{.exe|.vbs|.hta|.mdb|.bad}']  :RE  
+@message(call)[`#java.lang.String{Allowing a dangerous file is creating via\: $call \?}'] :RE
+map (Union, -`java.io.FileWriter.<init>($ext()) | java.io.FileWriter.<init>($ext(),boolean)',
+     <!Action(`java.io.FileWriter.<init>($ext())| java.io.FileWriter.<init>($ext(),boolean)') => Neutral>*
+     < Action(`@call[java.io.FileWriter.<init>($ext()) | java.io.FileWriter.<init>($ext(),boolean)]') => +`com.poco.RuntimeDemo.ShowDialog($message)'>
+     <!Result(`com.poco.RuntimeDemo.ShowDialog($message)', `%') => +`com.poco.RuntimeDemo.ShowDialog($message)'>*
+     ( <Result(`com.poco.RuntimeDemo.ShowDialog($message)', `#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$call'>
+              | <_ => Neutral>)
+)* 
+-----------------------------------------------RuntimeDemo.java------------------------------------------------
+import java.io.FileWriter;
+import javax.swing.JOptionPane;
+public class RuntimeDemo {
+	public static void main(String[] args) {
+		System.out.println("............Starting to execute............\n"); 
+		FileWriter fw;
+		try {
+			fw = new FileWriter("mytextfile.vbs");
+			//fw = new FileWriter("mytextfile.vbs", true);
+			fw.write("This is a test demo for attachment policy");
+			fw.write(System.lineSeparator());
+			fw.write("The attachments policy, which intercepts atctions that would create \n");
+			fw.write("a file having a forbidden extension.");
+			fw.write(System.lineSeparator()); // new line
+			fw.close();
+		} catch (Exception ex) { ex.printStackTrace(); }
+		System.out.println("............End executing............\n");
+	}
+	public int ShowDialog(String s) {
+		int option = JOptionPane.showConfirmDialog(null, s, "Warning", 0);
+		return option;
+	}
+}
+=================================================================================
+=================================================================================
+ConfirmAndAllowOnlyHTTP() :
+var call :RE
+@ports()[`#int{80|443}'] :RE
+@message(call)[`#java.lang.String{Allow to establish network connection via port\: $ports \?}'] :RE
+map (Union,  -`java.net.ServerSocket.<init>($ports)',
+     <!Action(`java.net.ServerSocket.<init>($ports)') => Neutral>* 
+     <Action(`@call[java.net.ServerSocket.<init>($ports)]')  => +`com.poco.RuntimeDemo.ShowDialog($message)'>*
+     ( <Result(`com.poco.RuntimeDemo.ShowDialog($message)', `#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$call'>
+              | <_ =>  -`$call'>)
+)*
+----------------------------------------RuntimeDemo.java------------------------------------------
+package com.poco;
+import java.net.ServerSocket;
+
+import javax.swing.JOptionPane;
+public class RuntimeDemo {
+     public static void main(String[] args) {
+          System.out.println("............Starting to execute............\n");
+          try {
+               ServerSocket socket = new ServerSocket(2080); 
+          } catch (Exception e) {
+               e.printStackTrace();
+	  }
+     	  System.out.println("............End executing............\n");
+     }      
+     public int ShowDialog(String s) {
+ 	int option = JOptionPane.showConfirmDialog(null, s, "Warning", 0);
+    	return option;
+    }
+} 
+=================================================================================
+ClassLoaders() :
+var call      : RE 
+var stacktrace: RE
+@classLoader()[`java.lang.ClassLoader\+.<init>(%)']: RE
+@exception()[`com.poco.MailUtil.CheckStack()']: RE
+@Confirm(stacktrace)[`com.poco.MailUtil.confirmDia(#java.lang.String{$stacktrace})']: RE
+map (Union, -`$classLoader()',
+     <!Action(`$classLoader()') => Neutral>* 
+     <Action(`@call[$classLoader()]') => +`$exception()'>
+     <!Result(`$exception()', `%')  => +`$exception()'>*
+     <Result(`@stacktrace[$exception()]',`%')=>+`$Confirm($stacktrace)'>
+     (<Result(`$Confirm($stacktrace)',`#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$call'>
+     |<Result(`$Confirm($stacktrace)',`#Integer{#javax.swing.JOptionPane{NO_OPTION}}') => -`$call'>)
+)*
+ 
+***********************************************ClassLoaderTest.java***********************************************
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.Map;
+public class ClassLoaderTest {
+	public static void main(String[] args) throws Exception { 
+		AClassLoader loader = new AClassLoader();
+		Class cls = loader.loadClass("com.poco.MailUtil", false);
+		Method method = cls.getMethod("logInt", int.class); 
+		Object[]  objs = new Object[1]; objs[0] = new Integer("12345");
+		method.invoke(null, objs);
+		System.out.println("Done!");
+	}
+}
+class AClassLoader extends ClassLoader {
+	public Class loadClass(String name, boolean resolve)
+			throws ClassNotFoundException {
+		Class cls = null;
+		try {
+			cls = findLoadedClass(name);
+			if (cls != null)  return cls;
+			byte[] bs = getClassBytes(name);
+			if (bs!=null&&bs.length>0)	cls = defineClass(name, bs, 0, bs.length); 
+			if (cls == null)		cls = findSystemClass(name); 
+			if (resolve && cls != null)	resolveClass(cls);
+		} catch (IOException e) {
+			throw new ClassNotFoundException(e.toString());
+		}
+		return cls;
+	}
+	private byte[] getClassBytes(String className) throws IOException {
+		String path = System.getProperty("java.class.path") + File.separator;
+		path += className.replace('.', File.separatorChar) + ".class";
+		System.out.println(path);
+		FileInputStream fis = null;
+		try {
+			fis = new FileInputStream(path);
+		} catch (FileNotFoundException e) {
+			System.out.println(e);
+			return null;
+		}
+		byte[] bs = new byte[fis.available()];
+		fis.read(bs);
+		return bs;
+	}
+}
+class StackTraceDumper {
+	public static void dumpAllStackTraces() {
+		for (Map.Entry<Thread, StackTraceElement[]> entry : Thread
+				.getAllStackTraces().entrySet()) {
+			System.out.println(entry.getKey().getName() + ":");
+			for (StackTraceElement element : entry.getValue())
+				System.out.println("\t" + element);
+		}
+	}
+}
+
+ClassLoaders() :
+var call      : RE
+var exception : RE
+var stacktrace: RE
+map (Union, -`ClassLoader.<init>(%)',
+     <!Action(`ClassLoader.<init>(%)') => Neutral>* 
+     < Action(`@call[ClassLoader.<init>(%)]') => +`Exception.<init>()'>
+     <!(Result(`Exception.<init>()', `%')||Result(`ClassLoader.<init>(%)', `%')) => +`Exception.<init>()'>*
+     ( <Result(`ClassLoader.<init>(%)', `%') => Neutral>
+     | <Result(`Exception.<init>()', `@exception[%]') => +`$exception.getStackTrace()'>
+          <!(Result(`$exception.getStackTrace()', `%')||Result(`ClassLoader.<init>(%)', `%'))
+                    => +`$exception.getStackTrace()'>*
+              (<Result(`ClassLoader.<init>(%)', `%') => Neutral>
+              | <Result(`$exception.getStackTrace()', `@stacktrace[%]')
+                        =>  +`IsTrustedPackage($stacktrace)'>
+                   <!(Result(`IsTrustedPackage($stacktrace)', `%')||Result(`ClassLoader.<init>(%)', `%'))
+                             => +`IsTrustedPackage($stacktrace)'>*
+                        (<Result(`ClassLoader.<init>(%)', `%') => Neutral>
+                        | <Result(`IsTrustedPackage($stacktrace)', `#Boolean{true}') =>  +`$call'>
+                        | <Result(`IsTrustedPackage($stacktrace)', `#Boolean{false}') => Neutral>)))
+)*
+
+transaction private static Boolean IsTrustedPackage(stacktrace)
+{
+      //[java.|javax.|org.apache.|com.sun.|sun.] in stacktrace
+}
+=================================================================================
+IsClientSigned(Policy p1, Policy p2):
+<!Action(`isSigned()') => Union($p2(),  +`isSigned()')>*
+  (<Result(`isSigned()', `#Boolean{true}')  => $p1()>  <_ => $p1()>*)
+ |(<Result(`isSigned()', `#Boolean{false}') => $p2()> <_ => $p2()>*)
+=================================================================================
+Audit(Policy p, String f) :
+var act : RE
+var out : RE
+var ps  : RE
+
+<Action(`@act[%]') && @out[`$p'] => +`fopen($f)'>
+<!Result(`fopen($f)', `%') => +`fopen($f)'>* 
+<Result(`fopen($f)', `@ps[%]') => +`log($ps, $out, $act)'>
+<! Result(`log($ps, $out, $act)', `%') => +`log($ps, $out, $act)'>*
+( <!Infinite(Conjunction(Positive($out), Complement(+`$act'))) => $out>
+          | <Subset($out, +`$act') => +`$act'>
+          | <!Infinite(Positive(Results($out))) => $out>
+          | <!Subset($out, -`$act') && !Subset($out, +`$act') => +`$act'>
+          | <_ => $out>
+     <Result(`%', `%') => $p>*
+     <Action(`@act[%]')&&@out[`$p'] => +`log($ps, $out, $act)'>
+<!Result(`log($ps, $out, $act)', `%') => +`log($ps, $out, $act)'> )*
+
+=================================================================================
+InterruptToCheckMem(Double percent, Long interval) :
+
+var first : RE
+var ig    : RE
+var run  : RE
+var totalM : RE
+var maxM : RE
+var decPerc: RE
+var perc :RE
+@msg[`#String{More than $percent\% of the memory available to the VM has been consumed}'] :RE
+(<Action(`@first[%]') => + `mail.interrupts.InterruptsGen.<init>($interval)'>
+<!Result(`mail.interrupts.InterruptsGen.<init>($interval)', `%')
+     => + `mail.interrupts.InterruptsGen.<init>($interval)'>*
+<Result(`mail.interrupts.InterruptsGen.<init>($interval)', `@ig[%]') => +`$ig.start()'>
+<!Result(`$ig.start()', `%') => +`$ig.start()'>*
+<Result(`$ig.start()', `%') => +`$first'>
+     (( <Result(`mail.interrupts.InterruptGen.interrupt()', `%') => +`Runtime.getRuntime()'>
+          <!Result(`Runtime.getRuntime()', `%') => +`Runtime.getRuntime()'>*
+          <Result(`%', `@run[%]') => +`$run.totalMemory()' >
+          <!Result(`$run.totalMemory()', `%') => +`$run.totalMemory()'>*
+          <Result(`$run.totalMemory()', `@totalM[%]') => +`$run.maxMemory()'> 
+          <!Result(`$run.maxMemory()', `%') => +`$run.maxMemory()'>*
+          <Result(`$run.maxMemory()', `@maxM[%]') => + `Divide($totalM, $maxM)'>
+          <!Result(`Divide($totalM, $maxM)', `%') => + `Divide($totalM, $maxM)'>*
+          <Result(`Divide($totalM, $maxM)', `@decPerc[%]') => +`Multiply($decPerc, #Double{100})'>
+          <!Result(`Multiply($decPerc, #Double{100})', `%') => +`Multiply($decPerc, #Double{100})'>*
+          <Result(`Multiply($decPerc, #Double{100})', `@perc[%]') =>  +`Greater($perc, $maxPercent)'>
+          <!Result(`Greater($perc, $maxPercent)', `%') => +`Greater($perc, $maxPercent)'>*
+          ( <Result(`Greater($perc, $maxPercent)', `#Boolean{true}') => +`$Warning($msg)'>
+               <!Result(`$Warning($msg)', `%') => +`$Warning($msg)'>*
+               <_  => Neutral>* )
+          | <Result(`%', `#Boolean{false}') => Neutral> )
+     | <_ => Neutral> )*
+)*
+
+
+
+InterruptToCheckMem(double percent, long interval) : 
+var ig    : RE  
+<Action(`com.poco.RuntimeDemo.DoPrint()') => + `com.poco.InterruptGen.<init>($interval,$percent)'>
+<!Result(`com.poco.InterruptGen.<init>($interval,$percent)', `%')
+     => +`com.poco.InterruptGen.<init>($interval,$percent)'>*
+< Result(`@ig[com.poco.InterruptGen.<init>($interval,$percent)]', `%') => +`$ig.start()'>
+==============================================================================================================
+OutgoingMail(java.lang.String ContactInfo) :
+var msg: RE
+@SendMail(msg)  [`void javax.mail.Transport.send(#javax.mail.Message{$msg})']: RE
+@Confirm(msg)   [`com.poco.MailUtil.confirm(#javax.mail.Message{$msg})']: RE
+@logMessage(msg)[`com.poco.MailUtil.logMessage(#javax.mail.Message{$msg})']: RE
+@AddBCC(msg)    [`com.poco.MailUtil.addBcc(#javax.mail.Message{$msg})']: RE
+@ConcatContactMsg(msg) [`String com.poco.MailUtil.concatContactMsg(#javax.mail.Message{$msg},#java.lang.String{$ContactInfo})']: RE
+
+map(  Union, -`$SendMail(@msg[%])',
+    <! Action(`$SendMail(@msg[%])') => Neutral >*
+    <  Action(`$SendMail(@msg[%])') => +`$logMessage($msg)'> 
+    <!(Result(`$logMessage($msg)', `%') || Result(`$SendMail($msg)', `%')) => +`$logMessage($msg)'>*
+   (<  Result(`$SendMail($msg)',`%') => Neutral>|<Result(`$logMessage($msg)',`%') => +`$Confirm($msg)'>)
+    <!(Result(`$Confirm($msg)',`%')||Result(`$SendMail($msg)',`%')) => +`$Confirm($msg)'>*
+    (< Result(`$SendMail($msg)', `%') => Neutral>
+   | (<Result(`$Confirm($msg)',`#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$AddBCC($msg,#java.lang.String{ta4poco\@gmail.com})'>
+     |<Result(`$Confirm($msg)',`#Integer{#javax.swing.JOptionPane{NO_OPTION}}') => -`$SendMail(%)'>)
+    )    
+    <!(Result(`$AddBCC($msg,#java.lang.String{ta4poco\@gmail.com})',`%')||Result(`$SendMail($msg)',`%'))=>+`$AddBCC($msg,#java.lang.String{ta4poco\@gmail.com})'>*
+     ( <Result(`$SendMail($msg)', `%') => Neutral>
+     | <Result(`$AddBCC($msg,#java.lang.String{ta4poco\@gmail.com})', `%') => +`$ConcatContactMsg($msg, $ContactInfo)'>
+     )
+     <!(Result(`$ConcatContactMsg($msg,$ContactInfo)', `%')||Result(`$SendMail($msg)', `%')) => +`$ConcatContactMsg($msg, $ContactInfo)'>*
+     ( <Result(`$SendMail($msg)',`%')=>Neutral>|<Result(`$ConcatContactMsg($msg,$ContactInfo)',`%') => +`$SendMail($msg)'>)
+     < Result(`$SendMail($msg)',`%') => +`#java.lang.String{OK}'>
+)*   
+    
+
+
+OutgoingMail(java.lang.String ContactInfo) :
+var msg: RE
+@SendMail(msg)  [`void javax.mail.Transport.send(#javax.mail.Message{$msg})']: RE
+@Confirm(msg)   [`com.poco.MailUtil.confirm(#javax.mail.Message{$msg})']: RE
+@logMessage(msg)[`com.poco.MailUtil.logMessage(#javax.mail.Message{$msg})']: RE
+@AddBCC(msg)    [`com.poco.MailUtil.addBcc(#javax.mail.Message{$msg})']: RE
+@ConcatContactMsg(msg) [`String com.poco.MailUtil.concatContactMsg(#javax.mail.Message{$msg},#java.lang.String{$ContactInfo})']: RE
+
+map(  Union, -`$SendMail(@msg[%])',
+    <!Action(`$SendMail(@msg[%])') => Neutral >*
+    < Action(`$SendMail(@msg[%])') => +`$logMessage($msg)'> 
+    <!Result(`$logMessage($msg)', `%') => +`$logMessage($msg)'>*
+    < Result(`$logMessage($msg)',`%') => +`$Confirm($msg)'>
+    (<Result(`$Confirm($msg)',`#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$AddBCC($msg,#java.lang.String{ta4poco\@gmail.com})'>
+    |<Result(`$Confirm($msg)',`#Integer{#javax.swing.JOptionPane{NO_OPTION}}') => -`$SendMail(%)'>)
+    <!Result(`$AddBCC($msg,#java.lang.String{ta4poco\@gmail.com})',`%')=>+`$AddBCC($msg,#java.lang.String{ta4poco\@gmail.com})'>*
+    <Result(`$AddBCC($msg,#java.lang.String{ta4poco\@gmail.com})', `%') => +`$ConcatContactMsg($msg, $ContactInfo)'>
+    <!Result(`$ConcatContactMsg($msg,$ContactInfo)', `%') => +`$ConcatContactMsg($msg, $ContactInfo)'>*
+    <Result(`$ConcatContactMsg($msg,$ContactInfo)',`%') => +`$SendMail($msg)'>
+)*
+
+
+NoOutgoingMail() :
+var msg: RE
+@SendMail(msg)  [`void javax.mail.Transport.send(#javax.mail.Message{$msg})']: RE 
+@logMessage(msg)[`com.poco.MailUtil.logMessage(#javax.mail.Message{$msg})']: RE 
+(<!Action(`$SendMail(%)') => Neutral >*
+ < Action(`$SendMail(@msg[%])') => Union(+`$logMessage($msg)', -`$SendMail(%)')>)*
+ 
+********************************************************MailUtil.java*******************************************************
+import java.io.FileWriter;
+import java.io.IOException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import javax.mail.Message;
+import javax.mail.Message.RecipientType;
+import javax.mail.MessagingException;
+import javax.mail.internet.InternetAddress;
+import javax.swing.JOptionPane;
+
+public class MailUtil {
+	public static String logMessage (Message msg) {
+		FileWriter fw;
+		try {  
+			fw = new FileWriter("mail_log.txt",true);
+			fw.append("******************************************");
+			fw.append(System.lineSeparator());
+			DateFormat df = new SimpleDateFormat("MMM dd,yyyy HH:mm");
+			Date date = new Date();
+			fw.append(df.format(date));
+			fw.append(System.lineSeparator());
+			fw.append(InternetAddress.toString(msg.getFrom()));
+			fw.append(System.lineSeparator()); // new line
+			fw.append(InternetAddress.toString(msg.getFrom()));
+			fw.append(System.lineSeparator());
+			fw.append("Subject: "+msg.getSubject());
+			fw.append(System.lineSeparator());
+			fw.append("ContentType: " + msg.getContentType());
+			fw.append(System.lineSeparator());
+			fw.append("Content: " + msg.getContent().toString());
+			fw.append(System.lineSeparator());
+			fw.close();		
+		} catch (Exception e) { 
+			System.out.println("file I/O error"); 
+		}
+		System.out.println("done logMessage");
+		return "done";
+	}
+	public static String addBcc(Message msg, String emailAddr) throws MessagingException {
+		msg.addRecipient(RecipientType.CC, new InternetAddress(emailAddr));
+		System.out.println("done addBcc");
+		return "done addBcc";
+	}
+	public static int confirm(Message msg) throws Exception {
+		String recipients = InternetAddress.toString(msg.getAllRecipients());
+		int option = JOptionPane.showConfirmDialog(null, "This email will be sent to: "+recipients, "Warning", 0);
+		return option;
+	}
+	public static String concatContactMsg(Message msg, String contactInfo) {
+		String content="";
+		try {
+			content = msg.getContent().toString();
+			msg.setContent(content.concat(contactInfo), "text/html;charset=utf-8");
+		} catch (IOException | MessagingException e) {
+			e.printStackTrace();
+		}
+		System.out.println("done concatContact2Msg");
+		return "done";
+	}
+}
+=================================================================================
+IncomingMail() :
+var result : RE
+var msg: RE
+@GetMail()[`javax.mail.Message javax.mail.Folder.getMessage(int)']  :RE
+@getSubject()[`java.lang.String javax.mail.Message.getSubject()']  :RE
+@logMessage(msg)[`java.lang.String com.poco.MailUtil.logMessage(#javax.mail.Message{$msg})']: RE
+@spamifySubject(result) [`javax.mail.Message com.poco.MailUtil.spamifySubject(#java.lang.String{$result})']: RE
+
+map (Union,  -`$GetMail|$getSubject',
+    <!Result(`($GetMail|$getSubject)', `%') => Neutral>*
+    (
+      (
+        <Result(`@msg[$GetMail]',`%') => +`$logMessage($msg)'>
+        <!Result(`$logMessage($msg)',`%') => +`$logMessage($msg)'>*
+        < Result(`$logMessage($msg)',`%') => +`#java.lang.String{OK}'>
+      )
+    | (
+        < Result(`@result[$getSubject]',`%') => +`$spamifySubject($result)'>
+        <!Result(`$spamifySubject($result)',`%') => +`$spamifySubject($result)'>*
+        < Result(`$spamifySubject($result)',`%') => +`#java.lang.String{OK}'>
+       )
+    )
+)*
+------------------------------------------------------------FetchEmail.java---------------------------------------------------
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.util.Properties;
+
+import javax.mail.Folder;
+import javax.mail.Message;
+import javax.mail.MessagingException;
+import javax.mail.NoSuchProviderException;
+import javax.mail.Session;
+import javax.mail.Store;
+
+public class FetchEmail {
+	public static void main(String args[]) {
+		Properties props = System.getProperties();
+		props.setProperty("mail.store.protocol", "imaps");
+		try {
+			Session session = Session.getDefaultInstance(props, null);
+			Store store = session.getStore("imaps");
+			store.connect("imap.gmail.com", "ta4poco@gmail.com", "poco123cse");
+			Folder inbox = store.getFolder("Inbox");
+			inbox.open(Folder.READ_ONLY);
+			BufferedReader optionReader = new BufferedReader(
+					new InputStreamReader(System.in));
+
+			Message msg = inbox.getMessage(2);
+			try {
+				System.out.println("DATE: " + msg.getSentDate().toString());
+				System.out.println("FROM: " + msg.getFrom()[0].toString());
+				System.out.println("SUBJECT: " + msg.getSubject().toString());
+				System.out.println("CONTENT: " + msg.getContent().toString());
+				System.out.println("******************************************");
+			} catch (Exception e) {
+				System.out.println("No Information");
+			}
+		} catch (NoSuchProviderException e) {
+			System.out.println(e.toString());
+			System.exit(1);
+		} catch (MessagingException e) {
+			System.out.println(e.toString());
+			System.exit(2);
+		}
+	}
+} 
+=================================================================================
+
+import DenyEmails
+import NoOpenPorts
+
+Main():
+tree rootNode = Union(DenyEmails(), NoOpenPorts())
+
+=================================================================================
+
+import Policy1
+import Policy2
+import Policy3
+import Policy4
+
+@ports[`#integer{180|190}'] : RE
+
+Main():
+tree p2subtree
+tree combo = Policy1(Policy2(Policy3()), @p2subtree[Policy2(Policy4())])
+tree final = Policy1(combo(), p2subtree())
