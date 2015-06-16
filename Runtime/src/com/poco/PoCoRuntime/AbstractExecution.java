@@ -9,9 +9,12 @@ import java.util.ArrayList;
 public abstract class AbstractExecution extends EventResponder implements Matchable, Queryable {
     protected boolean isZeroPlus, isOnePlus;
     protected ArrayList<EventResponder> children = new ArrayList<>();
-
-    protected Boolean resultBool = false;
-    protected SRE resultSRE = null;
+    
+   	protected Boolean resultBool = false;
+   	protected SRE resultSRE = null;
+   	
+   	protected int currentCursor = 0;
+   	protected boolean exhausted = false;
 
     public AbstractExecution(String modifier) throws PoCoException {
         interpretModifier(modifier);
@@ -38,16 +41,37 @@ public abstract class AbstractExecution extends EventResponder implements Matcha
                 throw new PoCoException("Incorrect execution modifier " + modifier);
         }
     }
-    public void addChild(EventResponder child) {
+
+    public boolean isExhausted() {
+		return exhausted;
+	}
+    
+	public void addChild(EventResponder child) {
         children.add(child);
     }
+
     public ArrayList<EventResponder> getChildren() {
         return children;
     }
     public boolean isZeroPlus() {
         return isZeroPlus;
     }
+
     public boolean isOnePlus() {
         return isOnePlus;
     }
+    	
+	public void resetChildrenCursor() {
+		this.currentCursor = 0;
+    	this.exhausted = false;
+    	Class<AbstractExecution> classAE = AbstractExecution.class;
+		
+    	if(children != null) {
+    		for (int i = 0; i < this.children.size(); i++) {
+    			Class<? extends EventResponder> classChild = children.get(i).getClass();
+    			if (classAE.isAssignableFrom(classChild)) 
+    				((AbstractExecution)children.get(i)).resetChildrenCursor(); 
+    		}
+    	}
+	}
 }

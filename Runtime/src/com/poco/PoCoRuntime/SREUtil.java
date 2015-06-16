@@ -32,18 +32,18 @@ public class SREUtil {
 		case "Union":
 		case "Punion":
 		case "Disjunction":
-			if (sre1.positiveRE().trim().equals(sre2.positiveRE().trim()))
+			if (sre1.positiveRE().trim().equals(sre2.positiveRE().trim())){
 				positiveRE = sre1.positiveRE().trim();
-			else if (sre1.positiveRE().trim()
-					.contains(sre2.positiveRE().trim()))
+			}else if (sre1.positiveRE().trim() 
+					.contains(sre2.positiveRE().trim()))  
 				positiveRE = sre1.positiveRE().trim();
-			else if (sre2.positiveRE().trim()
-					.contains(sre1.positiveRE().trim()))
+			else if (sre2.positiveRE().trim() 
+					.contains(sre1.positiveRE().trim())) 
 				positiveRE = sre2.positiveRE().trim();
-			else
+			else 
 				positiveRE = operate("Union", sre1.positiveRE(),
 						sre2.positiveRE());
-
+			
 			if (sre1.negativeRE().trim().equals(sre2.negativeRE().trim()))
 				negativeRE = sre1.negativeRE().trim();
 			else if (sre1.negativeRE().trim()
@@ -171,16 +171,15 @@ public class SREUtil {
 			BopSRE bopSre = (BopSRE) sre;
 			SRE result = SREUtil.performBOPs(bopSre.getSrebop(),
 					getBaseSRE(bopSre.sre1), getBaseSRE(bopSre.sre2));
-			// System.out.println(result);
 			return result;
 		} else if (classUS.isAssignableFrom(classChild)) { // UopSRE
 			UopSRE uopSre = (UopSRE) sre;
 			SRE result = SREUtil.performUOPs(uopSre.getSreuop(),
 					getBaseSRE(uopSre.sre));
-			// System.out.println(result);
 			return result;
-		} else
+		} else {
 			return sre;
+		}
 	}
 
 	/**
@@ -202,8 +201,8 @@ public class SREUtil {
 		String returnRe = null;
 		if (!sre1.trim().equals("")) { // sre1pos is not empty
 			if (!sre2.trim().equals("")) { // case both positive is not empty
-				RegExp re1 = new RegExp(validateStr(sre1));
-				RegExp re2 = new RegExp(validateStr(sre2));
+				RegExp re1 = new RegExp(RuntimeUtils.validateStr(sre1));
+				RegExp re2 = new RegExp(RuntimeUtils.validateStr(sre2));
 				Automaton am1 = re1.toAutomaton();
 				Automaton am2 = re2.toAutomaton();
 				switch (op) {
@@ -314,15 +313,20 @@ public class SREUtil {
 			return null;
 	}
 
-	private static boolean isEmpty(SRE sre) {
-		String srePos = sre.positiveRE();
-		String sreNeg = sre.negativeRE();
-		if ((srePos.equals("null") || srePos.trim().equals(""))
-				&& (sreNeg.equals("null") || sreNeg.trim().equals("")))
+	public static boolean isEmpty(SRE sre) {
+		if(sre == null)
 			return true;
 		else
-			return false;
+			return isSreFieldNull(sre.positiveRE()) && isSreFieldNull(sre.getNegativeRE());
 	}
+	
+	 
+	public static boolean isSreFieldNull(String sreStr) {
+		if(sreStr == null)
+			return true;
+		return (sreStr.equals("null") || sreStr.trim().equals(""));
+	}
+	
 
 	private static boolean isEqual(String sre1, String sre2) {
 		RegExp re1 = new RegExp(sre1.replace("%", ".*"));
@@ -335,36 +339,4 @@ public class SREUtil {
 			return false;
 	}
 
-	private static String validateStr(String str) {
-		return str.replaceAll("(%|\\$[a-zA-Z0-9\\.\\-_]+)", "").replaceAll(
-				"#|\\{|\\}", "");
-	}
-
-	public static boolean StringMatch(String matchingVal, String matchingRegex) {
-		String  regex = matchingRegex.replace(".", "\\.").replace("*", "(.*)");
-		Pattern pattern = Pattern.compile(regex);
-		Matcher matcher = pattern.matcher(matchingVal);
-		if (matcher.find())
-			return true;
-		return false;
-	}
-
-	/**
-	 * trim the first six letters from the full class name (e.g., trim
-	 * "class java.lang.reflect.Method" to "java.lang.reflect.Method")
-	 * 
-	 * @param fullClassName
-	 * @return
-	 */
-	public static String trimClassName(String fullClassName) {
-		if (fullClassName != null && fullClassName.length() >= 6)
-			if (fullClassName.startsWith("class "))
-				return fullClassName.substring(6, fullClassName.length());
-		return fullClassName;
-
-	}
-
-	public static String concatClsMethod(String className, String methodName) {
-		return className.trim().concat(".").concat(methodName.trim());
-	}
 }

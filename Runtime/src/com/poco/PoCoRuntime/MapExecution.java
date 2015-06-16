@@ -46,45 +46,49 @@ public class MapExecution extends SequentialExecution implements Queryable,
 	}
 
 	@Override
+	public boolean childrenExhausted() {
+		if (this.children.size() > 0 && currentCursor < this.children.size()) {
+			Class<AbstractExecution> classAE = AbstractExecution.class;
+			Class<? extends EventResponder> classChild = children.get(
+					this.currentCursor).getClass();
+			if (classAE.isAssignableFrom(classChild)) {
+				boolean result = false;
+				AbstractExecution temp = (AbstractExecution) children
+						.get(this.currentCursor);
+				if (temp.exhausted == true)
+					result = true;
+				return result;
+			}
+		}
+		return true;
+	}
+
+	@Override
 	public SRE query(Event event) {
 		if (children.size() == 0 || exhausted)
 			return null;
 		EventResponder currentChild = children.get(currentCursor);
-		if (currentChild.accepts(event)) {
-			String pos = null, neg = null;
-			resultBool = true;
-			if (!getCurrentChildModifier("isZeroPlus")
-					&& !getCurrentChildModifier("isOnePlus")) {
-				advanceCursor();
-			}
-			resultSRE = currentChild.query(event);
-			if (resultSRE != null) {
-				pos = resultSRE.getPositiveRE();
-				neg = resultSRE.getNegativeRE();
-			}
-			if (pos != null)
-				pos = getValue(pos);
-			if (neg != null) {
-				neg = getValue(neg);
-				if (neg.indexOf('(') != -1)
-					neg = neg.substring(0, neg.indexOf('('));
-			}
-			resultSRE = new SRE(pos, neg);
-			resultSRE = SREUtil.performBOPs(operator, matchSre, resultSRE);
-			return resultSRE;
-		} else { // not accepting
-			if (getCurrentChildModifier("isZeroPlus")) {
-				// We can skip a zero-plus (*) modifier
-				advanceCursor();
-				this.query(event);
-			} else {
-				// CurrentChild doesn't accept and can't be skipped
-				resultBool = false;
-				return null;
-			}
-		}
 
-		return null;
+		String pos = null, neg = null;
+		resultBool = true;
+		resultSRE = currentChild.query(event);
+		if (resultSRE != null) {
+			pos = resultSRE.getPositiveRE();
+			neg = resultSRE.getNegativeRE();
+		}
+		if (neg != null) {
+			if (neg.indexOf('(') != -1)
+				neg = neg.substring(0, neg.indexOf('('));
+		}
+		resultSRE = new SRE(pos, neg);
+		resultSRE = SREUtil.performBOPs(operator, matchSre, resultSRE);
+
+		if (!getCurrentChildModifier("isZeroPlus")
+				&& !getCurrentChildModifier("isOnePlus") && childrenExhausted())
+				advanceCursor();
+		
+		return resultSRE;
+
 	}
 
 	@Override
@@ -93,12 +97,16 @@ public class MapExecution extends SequentialExecution implements Queryable,
 			return false;
 		}
 		boolean result = children.get(currentCursor).accepts(event);
-		while (!result) {
-			if (getCurrentChildModifier("isZeroPlus")) {
-				advanceCursor();
-				result = children.get(currentCursor).accepts(event);
-			} else
-				break;
+
+		if (!result && currentCursor != children.size() - 1) {
+			while (!result) {
+				if (getCurrentChildModifier("isZeroPlus")) {
+					advanceCursor();
+					result = children.get(currentCursor).accepts(event);
+				} else {
+					break;
+				}
+			}
 		}
 		return result;
 	}
@@ -115,32 +123,10 @@ public class MapExecution extends SequentialExecution implements Queryable,
 
 	@Override
 	public String toString() {
-		return "MapExecution [operator=" + operator + ", matchSre=" + matchSre
-				+ ", isZeroPlus=" + isZeroPlus + ", isOnePlus=" + isOnePlus
-				+ ", children=" + children + "]\n";
+		return "MapExecution [currentCursor" + currentCursor + "; operator="
+				+ operator + ", matchSre=" + matchSre + ", isZeroPlus="
+				+ isZeroPlus + ", isOnePlus=" + isOnePlus + ", children="
+				+ children + "]\n";
 	}
 
-	public String getValue(String strSre) {
-		// have to manipulate the string for new case, since signature will
-		// not include new keyword
-		if (strSre.indexOf('(') != -1) {
-			String funName = strSre.substring(0, strSre.indexOf('('));
-			String reg = "(.*)(\\$\\$(.+)\\$\\$)(.*)";
-			Pattern pattern = Pattern.compile(reg);
-			Matcher matcher = pattern.matcher(funName);
-			boolean needUpdate = matcher.find();
-			while (needUpdate) {
-				// need delete (, otherwise cause issues.
-				String replaceStr = DataWH.closure.get(matcher.group(3).trim());
-				funName = funName.replace(matcher.group(2).trim(), replaceStr);
-				matcher = pattern.matcher(funName);
-				needUpdate = matcher.find();
-			}
-			String argPrt = strSre.substring(strSre.indexOf('('),
-					strSre.length());
-			if (funName.substring(funName.length()-4,funName.length()).equals(".new"))
-				strSre = funName.substring(0, funName.length() - 4) + argPrt;
-		}
-		return strSre;
-	}
 }

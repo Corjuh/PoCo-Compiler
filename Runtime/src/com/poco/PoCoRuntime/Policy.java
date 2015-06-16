@@ -24,4 +24,11 @@ public abstract class Policy extends EventResponder implements Queryable, Matcha
     public SRE query(Event event) {
         return rootExecution.query(event);
     }
+
+	@Override
+	public String toString() {
+		return "Policy [rootExecution=" + rootExecution + "]";
+	}
+    
+    
 }

@@ -8,8 +8,8 @@ package com.poco.PoCoRuntime;
  */
 public class SRE {
     // SRE Unary Operators: Complement; Actions; Results; Positive; Negative
-    private String positiveRE = null;
-    private String negativeRE = null;
+    protected String positiveRE = null;
+    protected String negativeRE = null;
 
     public void setPositiveRE(String positiveRE) {
         this.positiveRE = positiveRE;

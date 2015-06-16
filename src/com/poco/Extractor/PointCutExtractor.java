@@ -1,45 +1,48 @@
 package com.poco.Extractor;
 
+import com.poco.PoCoCompiler.PoCoUtils;
 import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseVisitor;
 import org.antlr.v4.runtime.misc.NotNull;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Hashtable;
-import java.util.Stack;
+import java.util.*;
 
 /**
  * Created by caoyan on 11/7/14.
  */
 public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
-    private HashMap<String, HashSet<String>> nodes = new HashMap<String, HashSet<String>>();
-    //use this to distinguish the result from the action for generating advices
-    private Hashtable<String, HashSet<String>> nodes4Promoter = new Hashtable<String, HashSet<String>>();
-    //used for the monitor the result for promoted methods
-    private Hashtable<String, HashSet<String>> nodes4PromoterRes = new Hashtable<String, HashSet<String>>();
-    private Hashtable<String, HashSet<String>> nodes4Result = new Hashtable<String, HashSet<String>>();
-    private String pointcutStr;
-    private HashSet<String> varBind4thisPC = new HashSet<String>();
-    //used to store all the paramaters that needed as obj in order to promote or process
-    //since not all the variables are needed as obj type
-    private HashSet<String> objParams = new HashSet<String>();
+    private HashMap<String, HashMap<String, String>> frmActPT2BndVar = new HashMap<String, HashMap<String, String>>();
+    private HashMap<String, HashMap<String, String>> frmResPT2BndVar = new HashMap<String, HashMap<String, String>>();
+    private HashMap<String, HashMap<String, String>> frmPrmPT2BndVar = new HashMap<String, HashMap<String, String>>();
+    private HashMap<String, HashMap<String, String>> frmPrmResPT2BndVar = new HashMap<String, HashMap<String, String>>();
+
     private Closure closure;
-    private boolean ptFromOpparamlist = false;
-    private boolean isResult = false;
-    private boolean isLHS = false;
     private String policyName = "";
 
-    //update return value case can only happen when LHS of => is result and RHS of => is object
-    //so now if LHS is result then push the the method onto resultMethodName stack
-    //when RHS is object and resultMethodName stack is not empty, then record the value for the method
-    private Stack<String> resultMethodName;
-    private Hashtable<String, String> updateValue = new Hashtable<>();
+    private Stack<Integer> parsFlags;
+
+    //used to store all the parameters that needed as obj in order to promote or process
+    //since not all the variables are needed as obj type
+    //better performance for gening DataWH, no need iterate all pointcuts
+    private HashMap<String, String> objParams = new HashMap<String, String>();
+
+    //use the 2nd String field to flag action bindings verse result bindings
+    //action bindings bind method signature to the variable, while
+    //result bindings bind method result    to the variable
+    private HashMap<String, String> varBind4thisPC = new HashMap<String, String>();
+
+    private StringBuilder argStr;
+    private StringBuilder pointcutStr;
 
     public PointCutExtractor(Closure closure) {
         this.closure = closure;
-        pointcutStr = "";
-        this.resultMethodName = new Stack<>();
+        this.pointcutStr = new StringBuilder();
+        this.argStr = new StringBuilder();
+        this.parsFlags = new Stack<>();
+    }
+
+    public void resetPTStr() {
+        this.pointcutStr = new StringBuilder();
     }
 
     private static String scrubString(String input) {
@@ -54,173 +57,36 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     }
 
     @Override
-    public Void visitRe(@NotNull PoCoParser.ReContext ctx) {
-        if (ptFromOpparamlist == false) {
-            pointcutStr = "* ";
-            if (ctx.rewild() != null) {
-                pointcutStr = pointcutStr + " * (..); ";
-            } else if (ctx.qid() != null) {
-                if (closure != null && closure.isContains(policyName + ctx.qid().getText())) {
-                    String funcStr = closure.getContext(policyName + ctx.qid().getText());
-                    if(funcStr != null) {
-                        funcStr = funcStr.replace(".<init>", ".new").replace("%", "..");
-                        //function name included return type;
-                        if (getFunctionName(funcStr).split(" ").length == 2)
-                            pointcutStr = funcStr;
-                        else if (getFunctionName(funcStr).contains(".new")) {
-                            pointcutStr = funcStr;
-                        } else
-                            pointcutStr += funcStr;
-                    }else
-                        pointcutStr = "$$"+policyName + ctx.qid().getText()+"$$";
-                } else {
-                    throw new NullPointerException("No such var exist.");
-                }
-                if (ctx.opparamlist() != null) {
-                    pointcutStr = getFunctionName(pointcutStr);
-                    if (ctx.opparamlist().getText().equals("%")) {
-                        pointcutStr += "(..)";
-                        add2NodesNodes4Result(pointcutStr);
-                    } else {
-                        ptFromOpparamlist = true;
-                        visitChildren(ctx);
-                        ptFromOpparamlist = false;
-                        add2NodesNodes4Result(pointcutStr);
-                    }
-                } else {
-                    add2NodesNodes4Result(pointcutStr);
-                }
-            } else if (ctx.function() != null) {
-                if (ctx.function().INIT() != null) {
-                    // delete * since there is no return val for new
-                    if (pointcutStr == null) {
-                        pointcutStr = ctx.function().fxnname().getText() + "new";
-                    } else {
-                        if (pointcutStr.length() > 1 && pointcutStr.startsWith("*"))
-                            pointcutStr = pointcutStr.substring(1, pointcutStr.length()).trim();
-                        pointcutStr += ctx.function().fxnname().getText() + "new";
-                    }
-                    if (ctx.function().arglist() != null) {
-                        if (ctx.function().arglist().getText().equals("%")) {
-                            pointcutStr += "(..)";
-                            add2NodesNodes4Result(pointcutStr);
-                        } else {
-                            ptFromOpparamlist = true;
-                            visitChildren(ctx);
-                            ptFromOpparamlist = false;
-                            add2NodesNodes4Result(pointcutStr);
-                        }
-                    } else {
-                        add2NodesNodes4Result(pointcutStr);
-                    }
-                } else {
-                    String funStr = ctx.function().fxnname().getText().trim();
-                    if (funStr.split(" ").length == 2)
-                        pointcutStr = funStr;
-                    else
-                        pointcutStr = pointcutStr + funStr;
-                    if (ctx.function().arglist() != null) {
-                        if (ctx.function().arglist().getText().length() == 0) {
-                            pointcutStr += "()";
-                        } else {
-                            ptFromOpparamlist = true;
-                            visitChildren(ctx);
-                            ptFromOpparamlist = false;
-                        }
-                    } else
-                        pointcutStr += "()";
-                    add2NodesNodes4Result(pointcutStr);
-                }
-            } else if (ctx.object() != null) {
-                if (!resultMethodName.empty())
-                    if (ctx.object().POUND() != null)
-                        pointcutStr = ctx.object().re().getText();
-                    else if (ctx.object().qid() != null)
-                        pointcutStr = pointcutStr + ctx.object().qid().getText();
-            } else if (ctx.AT() != null) {
-                varBind4thisPC.add(policyName + ctx.id().getText());
-                visitChildren(ctx);
-            } else {
-                visitChildren(ctx);
-            }
-        } else {  //ptFromOpparamlist = true
-            if (ctx.rewild() != null) {
-                pointcutStr = pointcutStr + "(..)";
-            } else if (ctx.qid() != null) {
-                String strval = ctx.qid().getText();
-                if (closure != null && closure.isContains(policyName + strval)) {
-                    pointcutStr += "($$" + policyName + strval + "$$)";
-                    objParams.add(policyName + strval);
-                } else
-                    throw new NullPointerException("No such var exist.");
-            } else if (ctx.AT() != null) {
-                String strval = ctx.id().getText();
-                if (closure != null && closure.isContains(policyName + strval)) {
-                    varBind4thisPC.add(policyName + ctx.id().getText());
-                    pointcutStr += "($$" + policyName + strval + "$$) ";
-                    objParams.add(policyName + strval);
-                } else
-                    throw new NullPointerException("No such var exist.");
-            } else if (ctx.object() != null) {
-                if (ctx.object().POUND() != null) {
-                    //format as #qid{re}
-                    pointcutStr = pointcutStr + "(" + ctx.object().qid().getText();
-                    String reStr = ctx.object().re().getText();
-                    //if reStr does not contain the "$", means the value is static,
-                    //so we can check it statically, otherwise we have to check it dynamically
-                    if (!reStr.contains("$")) {
-                        if (reStr.equals("%"))
-                            pointcutStr += "$$$*.*$$$";
-                        else
-                            pointcutStr += "$$$" + reStr.replaceAll("%", "*") + "$$$";
-                    } else { //so the value will be dynamic
-                        pointcutStr += reStr;
-                    }
-                    pointcutStr += ")";
-                } else if (ctx.id() != null) {
-                    pointcutStr = pointcutStr + "(" + ctx.id().getText() + ")";
-                } else {  //Null case
-                    pointcutStr = pointcutStr + "(..)";
-                }
-            } else if (ctx.function() != null) {
-                //TODO: add detail later
-                pointcutStr = pointcutStr + ctx.function().fxnname().getText();
-            } else if (ctx.rebop() != null) {
-                visitRe(ctx.re(0));
-                visitRe(ctx.re(1));
-            } else {
-                if (ctx.getText().trim().length() > 0) {
-                    if (!isEmptyParent(ctx.getText().trim()))
-                        pointcutStr = pointcutStr + "(" + ctx.getText() + ")";
-                }
-            }
-        }
+    public Void visitMacrodecls(@NotNull PoCoParser.MacrodeclsContext ctx) {
+        //skip all macrodels
+        return null;
+    }
+
+    @Override
+    public Void visitVardecls(@NotNull PoCoParser.VardeclsContext ctx) {
+        //skip all macrodels
         return null;
     }
 
     @Override
     public Void visitExecution(@NotNull PoCoParser.ExecutionContext ctx) {
-        if (ctx.map() != null) {
+        if (ctx.map() != null)
             visitExecution(ctx.map().execution());
-        } else {
+        else
             visitChildren(ctx);
-        }
         return null;
     }
 
     @Override
     public Void visitExch(@NotNull PoCoParser.ExchContext ctx) {
-        pointcutStr = null;
         if (ctx.INPUTWILD() != null) {
             //just need monitor the action on the RHS of =>, but treat as LHS
-            isLHS = true;
+            parsFlags.push(ParsFlgConsts.isAction);
             visitSre(ctx.sre());
-            isLHS = false;
+            parsFlags.pop();
         } else if (ctx.matchs() != null) {
             visitMatchs(ctx.matchs());
             visitSre(ctx.sre());
-            if(!resultMethodName.empty())
-                resultMethodName.pop();
         }
         return null;
     }
@@ -228,9 +94,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitMatch(@NotNull PoCoParser.MatchContext ctx) {
         /* match need to tracked for pointcut signature */
-        if (ctx.ire() != null) {
-            visitChildren(ctx);
-        } else if (ctx.SUBSET() != null) {
+        if (ctx.SUBSET() != null) {
             visitSre(ctx.sre(0));
             visitSre(ctx.sre(1));
         } else if (ctx.INFINITE() != null) {
@@ -238,128 +102,308 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         } else if (ctx.SREEQUALS() != null) {
             visitSre(ctx.sre(0));
             visitSre(ctx.sre(1));
-        }
-        return null;
-    }
-
-    @Override
-    public Void visitMacrodecls(@NotNull PoCoParser.MacrodeclsContext ctx) {
-        return null;
-    }
-
-    @Override
-    public Void visitVardecls(@NotNull PoCoParser.VardeclsContext ctx) {
+        } else
+            visitChildren(ctx);
         return null;
     }
 
     @Override
     public Void visitIre(@NotNull PoCoParser.IreContext ctx) {
-        if (ctx.ACTION() != null) {
-            isLHS = true;
-            visitChildren(ctx);
-            isLHS = false;
-        } else {
-            isResult = true;
-            isLHS = true;
-            resultMethodName.push(ctx.re(0).getText());
-            visitRe(ctx.re(0));
-            isLHS = false;
-            isResult = false;
-        }
+        if (ctx.ACTION() != null)
+            parsFlags.push(ParsFlgConsts.isAction);
+        else
+            parsFlags.push(ParsFlgConsts.isResult);
+
+        visitRe(ctx.re(0));
+        parsFlags.pop();
         return null;
     }
 
     public Void visitSre(@NotNull PoCoParser.SreContext ctx) {
-        if (ctx.NEUTRAL() != null) {
-            pointcutStr = null;
-        }
+        if (ctx.NEUTRAL() != null)
+            resetPTStr();
         if (ctx.qid() != null) {
-            pointcutStr = " * ";
-            pointcutStr = pointcutStr + ctx.qid().getText() + "(..)";
+            pointcutStr.append("* " + ctx.qid().getText() + "(..)");
         } else if (ctx.srebop() != null) {
             visitChildren(ctx.sre(0));
             visitChildren(ctx.sre(1));
         } else if (ctx.sreuop() != null) {
             visitChildren(ctx.sre(0));
-        } else {
+        } else
             visitChildren(ctx);
+
+        return null;
+    }
+
+    @Override
+    public Void visitRe(@NotNull PoCoParser.ReContext ctx) {
+        if (PoCoUtils.notParsingArgs(parsFlags)) {
+            if (ctx.qid() != null) {
+                handleQidCase(ctx);
+                add2PCHashmaps();
+            } else if (ctx.function() != null) {
+                handleFuncCase(ctx);
+                add2PCHashmaps();
+            } else if (ctx.AT() != null) {
+
+                //variable binding case needs to store binding info 1st, then visit children
+                if (isActionPointCut()) {
+                    varBind4thisPC.put(policyName + ctx.id().getText(), "action");
+                }else
+                    varBind4thisPC.put(policyName + ctx.id().getText(), "result");
+                visitChildren(ctx);
+            } else {
+                visitChildren(ctx);
+            }
+        } else { // handle the case of parsing the parameters
+            if (ctx.rewild() != null) {
+                argStr.append("..,");
+            } else if (ctx.qid() != null) {
+                handleObj4ArgCase(ctx.qid().getText());
+            } else if (ctx.AT() != null) {
+                //record the binding info then parse its children
+                if (closure != null && closure.isVarsContain(policyName + ctx.id().getText())) {
+                    varBind4thisPC.put(policyName + ctx.id().getText(), "result");
+                    objParams.put(policyName + ctx.id().getText(), "result");
+                    visitChildren(ctx);
+                } else
+                    PoCoUtils.throwNoSuchVarExpection(ctx.id().getText());
+            } else if (ctx.object() != null) {
+                handleArgasObjCase(ctx);
+            } else {
+                if (ctx.getText().trim().length() > 0 && !ctx.getText().trim().equals("()")) {
+                    String temp = PoCoUtils.attachPolicyName(policyName, ctx.getText().trim());
+                    if (temp.endsWith("()"))
+                        temp = temp.substring(0, temp.length() - 2);
+                    argStr.append(temp + ",");
+                }
+            }
         }
         return null;
     }
 
-    public Hashtable<String, HashSet<String>> getPCStrings() {
-        return new Hashtable<String, HashSet<String>>(nodes);
+    private void handleArgasObjCase(@NotNull PoCoParser.ReContext ctx) {
+        if (ctx.object().POUND() != null)
+            argStr.append(ctx.object().getText());
+        else if (ctx.DOLLAR() != null)
+            argStr.append(ctx.getText());
+        else   //Null case
+            argStr.append("(..)");
     }
 
-    public Hashtable<String, HashSet<String>> getPCStrs4Result() {
-        return new Hashtable<String, HashSet<String>>(nodes4Result);
+    private void handleObj4ArgCase(String str) {
+        // 1. check the var list and var type and value the info if found, otherwise
+        // 1. check the pre-defined functions and load the info if found, otherwise
+        // 3. raise the NullPointerException
+        if (closure != null && closure.isVarsContain(policyName + str)) {
+            String varTyp = closure.loadFrmVars(policyName + str).getVarType();
+            objParams.put(policyName + str, "result");
+            argStr.append("#" + varTyp + "{$" + policyName + str + "},");
+        } else if (closure != null && closure.isFunctionsContain(policyName + str)) {
+            argStr.append(closure.getFunctionContext(policyName + str) + ",");
+        } else {
+            PoCoUtils.throwNoSuchVarExpection(str);
+        }
+
     }
 
-    public Hashtable<String, HashSet<String>> getPCStrs4Promoter() {
-        return new Hashtable<String, HashSet<String>>(nodes4PromoterRes);
+    private void handleFuncCase(@NotNull PoCoParser.ReContext ctx) {
+        //1. first parse the method name info,
+        //  1.1 constructor case needs to attach "new" to the method name
+        //  1.2 otherwise, get the method name
+        if (ctx.function().INIT() != null) {
+            pointcutStr.append(ctx.function().fxnname().getText() + "new");
+        } else {
+            String temp = ctx.function().fxnname().getText().trim();
+            pointcutStr.append(PoCoUtils.formatFuncRetTyp(temp));
+        }
+        // 3. parsing the function parameters
+        handlePara4FunCase(ctx);
     }
 
-    public HashSet<String> getObjParams() {
+    private void handlePara4FunCase(@NotNull PoCoParser.ReContext ctx) {
+        //if arglist is null then attach "()", otherwise get the arg info
+        if (ctx.function().arglist() == null || ctx.function().arglist().getText().trim().length() == 0)
+            pointcutStr.append("()");
+        else {
+            flag4ArgParsing();
+            visitChildren(ctx);
+            pointcutStr.append("(" + PoCoUtils.trimEndPunc(argStr.toString(), ",") + ")");
+            parsFlags.pop();
+        }
+    }
+
+    private void handleQidCase(@NotNull PoCoParser.ReContext ctx) {
+        // 1. check to see if it is and method call from an object, if so
+        //    1.1 attach the policy name to the variable name
+        //    1.2 store the object into objParams HashMap
+        // 2. if not the case above, then need load function info from closure
+        if (isMthdCallFrmObj(ctx.qid().getText())) {
+            up8ObjVarName(PoCoUtils.objMethodCall(ctx.qid().getText()));
+        } else {
+            String funcStr = getFunInfoFrmClosure(policyName + ctx.qid().getText());
+            funcStr = PoCoUtils.formatFuncRetTyp(funcStr);
+            pointcutStr.append(funcStr);
+        }
+
+        // 3. parsing the function parameters
+        if (ctx.opparamlist() != null)
+            handlePara4Qid(ctx);
+    }
+
+    private String getFunInfoFrmClosure(String qidStr) {
+        // if it is the function pre-defined, need get the func info from closure
+        // 1. check the pre-defined functions and load the info if found, otherwise
+        // 2. check the var list and load the info if found, otherwise
+        // 3. raise the NullPointerException
+        if (closure != null && closure.isFunctionsContain(qidStr)) {
+            return closure.getFunctionContext(qidStr);
+        } else if (closure != null && closure.isVarsContain(qidStr)) {
+            objParams.put(qidStr, "action");
+            return closure.getVarContext(qidStr);
+        } else
+            throw new NullPointerException("No such var named " + qidStr + " exist.");
+    }
+
+    private void handlePara4Qid(@NotNull PoCoParser.ReContext ctx) {
+        //1. first flag for parsing parameters and reset ArgStr
+        flag4ArgParsing();
+        //2. parse the parameters
+        visitRe(ctx.opparamlist().re());
+        //3. append parameter info to the function name
+        if (pointcutStr.toString().indexOf("(") == -1)
+            pointcutStr.append("(" + PoCoUtils.trimEndPunc(argStr.toString(), ",") + ")");
+        //4. pop the flag
+        parsFlags.pop();
+    }
+
+    private void up8ObjVarName(String[] objInfos) {
+        //  if closure is null or the var is not declared raise exception, otherwise
+        //      1. attach the policy name to the variable name
+        //      2. store the object into objParams HashMap
+        if (closure != null && closure.isVarsContain(policyName + objInfos[0])) {
+            pointcutStr.append("$" + policyName + objInfos[0] + "." + objInfos[1]);
+            objParams.put(policyName + objInfos[0], "result");
+        } else
+            PoCoUtils.throwNoSuchVarExpection(objInfos[0]);
+    }
+
+    /**
+     * //check to see if it is a method call from an object
+     *
+     * @param str
+     * @return return true if it is a method call from an object
+     */
+    private boolean isMthdCallFrmObj(String str) {
+        return PoCoUtils.objMethodCall(str) != null;
+    }
+
+    public HashMap<String, HashMap<String, String>> getPCStrings() {
+        return frmActPT2BndVar;
+    }
+
+    public HashMap<String, HashMap<String, String>> getPCStrs4Result() {
+        return frmResPT2BndVar;
+    }
+
+    public HashMap<String, HashMap<String, String>> getPCStrs4Promoter() {
+        return frmPrmResPT2BndVar;
+    }
+
+    public HashMap<String, String> getObjParams() {
         return objParams;
     }
 
-    public void add2NodesNodes4Result(String pointcutStr) {
-        pointcutStr = pointcutStr.trim();
-        if (!isResult) {
-            //action on the LHS, add to nodes
-            if (isLHS) {
-                if (nodes.containsKey(pointcutStr))
-                    varBind4thisPC.addAll(nodes.get(pointcutStr));
-                nodes.put(pointcutStr, varBind4thisPC);
+    private void add2PCHashmaps() {
+        String ptStr = this.pointcutStr.toString().trim();
+        //1. reset global variable pointcutStr
+        resetPTStr();
+
+        //2. add to the appropriate pointcut set
+        if (!PoCoUtils.isResultFlag(parsFlags)) {
+            //Add this pointcut to action set if it is an LHS action pointcut
+            if (PoCoUtils.isActionFlag(parsFlags)) {
+                addUp8ActionSet(ptStr);
             } else {
-                //not result and RHS, if in action then remove and add to result, or add to promoted
-                if (nodes.containsKey(pointcutStr)) {
-                    varBind4thisPC.addAll(nodes.get(pointcutStr));
-                    nodes.put(pointcutStr, varBind4thisPC);
-                } else {
-                    if (nodes4Promoter.containsKey(pointcutStr))
-                        varBind4thisPC.addAll(nodes4Promoter.get(pointcutStr));
-                    nodes4Promoter.put(pointcutStr, varBind4thisPC);
-                }
-            }
-        } else {
-            //if it already in the promoted event,
-            if (nodes4Promoter.containsKey(pointcutStr)) {
-                varBind4thisPC.addAll(nodes4Promoter.get(pointcutStr));
-                nodes4Promoter.remove(pointcutStr);
-                nodes4PromoterRes.put(pointcutStr, varBind4thisPC);
-            } else if (nodes4PromoterRes.containsKey(pointcutStr)) {
-                varBind4thisPC.addAll(nodes4PromoterRes.get(pointcutStr));
-                nodes4PromoterRes.put(pointcutStr, varBind4thisPC);
-            } else { //need monitor the result
-                if (nodes.containsKey(pointcutStr)) {
-                    varBind4thisPC.addAll(nodes.get(pointcutStr));
-                    nodes.put(pointcutStr, varBind4thisPC);
-                }
-                if (nodes4Result.containsKey(pointcutStr))
-                    varBind4thisPC.addAll(nodes4Result.get(pointcutStr));
-                nodes4Result.put(pointcutStr, varBind4thisPC);
+                //pointcut is not an IRE result and it is on the RHS of the exchange, then
+                // 1. if there exists a same pointcut in action set, update the action set
+                // is necessary due to the variable binding information
+                // 2. otherwise, the pointcut will be added to promoted action set
+                if (frmActPT2BndVar.containsKey(ptStr))
+                    addUp8ActionSet(ptStr);
+                else
+                    addUp8PromtnSet(ptStr);
             }
         }
-        varBind4thisPC = new HashSet<String>();
-    }
-
-    public String getFunctionName(String str) {
-        int leftPara = str.indexOf("(");
-        int righPara = str.indexOf(")");
-        if (leftPara != -1 && righPara != -1 && leftPara < righPara)
-            return str.substring(0, leftPara);
-        return str;
-    }
-
-    public boolean isEmptyParent(String str) {
-        str = str.trim();
-        if (str.length() >= 2 && str.charAt(0) == '(' && str.charAt(str.length() - 1) == ')') {
-            if (str.length() == 2)
-                return true;
-            if (str.substring(1, str.length() - 1).trim().length() == 0)
-                return true;
+        else {//the pointcut is result case
+            //1. if it is in promotion set then
+            //   a. remove it from the promotion set
+            //   b. add it to the promotion result set
+            //2. if it is in promotion result set, then update the promotion result set,otherwise
+            //3. if not all the case above then add to the result set
+            if (frmPrmPT2BndVar.containsKey(ptStr)) {
+                removeFrmPromSet(ptStr);
+                addUp8PrmResSet(ptStr);
+            } else if (frmPrmResPT2BndVar.containsKey(ptStr))
+                addUp8PrmResSet(ptStr);
+            else
+                addUp8ResultSet(ptStr);
         }
-        return false;
+        resetVarBind4PC();
     }
+
+    private void removeFrmActSet(String ptStr) {
+        removeFrmSet(ptStr, frmActPT2BndVar);
+    }
+
+    private void removeFrmPromSet(String ptStr) {
+        removeFrmSet(ptStr, frmPrmPT2BndVar);
+    }
+
+    private void removeFrmSet(String ptStr, HashMap<String, HashMap<String, String>> target) {
+        varBind4thisPC.putAll(target.get(ptStr));
+        target.remove(ptStr);
+    }
+
+    private void addUp8ActionSet(String ptStr) {
+        addUp8Set(ptStr, frmActPT2BndVar);
+    }
+
+    private void addUp8ResultSet(String ptStr) {
+        addUp8Set(ptStr, frmResPT2BndVar);
+    }
+
+    private void addUp8PromtnSet(String ptStr) {
+        addUp8Set(ptStr, frmPrmPT2BndVar);
+    }
+
+    private void addUp8PrmResSet(String ptStr) {
+        addUp8Set(ptStr, frmPrmResPT2BndVar);
+    }
+
+    private void addUp8Set(String ptStr, HashMap<String, HashMap<String, String>> target) {
+        if (target.containsKey(ptStr))
+            varBind4thisPC.putAll(target.get(ptStr));
+
+        target.put(ptStr, varBind4thisPC);
+    }
+
+    private void flag4ArgParsing() {
+        parsFlags.push(ParsFlgConsts.parsArgs);
+        //resetArgStr
+        this.argStr = new StringBuilder();
+    }
+
+    private boolean isActionPointCut() {
+        return (PoCoUtils.isActionFlag(parsFlags));
+    }
+
+    private void resetVarBind4PC() {
+        varBind4thisPC = new HashMap<String, String>();
+    }
+
+    public String getPolicyName() {
+        return policyName.substring(0, policyName.length() - 1);
+    }
+
 }

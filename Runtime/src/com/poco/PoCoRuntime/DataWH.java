@@ -7,33 +7,59 @@ package com.poco.PoCoRuntime;
 import java.util.HashMap;
 
 public final class DataWH {
-    public static HashMap<String,String> closure = new HashMap<String,String>();
-    private DataWH() { }
     public static HashMap<String,TypeVal> dataVal = new HashMap<String,TypeVal>();
+    
+    public static void updateValue(String key, Object obj) {
+    	String  typVal  = dataVal.get(key).getType();
+    	String  typeAttr = dataVal.get(key).getAttribute();
+        dataVal.remove(key);
+        DataWH.dataVal.put(key, new TypeVal(typVal, typeAttr, obj));
+    }
+    
+    public static void updateAttr(String key, String typeAttr) {
+    	String  typVal = dataVal.get(key).getType();
+    	Object  obj    = dataVal.get(key).getObj();
+        dataVal.remove(key);
+        DataWH.dataVal.put(key, new TypeVal(typVal, typeAttr, obj));
+    }
 }
 
 
 class TypeVal {
-    public String type;
-    public Object obj;
+    private String type;
+    private String attribute; //use to store the attribute, such as method signature
+    private Object obj;
 
     TypeVal() {
-        this.type = "java.lang.String";
-        this.obj = null;
+        this.type      = "java.lang.String";
+        this.attribute = null;
+        this.obj       = null;
     }
 
     TypeVal(String type) {
-        this.type = type;
-        this.obj = null;
+    	this.type      = type;
+        this.attribute = null;
+        this.obj       = null;
     }
 
     TypeVal(String type, Object obj) {
-        this.type = type;
-        this.obj = obj;
+    	this.type      = type;
+        this.attribute = null;
+        this.obj       = obj;
     }
 
+    TypeVal(String type, String attribute, Object obj) {
+    	this.type      = type;
+        this.attribute = attribute;
+        this.obj       = obj;
+    }
+    
     public String getType() {
         return type;
+    }
+    
+    public String getAttribute() {
+        return this.attribute;
     }
 
     public void setType(String type) {
@@ -47,4 +73,5 @@ class TypeVal {
     public void setObj(Object obj) {
         this.obj = obj;
     }
+    
 }

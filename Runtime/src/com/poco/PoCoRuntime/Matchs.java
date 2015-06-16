@@ -101,10 +101,10 @@ public class Matchs implements Matchable {
         // Short-circuited OR operation
         if (isOR) {
             for (Matchable child : children) {
-                if (child.accepts(event))  
+                if (child.accepts(event))  {
                     return true;
+                }
             }
-
             return false;
         } 
         // Both AND and NOT require all children to be evaluated
@@ -112,7 +112,6 @@ public class Matchs implements Matchable {
         for (int i = 0; i < children.size(); i++) {
             results[i] = children.get(i).accepts(event); 
         }
-         
         if (isNOT) {  
             return !results[0];
         } else if (isAND) {
@@ -126,7 +125,6 @@ public class Matchs implements Matchable {
         else { //Single child and isNot=false
         	return results[0];
         }
-        //return false;
     }
 
     /*
@@ -153,6 +151,5 @@ public class Matchs implements Matchable {
 		return "Matchs [children=" + children + ", isAND=" + isAND + ", isOR="
 				+ isOR + ", isNOT=" + isNOT + "]";
 	}
-    
     
 }

@@ -8,11 +8,10 @@ import org.aspectj.lang.JoinPoint;
  * information for PoCo policies to make a decision.
  */
 public class Event {
-    private String signature;
-    private String eventType;
-    private String promotedMethod;
+    protected String signature;
+    protected String eventType;
     
-    private Object result = null; 
+    protected Object result = null; 
 
     public Object getResult() {
 		return result;
@@ -21,14 +20,6 @@ public class Event {
     public void setResult(Object result) {
     	this.result = result;
     }
-
-	public String getPromotedMethod() {
-		return promotedMethod;
-	}
-
-	public void setPromotedMethod(String promotedMethod) {
-		this.promotedMethod = promotedMethod;
-	}
 
 	public String getEventType() {
 		return eventType;
@@ -54,7 +45,13 @@ public class Event {
     }
 
     public Event(JoinPoint joinPoint) {
-        this.signature = joinPoint.getSignature().toString();
+    	String methodName = RuntimeUtils.getMethodName(joinPoint.getSignature().toLongString());
+    	String argStr     = RuntimeUtils.getfunArgstr(joinPoint.getSignature().toLongString());
+    	
+    	if(joinPoint.getKind().equals("constructor-call"))   //the constructor case, attach.new
+        	this.signature = methodName +".new("+ argStr + ")";
+        else
+        	this.signature = methodName +"("+ argStr + ")";
     }
 
     public String getSignature() {
@@ -66,6 +63,4 @@ public class Event {
 		return "Event [signature=" + signature + ", eventType=" + eventType
 				+ ", result=" + result + "]";
 	}
-    
-    
 }

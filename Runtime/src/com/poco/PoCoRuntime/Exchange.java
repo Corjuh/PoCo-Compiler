@@ -6,6 +6,7 @@ package com.poco.PoCoRuntime;
 public class Exchange extends EventResponder implements Matchable, Queryable {
     private Matchable matcher;
     private SRE returnSRE;
+    private boolean isQueried;
 
     public Exchange() {
         // Initialize...
@@ -23,14 +24,14 @@ public class Exchange extends EventResponder implements Matchable, Queryable {
     public boolean accepts(Event event) {
         if(matcher == null) //_ case
             return true;
-        return matcher.accepts(event);
+        return  matcher.accepts(event); 
     }
 
     @Override
     public SRE query(Event event) {
-        if (this.accepts(event)) {
+        if (this.accepts(event)) 
             return returnSRE;
-        }
+         
         return null;
     }
 
@@ -38,5 +39,9 @@ public class Exchange extends EventResponder implements Matchable, Queryable {
     public String toString() {
         return "Exchange [matcher=" + matcher + ", returnSRE=" + returnSRE
                 + "]";
+    }
+    
+    public void resetChildrenCursor(){
+    	return;
     }
 }
