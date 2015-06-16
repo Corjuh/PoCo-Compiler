@@ -9,13 +9,21 @@ import java.util.regex.Pattern;
  */
 public class PoCoUtils {
 
+    public static String getMethodName(String methodStr) {
+        return getMethodInfo(methodStr,1);
+    }
+
+    public static String getMethodArgLs(String methodStr) {
+        return getMethodInfo(methodStr,2);
+    }
+
     /**
      * This method is used to get info for a method
      * @param methodStr
      * @param mode 1: method Name, 2: method arglist
      * @return
      */
-    public static String getMethodInfo(String methodStr, int mode) {
+    private static String getMethodInfo(String methodStr, int mode) {
         String  reg     = "(.+)\\((.*)\\)";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(methodStr);
@@ -195,8 +203,7 @@ public class PoCoUtils {
 
     public static String attachPolicyName(String policyName, String str) {
         str = str.replace("$", "$" + policyName);
-
-        String  reg     = "(.+)\\$(\\w+\\(\\))(.*)";
+        String  reg     = "(.*)\\$(\\w+\\(\\))(.*)";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(str);
         while (matcher.find()) {
@@ -207,7 +214,6 @@ public class PoCoUtils {
             }
         }
         return str;
-
     }
 
     public static void throwNoSuchVarExpection(String varName) {

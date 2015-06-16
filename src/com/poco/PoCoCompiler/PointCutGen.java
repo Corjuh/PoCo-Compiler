@@ -191,7 +191,7 @@ public class PointCutGen {
             Hashtable<String, String> argVal4Match = null;
 
             //Step 1: get name, return type of the method that needs to be monitored.
-            String methodName = PoCoUtils.getMethodInfo(entry, 1);
+            String methodName = PoCoUtils.getMethodName(entry);
 
 
             //Step 2: get parameters info of the method that needs to be monitored.

@@ -242,7 +242,11 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             up8ObjVarName(PoCoUtils.objMethodCall(ctx.qid().getText()));
         } else {
             String funcStr = getFunInfoFrmClosure(policyName + ctx.qid().getText());
-            funcStr = PoCoUtils.formatFuncRetTyp(funcStr);
+            //it is the variable case, will be dynamic binded
+            if(funcStr == null)
+                funcStr = "$" +policyName + ctx.qid().getText();
+            else
+                funcStr = PoCoUtils.formatFuncRetTyp(funcStr);
             pointcutStr.append(funcStr);
         }
 

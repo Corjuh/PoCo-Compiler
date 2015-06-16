@@ -779,6 +779,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 String matchStr = null;
                 if (ctx.qid() != null) {
                     matchStr = loadFromClosure(policyName + "_" + ctx.qid().getText());
+                    if(matchStr == null)
+                        matchStr = "$" + policyName + "_" + ctx.qid().getText();
                 }
                 else if (ctx.function() != null) {
                     matchStr = ctx.function().fxnname().getText();
@@ -898,7 +900,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         if (closure != null && closure.loadFrmFunctions(varName) != null) {
             returnStr = closure.loadFrmFunctions(varName).getVarContext().trim();
         } else if (closure != null && closure.loadFrmVars(varName) != null) {
-            returnStr = closure.loadFrmVars(varName).getVarContext().trim();
+            if(closure.loadFrmVars(varName).getVarContext()!= null)
+                returnStr = closure.loadFrmVars(varName).getVarContext().trim();
         }
         return returnStr;
     }
