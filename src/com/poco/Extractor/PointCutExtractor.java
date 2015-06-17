@@ -20,6 +20,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     private String policyName = "";
 
     private Stack<Integer> parsFlags;
+    private Stack<String> bindVarName;
 
     //used to store all the parameters that needed as obj in order to promote or process
     //since not all the variables are needed as obj type
@@ -39,6 +40,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         this.pointcutStr = new StringBuilder();
         this.argStr = new StringBuilder();
         this.parsFlags = new Stack<>();
+        this.bindVarName = new Stack<>();
     }
 
     public void resetPTStr() {
@@ -140,18 +142,16 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         if (PoCoUtils.notParsingArgs(parsFlags)) {
             if (ctx.qid() != null) {
                 handleQidCase(ctx);
+                addBindVar2PC();
                 add2PCHashmaps();
             } else if (ctx.function() != null) {
                 handleFuncCase(ctx);
+                addBindVar2PC();
                 add2PCHashmaps();
             } else if (ctx.AT() != null) {
-
-                //variable binding case needs to store binding info 1st, then visit children
-                if (isActionPointCut()) {
-                    varBind4thisPC.put(policyName + ctx.id().getText(), "action");
-                }else
-                    varBind4thisPC.put(policyName + ctx.id().getText(), "result");
+                bindVarName.push(policyName + ctx.id().getText());
                 visitChildren(ctx);
+                bindVarName.pop();
             } else {
                 visitChildren(ctx);
             }
@@ -161,6 +161,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             } else if (ctx.qid() != null) {
                 handleObj4ArgCase(ctx.qid().getText());
             } else if (ctx.AT() != null) {
+                bindVarName.push(policyName + ctx.id().getText());
                 //record the binding info then parse its children
                 if (closure != null && closure.isVarsContain(policyName + ctx.id().getText())) {
                     varBind4thisPC.put(policyName + ctx.id().getText(), "result");
@@ -168,6 +169,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                     visitChildren(ctx);
                 } else
                     PoCoUtils.throwNoSuchVarExpection(ctx.id().getText());
+                bindVarName.pop();
             } else if (ctx.object() != null) {
                 handleArgasObjCase(ctx);
             } else {
@@ -180,6 +182,17 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             }
         }
         return null;
+    }
+
+    private void addBindVar2PC() {
+        if (bindVarName.size() > 0) {
+            //variable binding case needs to store binding info 1st, then visit children
+            if (isActionPointCut()) {
+                varBind4thisPC.put(bindVarName.peek(), "action");
+            } else {
+                varBind4thisPC.put(bindVarName.peek(), "result");
+            }
+        }
     }
 
     private void handleArgasObjCase(@NotNull PoCoParser.ReContext ctx) {
@@ -243,8 +256,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         } else {
             String funcStr = getFunInfoFrmClosure(policyName + ctx.qid().getText());
             //it is the variable case, will be dynamic binded
-            if(funcStr == null)
-                funcStr = "$" +policyName + ctx.qid().getText();
+            if (funcStr == null)
+                funcStr = "$" + policyName + ctx.qid().getText();
             else
                 funcStr = PoCoUtils.formatFuncRetTyp(funcStr);
             pointcutStr.append(funcStr);
@@ -338,8 +351,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 else
                     addUp8PromtnSet(ptStr);
             }
-        }
-        else {//the pointcut is result case
+        } else {//the pointcut is result case
             //1. if it is in promotion set then
             //   a. remove it from the promotion set
             //   b. add it to the promotion result set

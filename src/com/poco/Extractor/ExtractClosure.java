@@ -126,12 +126,18 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                             String temp = PoCoUtils.attachPolicyName(policyName, str);
                             if (closure != null && closure.isFunctionsContain(temp.substring(1))) {
                                 str = closure.getFunctionContext(temp);
-                            } else {
+                            }
+                            else if(funArgTypLs.size()>0) {
                                 String varType = PoCoUtils.getObjType(funArgTypLs.peek());
                                 String varName = PoCoUtils.attachPolicyName(policyName, str);
                                 str = "#" + varType + "{" + varName + "}" + ",";
                                 funArgTypLs.pop();
                             }
+                            else if (closure != null && closure.isVarsContain(temp.substring(1))) {
+                                str = "$" + temp + ",";
+                            }
+                            else
+                                PoCoUtils.throwNoSuchVarExpection(temp.substring(1));
                         } else if (ctx.rewild() != null) {
                             str = funArgTypLs.peek() + ",";
                             funArgTypLs.pop();

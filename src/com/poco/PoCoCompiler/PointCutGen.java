@@ -72,6 +72,7 @@ public class PointCutGen {
     private void outAspectPrologue() {
         outLine(0, "import com.poco.PoCoRuntime.*;");
         outLine(0, "import java.lang.reflect.Method;\n");
+        outLine(0, "import java.lang.reflect.Constructor;\n");
         outLine(0, "public aspect %s {", aspectName);
         outLine(1, "private DummyRootPolicy root = new DummyRootPolicy( new %s() );\n", policyName);
     }
@@ -193,7 +194,6 @@ public class PointCutGen {
             //Step 1: get name, return type of the method that needs to be monitored.
             String methodName = PoCoUtils.getMethodName(entry);
 
-
             //Step 2: get parameters info of the method that needs to be monitored.
             // a. 1st check the parameter object is a variable or not, and load info from the closure if so;
             // b. 2nd check the parameter's value is a variable or not, if it is a variable, then need check
@@ -218,7 +218,12 @@ public class PointCutGen {
                             //put info in monitorVal
                             if (varsNeed2Bind == null)
                                 varsNeed2Bind = new Hashtable<>();
-                            varsNeed2Bind.put(" value" + count, argVal);
+
+                            if(argTyp == null)
+                                varsNeed2Bind.put("java.lang.String value" + count, argVal);
+                            else
+                                varsNeed2Bind.put(argTyp +" value" + count, argVal);
+
                             bindingVars.remove(argVal.substring(1));
                         }
                         //store the arg along with the value it need to be matched
@@ -249,7 +254,7 @@ public class PointCutGen {
                 Set vars = bindingVars.keySet();
                 for(Iterator<String> it = vars.iterator();it.hasNext(); ) {
                     String varName = (String) it.next();
-                    varsNeed2Bind.put("\""+methodSig+ "\"", "$"+varName.toString());
+                    varsNeed2Bind.put("\""+methodSig+ "\"", "java.lang.String $"+varName.toString());
                 }
             }
 
@@ -308,19 +313,19 @@ public class PointCutGen {
             if (conditionState != null && conditionState.length() > 0) {
                 outLine(2, "if (" + conditionState + ") {");
                 valueBind4Advices(varsNeed2Bind, 3);
-                outLine(3, "root.queryAction(new Event(thisJoinPoint));");
+                outLine(3, "root.queryAction(new Event(thisJoinPoint, \"Action\"));");
                 outLine(3, "return proceed(%s);", argStrs[2]);
                 outLine(2, "} else");
                 outLine(3, "return proceed(%s);", argStrs[2]);
             } else {
                 valueBind4Advices(varsNeed2Bind, 2);
-                outLine(2, "root.queryAction(new Event(thisJoinPoint));");
+                outLine(2, "root.queryAction(new Event(thisJoinPoint, \"Action\"));");
                 outLine(2, "return proceed(%s);", argStrs[2]);
             }
         }
         else {
             outLine(1, "Object around(): %s() {", pointcutName);
-            outLine(2, "root.queryAction(new Event(thisJoinPoint));");
+            outLine(2, "root.queryAction(new Event(thisJoinPoint, \"Action\"));");
             outLine(2, "return proceed();");
         }
         outLine(1, "}\n");
@@ -346,7 +351,7 @@ public class PointCutGen {
                 outLine(2, "else");
                 outLine(3, "return proceed(%s);", argStrs[2]);
             } else {
-                outLine(2, "root.queryAction(new Event(thisJoinPoint));");
+                outLine(2, "root.queryAction(new Event(thisJoinPoint, \"Result\"));");
                 valueBind4Advices(varsNeed2Bind, 2);
                 outLine(2, "return proceed(%s);", argStrs[2]);
             }
@@ -374,7 +379,7 @@ public class PointCutGen {
                 outLine(2, "if (" + conditionState + ") {");
 
                 valueBind4Advices(varsNeed2Bind, 3);
-                outLine(3, "root.queryAction(new Event(thisJoinPoint));");
+                outLine(3, "root.queryAction(new Event(thisJoinPoint, \"Action\"));");
                 //before will do not proceed the action, so no variable binding for result
                 outLine(3, "return;");
                 outLine(2, "}");
@@ -389,7 +394,7 @@ public class PointCutGen {
 
             outLine(1, "before(): %s() {", pointcutName);
             valueBind4Advices(varsNeed2Bind, 2);
-            outLine(3, "root.queryAction(new Event(thisJoinPoint));");
+            outLine(3, "root.queryAction(new Event(thisJoinPoint, \"Action\"));");
             //before will do not proceed the action, so no variable binding for result
             outLine(3, "return;");
             outLine(1, "}\n");
@@ -397,13 +402,7 @@ public class PointCutGen {
     }
 
     private void genEvent4queryAction(int offset) {
-        outLine(offset, "Event event = new Event(thisJoinPoint);");
-        outLine(offset, "event.setEventType(\"Result\");");
-        //if the monitoring method have no return type
-        outLine(offset, "if(RuntimeUtils.hasReturnValue(thisJoinPoint.getSignature().toString()))");
-        outLine(offset + 1, "event.setResult(ret);");
-        outLine(offset, "else");
-        outLine(offset + 1, "event.setResult(\"done\");");
+        outLine(offset, "Event event = new Event(thisJoinPoint, \"Result\", ret);");
         outLine(offset, "root.queryAction(event);");
         outLine(offset, "return event.getResult();");
     }
@@ -463,10 +462,7 @@ public class PointCutGen {
 
             String str = genValueofStr(type, valName);
 
-            if (mode == 0)
-                return "RuntimeUtils.StringMatch(" + str + ", \"" + matchVal + "\")";
-            else //if(mode == 1)
-                return "RuntimeUtils.StringMatch(" + str + ", DataWH.dataVal.get(\"" + matchVal.substring(1) + "\"))";
+            return "RuntimeUtils.StringMatch(" + str + ", \"" + matchVal + "\")";
         }
         return null;
     }
@@ -503,7 +499,10 @@ public class PointCutGen {
             for (Iterator<String> it = set.iterator(); it.hasNext(); ) {
                 String argName = it.next();
                 String varName = varsNeed2Bind.get(argName).toString().substring(1);
-                outLine(offset, "DataWH.updateValue(\"" + varName + "\"," + argName + ");");
+                //typVal[0] will be the new type  of the variable and
+                //typVal[1] will be the new value of the variable
+                String[] typVal = argName.replace("..", "*").split("\\s+");
+                outLine(offset, "DataWH.updateTyeVal(\"" + varName + "\", \"" + typVal[0] + "\", " +typVal[1] + ");");
             }
         }
     }
@@ -540,13 +539,11 @@ public class PointCutGen {
 
     private void outAdvicePrologue4Result(String pointcutName) {
         outLine(1, "Object around(Method run): %s(run) {", pointcutName);
-        outLine(2, "String className = RuntimeUtils.trimClassName(run.getDeclaringClass().toString());");
-        outLine(2, "className =RuntimeUtils.concatClsMethod(className, run.getName());");
-        outLine(2, "if (RuntimeUtils.matchingStack(root.promotedEvents,className)) {");
+        outLine(2, "if (RuntimeUtils.matchingStack(root.promotedEvents,run)) {");
         outLine(3, "root.promotedEvents.pop();");
         outLine(3, "Object ret = proceed(run);");
         genVarBing4Prom();
-        outLine(3, "PromotedEvent event = new PromotedEvent(thisJoinPoint,RuntimeUtils.getInvokeMethoSig(run),\"Result\",ret);");
+        outLine(3, "PromotedEvent event = new PromotedEvent(thisJoinPoint,run,\"Result\",ret);");
         outLine(3, "root.queryAction(event);");
         outLine(3, "return ret;");
         outLine(2, "}");
@@ -557,29 +554,13 @@ public class PointCutGen {
 
     private void outAdviceInvokeConstructor(String pointcutName) {
         outLine(1, "Object around(Constructor run): %s(run) {", pointcutName);
-        outLine(2, "String className = RuntimeUtils.trimClassName(run.getDeclaringClass().toString()) + \".new\";");
-        outLine(2, "if (RuntimeUtils.matchingStack(root.promotedEvents,className)) {");
+        outLine(2, "if (RuntimeUtils.matchStack4Constr(root.promotedEvents,run)) {");
         outLine(3, "root.promotedEvents.pop();");
         outLine(3, "Object ret = proceed(run);");
-        //genVarBing4Prom();
-        outLine(3, "Event event = new Event(thisJoinPoint);");
-        outLine(3, "event.setEventType(\"Result\");");
-        outLine(3, "if(run.getParameterCount() >0) {");
-        outLine(4, "String argStr = \"\";");
-        outLine(4, "Parameter[] paras = run.getParameters();");
-        outLine(4, "for(int i = 0; i<paras.length; i++) {");
-        outLine(5, "String temp = paras[i].getVarType().toString();");
-        outLine(5, "if(temp.startsWith(\"class \"))");
-        outLine(6, "argStr += temp.substring(6);");
-        outLine(5, "else");
-        outLine(6, "argStr += temp;");
-        outLine(5, "if(i != paras.length-1)");
-        outLine(6, "argStr +=\",\";");
-        outLine(4, "}");
-        outLine(4, "className += \"(\"+ argStr + \")\";");
-        outLine(3, "}");
-        outLine(3, "event.setPromotedMethod(className);");
-        outLine(3, "event.setResult(ret);");
+
+        genVarBing4Prom();
+
+        outLine(3, "PromotedEvent event = new PromotedEvent(thisJoinPoint, run, ret);");
         outLine(3, "root.queryAction(event);");
         outLine(3, "return ret;");
         outLine(2, "}");
