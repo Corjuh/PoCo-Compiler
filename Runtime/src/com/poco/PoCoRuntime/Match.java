@@ -17,7 +17,7 @@ public class Match implements Matchable {
 
 	/**
 	 * This constructor creates an Action match (assuming is action by default)
-	 * 
+	 *
 	 * @param matchString
 	 */
 	public Match(String matchString) {
@@ -36,7 +36,7 @@ public class Match implements Matchable {
 
 	/**
 	 * Constructor for Match when it is result instead of action
-	 * 
+	 *
 	 * @param matchString
 	 * @param isAction
 	 * @param isResult
@@ -62,7 +62,7 @@ public class Match implements Matchable {
 	}
 
 	public String getEventSig(Event evt) {
-		return evt.getSignature(); 
+		return evt.getSignature();
 	}
 
 	@Override

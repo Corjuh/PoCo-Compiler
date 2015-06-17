@@ -57,7 +57,7 @@ public class ResMatch extends Match {
 				String reg = this.resultMatchStr;
 				Pattern ptn = Pattern.compile(reg);
 				Matcher mth = ptn.matcher(event.getResult().toString());
-				if (mth.find()) 
+				if (mth.find())
 					return true;
 			}
 		}
@@ -69,5 +69,4 @@ public class ResMatch extends Match {
 		return "Match [matchString=" + matchString + ", isWildcard="
 				+ isWildcard + ", resultMatchStr=" + resultMatchStr + "]";
 	}
-
 }

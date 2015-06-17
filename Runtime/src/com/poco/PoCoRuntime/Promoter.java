@@ -18,6 +18,24 @@ import java.util.regex.Pattern;
 /**
  * Created by caoyan on 1/30/15.
  */
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.ObjectOutputStream;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
+import java.util.Stack;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Created by caoyan on 1/30/15.
+ */
 public class Promoter {
 	/**
 	 *
@@ -44,14 +62,16 @@ public class Promoter {
 		// if params list is not empty
 		if (toExecute.size() == 3) {
 			String[] params = toExecute.get(2).split(","); // #java.lang.Integer{42}
+
 			rps = ParseParameters(params);
 		}
 		ReflectExecute(obj, className, methodName, rps, objects);
 	}
 
 	private static void ReflectExecute(Object obj, String className,
-			String methodName, ArrayList<ReflectParameter> params, Object[] objs)
+									   String methodName, ArrayList<ReflectParameter> params, Object[] objs)
 			throws Exception {
+
 		try {
 			boolean isfound = false;
 			// get rid of the return type if the string contains it
@@ -78,6 +98,7 @@ public class Promoter {
 								.hasNext();) {
 							String conParam = GetTypeName(conParams[i]
 									.toString());
+
 							if (!conParam.equalsIgnoreCase(it.next()
 									.GetParameterType())) {
 								isfound = false;
@@ -130,7 +151,7 @@ public class Promoter {
 						break;
 					}
 				}
-				
+
 				// found the right method that is we wanted
 				if (isfound) {
 					if (obj != null)
@@ -144,7 +165,7 @@ public class Promoter {
 					}
 				} else {
 					System.out.println("Sorry, cannot find the right method to pomote, "
-									+ "please check the policy definition!");
+							+ "please check the policy definition!");
 				}
 			}
 		} catch (Exception ex) {
@@ -187,15 +208,28 @@ public class Promoter {
 		String reg = "#(.+)\\{(.+)\\}";
 		Pattern pattern = Pattern.compile(reg);
 		Matcher matcher;
-
 		for (int i = 0; i < params.length; i++) {
 			matcher = pattern.matcher(params[i]);
-			
+			//first check if the parameter is an object or not, if so
+			//direct get the object value
 			if (matcher.find()) {
 				String paraTyp = matcher.group(1).toString().trim();
-				// String paraVal = matcher.group(2).toString().trim();
+
+				//if the value is variable, need dynamically update the type
+				//of the argument, since it may be changed.
+				String paraVal = matcher.group(2).toString().trim();
+				if(RuntimeUtils.isVariable(paraVal))
+					paraTyp = DataWH.dataVal.get(paraVal.substring(1)).getType();
+
 				rps.add(new ReflectParameter(paraTyp, null));
-			} else {
+			}
+			//if it is not an object, then must be variable case, need load info
+			//at run time to get correct information about this variable
+			else if(RuntimeUtils.isVariable(params[i])) {
+				String varTyp = DataWH.dataVal.get(params[i].substring(1)).getType();
+				rps.add(new ReflectParameter(varTyp, null));
+			}
+			else {
 				throw new Exception("the parameter you entered is invalid");
 			}
 		}
