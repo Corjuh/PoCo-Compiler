@@ -126,21 +126,22 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                             String temp = PoCoUtils.attachPolicyName(policyName, str);
                             if (closure != null && closure.isFunctionsContain(temp.substring(1))) {
                                 str = closure.getFunctionContext(temp);
-                            }
-                            else if(funArgTypLs.size()>0) {
+                            } else if (funArgTypLs.size() > 0) {
                                 String varType = PoCoUtils.getObjType(funArgTypLs.peek());
                                 String varName = PoCoUtils.attachPolicyName(policyName, str);
                                 str = "#" + varType + "{" + varName + "}" + ",";
                                 funArgTypLs.pop();
-                            }
-                            else if (closure != null && closure.isVarsContain(temp.substring(1))) {
+                            } else if (closure != null && closure.isVarsContain(temp.substring(1))) {
                                 str = "$" + temp + ",";
-                            }
-                            else
+                            } else
                                 PoCoUtils.throwNoSuchVarExpection(temp.substring(1));
                         } else if (ctx.rewild() != null) {
-                            str = funArgTypLs.peek() + ",";
-                            funArgTypLs.pop();
+                            if (funArgTypLs.size() == 0) {
+                                str += "*,";
+                            } else {
+                                str = funArgTypLs.peek() + ",";
+                                funArgTypLs.pop();
+                            }
                         } else
                             str += ",";
                         currParsArgs.append(str);
@@ -157,23 +158,29 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
 
     private void handleVarBinding(@NotNull PoCoParser.ReContext ctx) {
         bindings.push(ctx.id().getText());
+        resetCurrParsVal();
+
         //the case of parsing the functions
         if (isParsClosurFuncs()) {
-            resetCurrParsVal();
             visitChildren(ctx);
             String varName = policyName + bindings.peek();
             if (closure.loadFrmVars(varName) != null) {
                 String typStr = closure.loadFrmVars(varName).getVarType();
                 closure.updateVar(varName, new VarTypeVal(typStr, currParsVal.toString()));
             }
-            bindings.pop();
-        } else { //the case of parsing executions
+        }
+        else { //the case of parsing executions
             String varName = PoCoUtils.attachPolicyName(policyName, "$" + ctx.id().getText());
             if (PoCoUtils.isParsingArg(parsingFlags)) {
                 String varType = PoCoUtils.getObjType(funArgTypLs.peek());
                 currParsArgs.append("#" + varType + "{" + varName + "},");
                 funArgTypLs.pop();
+            }else {
+                visitChildren(ctx);
+                String varType = PoCoUtils.getMethodRtnTyp(currParsVal.toString());
+                closure.updateVar(policyName+bindings.peek(), new VarTypeVal(varType, null));
             }
+            bindings.pop();
         }
     }
 
@@ -182,7 +189,6 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
         if (closure != null && closure.loadFrmFunctions(varName) != null) {
             if (closure.loadFrmFunctions(varName).getVarContext() != null) {
                 String temp = closure.loadFrmFunctions(varName).getVarContext();
-
                 if (ctx.opparamlist() != null) {
                     //get the function arguments' signature
                     String methodName = PoCoUtils.getMethodName(temp);
@@ -197,9 +203,9 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                     parsingFlags.pop();
 
                 }
+                resetCurrParsVal();
                 currParsVal.append(temp);
                 closure.updateFunction(varName, new VarTypeVal("java.lang.String", currParsVal.toString()));
-                resetCurrParsVal();
             }
         }
     }

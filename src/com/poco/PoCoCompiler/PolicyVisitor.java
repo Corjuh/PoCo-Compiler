@@ -6,6 +6,7 @@ import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseVisitor;
 import org.antlr.v4.runtime.misc.NotNull;
 
+import javax.xml.bind.SchemaOutputResolver;
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
 import java.util.Stack;
@@ -273,6 +274,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
             boolean hasAnd = ctx.BOOLBOP() != null && ctx.BOOLBOP().getText().equals("&&");
             boolean hasOr = ctx.BOOLBOP() != null && ctx.BOOLBOP().getText().equals("||");
+
             if (hasAnd || hasOr) {
                 String matchsName = "matchs" + matchsNum++;
                 outLine(3, "Matchs %s = new Matchs();", matchsName);
@@ -303,7 +305,10 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             handleSubsetMatch(ctx);
         } else if (ctx.SREEQUALS() != null) {
             handleEqualsMatch(ctx);
-        } else { //ire case
+        } else if(ctx.AT()!=null) {
+            handleAtMatch(ctx);
+        }
+        else { //ire case
             //set isMatch for ture, so match as @out[`$p'] case will be knowned as match
             flagStack4Exc.push(ParsFlgConsts.isExchMatch);
             visitChildren(ctx);
@@ -311,6 +316,10 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             currentMatch = null;
         }
         return null;
+    }
+
+    private void handleAtMatch(@NotNull PoCoParser.MatchContext ctx) {
+        handleNoIreCase(ctx, "VarMatch");
     }
 
     private void handleInfiniteMatch(@NotNull PoCoParser.MatchContext ctx) {
@@ -327,7 +336,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
     private void handleNoIreCase(@NotNull PoCoParser.MatchContext ctx, String kind) {
         String matchName = kind + matchNum++;
-        outLine(3, kind + " %s = new SubsetMatch(null, null);", matchName);
+        outLine(3, kind + " %s = new " + kind +"(null, null);", matchName);
         visitTheMatch(ctx, matchName);
     }
 
@@ -552,15 +561,14 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 } else if (ctx.function() != null) {
                     content = reIsFuncCase(ctx);
                 } else {
-                    if (PoCoUtils.isParsingArg(flagStack4Arg))
-                        argListStr.append(scrubString(ctx.getText()) + ",");
-                    else
-                        content = scrubString(ctx.getText());
+                    if (PoCoUtils.isParsingArg(flagStack4Arg)) {
+                        argListStr.append(ctx.getText() + ",");
+                    }else
+                        content = ctx.getText();
                 }
             }
             if (PoCoUtils.isParsingArg(flagStack4Arg))
                 return null;
-
             content = PoCoUtils.validateStr(content);
             if (PoCoUtils.isReBopFlag(flagStack4RE)) {
                 reBopStr.append(content + "|");
@@ -580,7 +588,10 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 } else if (PoCoUtils.isIREMatch(flagStack4RE)) {
                     handleRE4IREcase(content);
                 } else if (PoCoUtils.isExchMatch(flagStack4Exc)) {
-                    content = PoCoUtils.getMethodSignature(content);
+                    //if content is variable then do nothing, otherwise make sure get
+                    //the valid method signature for matching string
+                    if(!PoCoUtils.isVariable(content))
+                        content = PoCoUtils.getMethodSignature(content);
                     outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content);
                 }
             }
@@ -614,7 +625,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 flagStack4Arg.pop();
                 content += PoCoUtils.trimEndPunc(argListStr.toString(), ",");
             } else
-                content += ".*";
+                content += "*";
+                //content += ".*";
             content += ")";
         }
         return content;
@@ -648,7 +660,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 content = content.substring(0, content.indexOf('('));
             content += "(";
             if (ctx.opparamlist().getText().equals("%")) {
-                content += ".*";
+                content += "*";
+                //content += ".*";
             } else {
                 resetArgStr();
                 flagStack4Arg.push(ParsFlgConsts.parsArgs);
@@ -742,7 +755,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             } else if (ctx.rewild() != null) {
                 argListStr.append("*,");
             } else {
-                argListStr.append(scrubString(ctx.getText()) + ",");
+                argListStr.append(ctx.getText() + ",");
             }
         } else {
             if (ctx.rebop() != null) {
@@ -776,19 +789,19 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                         visitChildren(ctx.function());
                         flagStack4Arg.pop();
                         matchStr += "(" + PoCoUtils.trimEndPunc(argListStr.toString(), ",") + ")";
+
                     }
                 } else {
-                    matchStr = scrubString(ctx.getText());
+                    matchStr = ctx.getText();
                 }
-                matchStr = matchStr.trim();
 
                 if (!PoCoUtils.isReBopFlag(flagStack4RE)) {
                     String matchName = "match" + matchNum++;
-                    outLine(3, "Match %s = new Match(\"%s\");", matchName, matchStr);
+                    outLine(3, "Match %s = new Match(\"%s\");", matchName, PoCoUtils.validateStr(matchStr.trim()));
                     outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
                 } else {
                     String matchName = "match" + matchNum++;
-                    outLine(3, "Match %s = new Match(\"%s\");", matchName, matchStr);
+                    outLine(3, "Match %s = new Match(\"%s\");", matchName, PoCoUtils.validateStr(matchStr.trim()));
                     outLine(3, "%s.addChild(%s);", matchNames.peek(), matchName);
                     outLine(3, "%s.addMatcher(%s);", currentExchange, matchNames.peek());
                 }
@@ -872,7 +885,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     }
 
     private static String scrubString(String input) {
-        return input.replaceAll("(%|\\$[a-zA-Z0-9\\.\\-_]+)", "");
+        return input.replaceAll("(%|\\$[a-zA-Z0-9\\.\\-_]+)", "");//.replace("\\*","*");
     }
 
     public String loadFromClosure(String varName) {

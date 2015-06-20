@@ -12,7 +12,7 @@ public class ResMatch extends Match {
 	}
 
 	public ResMatch(String matchString, boolean boolUop, String resultMatchStr) {
-		super(matchString, boolUop, resultMatchStr);
+		super(matchString);
 		this.resultMatchStr = resultMatchStr;
 	}
 

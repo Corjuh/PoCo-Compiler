@@ -111,8 +111,8 @@ public class PointCutGen {
                 }
                 outLine(2, "DataWH.dataVal.put(\"" + key + "\"," + str.replace("%", "*"));
             }
+            outLine(1, "}\n");
         }
-        outLine(1, "}\n");
     }
 
     /**
@@ -232,9 +232,16 @@ public class PointCutGen {
                         argVal4Match.put(argTyp + " value" + count, argVal);
                         //generate the correct argument String for aspectj advice
                         genArgs4PTs(argStrs, argsList.length, count++, i, argTyp);
-                    } else {
-                        argStrs[3] += "..";
-                        argStrs[1] += "*";
+                    }
+                    else {
+                        if(argsList[i].equals("*")) {
+                            argStrs[3] += "..";
+                            argStrs[1] += "*";
+                        } else {
+                            argStrs[3] += argsList[i];
+                            argStrs[1] += " value" + count++;
+                        }
+
                         if (i != argsList.length - 1) {
                             argStrs[3] += ",";
                             argStrs[1] += ",";
@@ -247,14 +254,21 @@ public class PointCutGen {
             //code gen for this pointcut
             String methodSig = codeGen4PointCutDef(argStrs, methodName);
 
-
+            //handle the case of binding action signature to a variable,
+            //or binding return value to a variable
             if(bindingVars.size() >0) {
                 if (varsNeed2Bind == null)
                     varsNeed2Bind = new Hashtable<>();
                 Set vars = bindingVars.keySet();
                 for(Iterator<String> it = vars.iterator();it.hasNext(); ) {
                     String varName = (String) it.next();
-                    varsNeed2Bind.put("\""+methodSig+ "\"", "java.lang.String $"+varName.toString());
+                    //binding return value to a variable case
+                    if(bindingVars.get(varName).toString().equals("result")) {
+                        varsNeed2Bind.put(PoCoUtils.getMethodRtnTyp(methodSig) + " ret", "$" + varName.toString());
+                    }
+                    else {  //binding action signature to a variable case
+                        varsNeed2Bind.put("java.lang.String \"" + methodSig + "\"", "$" + varName.toString());
+                    }
                 }
             }
 
@@ -334,26 +348,26 @@ public class PointCutGen {
     private void genAdvice4Results(String pointcutName, String[] argStrs, Hashtable varsNeed2Bind, Hashtable argVal4Match) {
         if (varsNeed2Bind != null || argVal4Match != null) {
             outLine(1, "Object around(%s): %s(%s) {", argStrs[0], pointcutName, argStrs[2]);
-            outLine(2, "Object ret = null;");
 
             //generate conditional statement for conditional monitoring case
             String conditionState = genCoditionStatements(argVal4Match);
             //if is the conditional monitoring case
             if (conditionState != null && conditionState.length() > 0) {
                 outLine(2, "if (" + conditionState + ") {");
-                outLine(3, "ret = proceed(%s);", argStrs[2]);
+                outLine(3, "Object ret = proceed(%s);", argStrs[2]);
+
+                //handling the variable binding
                 valueBind4Advices(varsNeed2Bind, 3);
 
                 //generate code for create Event Object,which will be used for policy query action
                 genEvent4queryAction(3);
-
                 outLine(2, "}");
                 outLine(2, "else");
                 outLine(3, "return proceed(%s);", argStrs[2]);
             } else {
-                outLine(2, "root.queryAction(new Event(thisJoinPoint, \"Result\"));");
+                outLine(2, "Object ret = proceed(%s);", argStrs[2]);
                 valueBind4Advices(varsNeed2Bind, 2);
-                outLine(2, "return proceed(%s);", argStrs[2]);
+                genEvent4queryAction(2);
             }
         } else {
             outLine(1, "Object around(): %s() {", pointcutName);
@@ -542,6 +556,7 @@ public class PointCutGen {
         outLine(2, "if (RuntimeUtils.matchingStack(root.promotedEvents,run)) {");
         outLine(3, "root.promotedEvents.pop();");
         outLine(3, "Object ret = proceed(run);");
+        outLine(3, "String retTyp = RuntimeUtils.trimClassName(ret.getClass().toString());");
         genVarBing4Prom();
         outLine(3, "PromotedEvent event = new PromotedEvent(thisJoinPoint,run,\"Result\",ret);");
         outLine(3, "root.queryAction(event);");
@@ -554,10 +569,10 @@ public class PointCutGen {
 
     private void outAdviceInvokeConstructor(String pointcutName) {
         outLine(1, "Object around(Constructor run): %s(run) {", pointcutName);
-        outLine(2, "if (RuntimeUtils.matchStack4Constr(root.promotedEvents,run)) {");
+        outLine(2, "if (RuntimeUtils.matchStack4Constr(root.promotedEvents, run)) {");
         outLine(3, "root.promotedEvents.pop();");
         outLine(3, "Object ret = proceed(run);");
-
+        outLine(3, "String retTyp = run.getName();");
         genVarBing4Prom();
 
         outLine(3, "PromotedEvent event = new PromotedEvent(thisJoinPoint, run, ret);");
@@ -573,12 +588,12 @@ public class PointCutGen {
         Set<String> set = prmResPtCut.keySet();
         int i = 0;
         for (Iterator<String> it = set.iterator(); it.hasNext(); ) {
-            String varName = it.next();
+            String varName = it.next();//PoCoUtils.getMethodSignature(it.next());
             bindingVars = prmResPtCut.get(varName);
             if (bindingVars.size() > 0) {
                 String str = (String) bindingVars.keySet().toArray()[0];
-                outLine(3, "if(RuntimeUtils.StringMatch(\"" + varName + "\", className)){");
-                outLine(4, "DataWH.updateValue(\"" + str + "\", ret);", i++);
+                outLine(3, "if(RuntimeUtils.matchSig(\""+PoCoUtils.getMethodSignature(varName)+"\", run)){");
+                outLine(4, "DataWH.updateTyeVal(\"" + str + "\",retTyp, ret);", i++);
                 outLine(3, "}");
             }
         }

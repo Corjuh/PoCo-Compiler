@@ -15,6 +15,7 @@ public class RuntimeUtils {
 		// return true;
 		// step1: check directly if the sig matches
 		matchStr = getMethodSignature(matchStr);
+
 		Pattern pattern = Pattern.compile(validateStr(matchStr));
 		Matcher matcher = pattern.matcher(eventSig);
 		if (matcher.find())
@@ -379,7 +380,7 @@ public class RuntimeUtils {
 		methodName.append(run.getDeclaringClass().getName() + "."
 				+ run.getName() + "(");
 
-		if (run.getParameterTypes().length > 0) {
+		if (run.getTypeParameters().length > 0) {
 			Type[] paraTypes = run.getParameterTypes();
 			for (int i = 0; i < paraTypes.length; i++) {
 				methodName.append(trimClassName(paraTypes[i].toString()));
@@ -423,8 +424,17 @@ public class RuntimeUtils {
 		return false;
 	}
 
-	public static boolean matchPromSig(String matchingVal, Constructor run){
+	public static boolean matchSig(String matchingVal, Constructor run){
 		String regex = validateStr(getConstruSig(run));
+		Pattern pattern = Pattern.compile(regex);
+		Matcher matcher = pattern.matcher(matchingVal);
+		return matcher.find();
+	}
+
+	public static boolean matchSig(String matchingVal, Method run){
+		String methodSig = getInvokeMethoSig(run);
+		methodSig = getfunTypName(methodSig)[1];
+		String regex = validateStr(methodSig);
 		Pattern pattern = Pattern.compile(regex);
 		Matcher matcher = pattern.matcher(matchingVal);
 		return matcher.find();

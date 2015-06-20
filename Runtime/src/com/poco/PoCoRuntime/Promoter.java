@@ -1,35 +1,13 @@
 package com.poco.PoCoRuntime;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.ObjectOutputStream;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Random;
-import java.util.Stack;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-/**
- * Created by caoyan on 1/30/15.
- */
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.ObjectOutputStream;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Random;
-import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -85,91 +63,105 @@ public class Promoter {
 
 			// the constructor case
 			if (methodName.equals("new")) {
-				Constructor[] construs = cls1.getConstructors();
-				Constructor theConstructor = null;
+				handleConstructorCase(params, objs, isfound, cls1, paramCounts);
+			} else {
+				handleMethodCase(obj, methodName, params, objs, isfound, cls1,
+						paramCounts);
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	}
 
-				for (Constructor con : construs) {
-					if (con.getParameterTypes().length == paramCounts)
-						isfound = true;
+	private static void handleMethodCase(Object obj, String methodName,
+										 ArrayList<ReflectParameter> params, Object[] objs, boolean isfound,
+										 Class cls1, int paramCounts) throws IllegalAccessException,
+			InvocationTargetException, InstantiationException {
+		Method[] methods = cls1.getMethods();
+		Method theMethod = null;
+
+		for (Method method : methods) {
+			// if find the method name
+			if (method.getName().equals(methodName)) {
+				Type[] methodParams = method.getGenericParameterTypes();
+				if (methodParams.length == paramCounts) {
+					isfound = true;
 					if (paramCounts != 0) {
 						int i = 0;
-						Type[] conParams = con.getGenericParameterTypes();
-						for (Iterator<ReflectParameter> it = params.iterator(); it
-								.hasNext();) {
-							String conParam = GetTypeName(conParams[i]
+						for (Iterator<ReflectParameter> it = params
+								.iterator(); it.hasNext();) {
+							String methodParam = GetTypeName(methodParams[i++]
 									.toString());
-
-							if (!conParam.equalsIgnoreCase(it.next()
+							// if the type is not the primitive type
+							if (!methodParam.equals(it.next()
 									.GetParameterType())) {
 								isfound = false;
 								break;
 							}
-							i++;
 						}
 					}
-					if (isfound) {
-						theConstructor = con;
-						break;
-					}
-				}
-				if (isfound) {
-					theConstructor.newInstance(objs);
-				} else {
-					System.out
-							.println("Sorry, failed to find the right constructor to initialize "
-									+ "the class, please check the policy definition!");
-				}
-			} else {
-				Method[] methods = cls1.getMethods();
-				Method theMethod = null;
-
-				for (Method method : methods) {
-					// if find the method name
-					if (method.getName().equals(methodName)) {
-						Type[] methodParams = method.getGenericParameterTypes();
-						if (methodParams.length == paramCounts) {
-							isfound = true;
-							if (paramCounts != 0) {
-								int i = 0;
-								for (Iterator<ReflectParameter> it = params
-										.iterator(); it.hasNext();) {
-									String methodParam = GetTypeName(methodParams[i]
-											.toString());
-									// if the type is not the primitive type
-									if (!methodParam.equals(it.next()
-											.GetParameterType())) {
-										isfound = false;
-										break;
-									}
-									i++;
-								}
-							}
-						}
-					}
-					if (isfound) {
-						theMethod = method;
-						break;
-					}
-				}
-
-				// found the right method that is we wanted
-				if (isfound) {
-					if (obj != null)
-						theMethod.invoke(obj, objs);
-					else {
-						// need check static or not
-						if (Modifier.isStatic(theMethod.getModifiers()))
-							theMethod.invoke(null, objs);
-						else
-							theMethod.invoke(cls1.newInstance(), objs);
-					}
-				} else {
-					System.out.println("Sorry, cannot find the right method to pomote, "
-							+ "please check the policy definition!");
 				}
 			}
-		} catch (Exception ex) {
-			ex.printStackTrace();
+			if (isfound) {
+				theMethod = method;
+				break;
+			}
+		}
+
+		// found the right method that is we wanted
+		if (isfound) {
+			if (obj != null)
+				theMethod.invoke(obj, objs);
+			else {
+				// need check static or not
+				if (Modifier.isStatic(theMethod.getModifiers()))
+					theMethod.invoke(null, objs);
+				else
+					theMethod.invoke(cls1.newInstance(), objs);
+			}
+		} else {
+			System.out.println("Sorry, cannot find the right method to pomote, "
+					+ "please check the policy definition!");
+		}
+	}
+
+	private static void handleConstructorCase(
+			ArrayList<ReflectParameter> params, Object[] objs, boolean isfound,
+			Class cls1, int paramCounts) throws InstantiationException,
+			IllegalAccessException, InvocationTargetException {
+		Constructor[] construs = cls1.getConstructors();
+		Constructor theConstructor = null;
+
+		for (Constructor con : construs) {
+			if (con.getParameterTypes().length == paramCounts)
+				isfound = true;
+			if (paramCounts != 0) {
+				int i = 0;
+				Type[] conParams = con.getGenericParameterTypes();
+				for (Iterator<ReflectParameter> it = params.iterator(); it
+						.hasNext();) {
+					String conParam = GetTypeName(conParams[i]
+							.toString());
+
+					if (!conParam.equalsIgnoreCase(it.next()
+							.GetParameterType())) {
+						isfound = false;
+						break;
+					}
+					i++;
+				}
+			}
+			if (isfound) {
+				theConstructor = con;
+				break;
+			}
+		}
+		if (isfound) {
+			theConstructor.newInstance(objs);
+		} else {
+			System.out
+					.println("Sorry, failed to find the right constructor to initialize "
+							+ "the class, please check the policy definition!");
 		}
 	}
 

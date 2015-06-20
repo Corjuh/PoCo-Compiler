@@ -34,19 +34,6 @@ public class Match implements Matchable {
 		this.isWildcard = isWildcard;
 	}
 
-	/**
-	 * Constructor for Match when it is result instead of action
-	 *
-	 * @param matchString
-	 * @param isAction
-	 * @param isResult
-	 * @param resultMatchStr
-	 */
-	public Match(String matchString, boolean boolUop, String resultMatchStr) {
-		this.matchString = matchString;
-		isWildcard = (matchString == "%");
-	}
-
 	public String getMatchString() {
 		return matchString;
 	}

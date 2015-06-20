@@ -142,8 +142,10 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         if (PoCoUtils.notParsingArgs(parsFlags)) {
             if (ctx.qid() != null) {
                 handleQidCase(ctx);
-                addBindVar2PC();
-                add2PCHashmaps();
+                if (pointcutStr.toString().trim().length() > 0) {
+                    addBindVar2PC();
+                    add2PCHashmaps();
+                }
             } else if (ctx.function() != null) {
                 handleFuncCase(ctx);
                 addBindVar2PC();
@@ -255,17 +257,16 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             up8ObjVarName(PoCoUtils.objMethodCall(ctx.qid().getText()));
         } else {
             String funcStr = getFunInfoFrmClosure(policyName + ctx.qid().getText());
-            //it is the variable case, will be dynamic binded
-            if (funcStr == null)
-                funcStr = "$" + policyName + ctx.qid().getText();
-            else
+            if (funcStr != null) {
                 funcStr = PoCoUtils.formatFuncRetTyp(funcStr);
-            pointcutStr.append(funcStr);
+                pointcutStr.append(funcStr);
+            }
         }
 
         // 3. parsing the function parameters
         if (ctx.opparamlist() != null)
             handlePara4Qid(ctx);
+
     }
 
     private String getFunInfoFrmClosure(String qidStr) {

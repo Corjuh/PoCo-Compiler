@@ -146,7 +146,7 @@ public class PoCoUtils {
         if(str == null)
             return null;
         str = str.replace("\\", "");
-        return str;
+        return str.replace("%", "*");
     }
 
     public static String getVariableName(String str) {
