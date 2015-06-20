@@ -130,6 +130,9 @@ public class SREUtil {
 	public static SRE performUOPs(String operator, SRE sre) {
 		if (isEmpty(sre))
 			return null;
+
+		SRE up8edSre = sre.genSRE();
+
 		switch (operator) {
 		case "Complement": // Switches sign of SRE
 			return new SRE(sre.getNegativeRE(), sre.getPositiveRE());
@@ -164,6 +167,14 @@ public class SREUtil {
 	}
 
 	public static SRE getBaseSRE(SRE sre) {
+		if(sre.getPositiveRE().startsWith("$")) {
+			String posVarName = sre.getPositiveRE().substring(1);
+			sre.setPositiveRE(DataWH.dataVal.get(posVarName).getObj().toString());
+		}
+		if(sre.getNegativeRE().startsWith("$")) {
+			String posVarName = sre.getNegativeRE().substring(1);
+			sre.setNegativeRE(DataWH.dataVal.get(posVarName).getObj().toString());
+		}
 		Class<BopSRE> classBS = BopSRE.class;
 		Class<UopSRE> classUS = UopSRE.class;
 		Class<? extends SRE> classChild = sre.getClass();

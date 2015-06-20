@@ -256,13 +256,15 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         if (isMthdCallFrmObj(ctx.qid().getText())) {
             up8ObjVarName(PoCoUtils.objMethodCall(ctx.qid().getText()));
         } else {
-            String funcStr = getFunInfoFrmClosure(policyName + ctx.qid().getText());
-            if (funcStr != null) {
-                funcStr = PoCoUtils.formatFuncRetTyp(funcStr);
-                pointcutStr.append(funcStr);
+            if(closure.isFunctionsContain(policyName + ctx.qid().getText())) {
+                String funcStr = getFunInfoFrmClosure(policyName + ctx.qid().getText());
+                funcStr = funcStr.replace("%", "*");
+                if (funcStr != null) {
+                    funcStr = PoCoUtils.formatFuncRetTyp(funcStr);
+                    pointcutStr.append(funcStr);
+                }
             }
         }
-
         // 3. parsing the function parameters
         if (ctx.opparamlist() != null)
             handlePara4Qid(ctx);
@@ -334,37 +336,43 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     private void add2PCHashmaps() {
         String ptStr = this.pointcutStr.toString().trim();
+        //handle the case if there is "|" case, such as
+        //ptStr = "java.io.File.new(#String{*.class})|java.io.File.new(\*,#String{*.class})
+        String[] funStrs =PoCoUtils.parseFunStr(ptStr);
+
         //1. reset global variable pointcutStr
         resetPTStr();
 
-        //2. add to the appropriate pointcut set
-        if (!PoCoUtils.isResultFlag(parsFlags)) {
-            //Add this pointcut to action set if it is an LHS action pointcut
-            if (PoCoUtils.isActionFlag(parsFlags)) {
-                addUp8ActionSet(ptStr);
-            } else {
-                //pointcut is not an IRE result and it is on the RHS of the exchange, then
-                // 1. if there exists a same pointcut in action set, update the action set
-                // is necessary due to the variable binding information
-                // 2. otherwise, the pointcut will be added to promoted action set
-                if (frmActPT2BndVar.containsKey(ptStr))
-                    addUp8ActionSet(ptStr);
+        for(String str: funStrs) {
+            //2. add to the appropriate pointcut set
+            if (!PoCoUtils.isResultFlag(parsFlags)) {
+                //Add this pointcut to action set if it is an LHS action pointcut
+                if (PoCoUtils.isActionFlag(parsFlags)) {
+                    addUp8ActionSet(str);
+                } else {
+                    //pointcut is not an IRE result and it is on the RHS of the exchange, then
+                    // 1. if there exists a same pointcut in action set, update the action set
+                    // is necessary due to the variable binding information
+                    // 2. otherwise, the pointcut will be added to promoted action set
+                    if (frmActPT2BndVar.containsKey(str))
+                        addUp8ActionSet(str);
+                    else
+                        addUp8PromtnSet(str);
+                }
+            } else {//the pointcut is result case
+                //1. if it is in promotion set then
+                //   a. remove it from the promotion set
+                //   b. add it to the promotion result set
+                //2. if it is in promotion result set, then update the promotion result set,otherwise
+                //3. if not all the case above then add to the result set
+                if (frmPrmPT2BndVar.containsKey(str)) {
+                    removeFrmPromSet(str);
+                    addUp8PrmResSet(str);
+                } else if (frmPrmResPT2BndVar.containsKey(str))
+                    addUp8PrmResSet(str);
                 else
-                    addUp8PromtnSet(ptStr);
+                    addUp8ResultSet(str);
             }
-        } else {//the pointcut is result case
-            //1. if it is in promotion set then
-            //   a. remove it from the promotion set
-            //   b. add it to the promotion result set
-            //2. if it is in promotion result set, then update the promotion result set,otherwise
-            //3. if not all the case above then add to the result set
-            if (frmPrmPT2BndVar.containsKey(ptStr)) {
-                removeFrmPromSet(ptStr);
-                addUp8PrmResSet(ptStr);
-            } else if (frmPrmResPT2BndVar.containsKey(ptStr))
-                addUp8PrmResSet(ptStr);
-            else
-                addUp8ResultSet(ptStr);
         }
         resetVarBind4PC();
     }

@@ -336,7 +336,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
     private void handleNoIreCase(@NotNull PoCoParser.MatchContext ctx, String kind) {
         String matchName = kind + matchNum++;
-        outLine(3, kind + " %s = new " + kind +"(null, null);", matchName);
+        outLine(3, kind + " %s = new " + kind + "(null, null);", matchName);
         visitTheMatch(ctx, matchName);
     }
 
@@ -346,7 +346,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         visitChildren(ctx);
         flagStack4Exc.pop();
         currentMatch = null;
-
         // Add match object to parent exchange or parent matchs
         if (matchNames.empty())
             outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
@@ -384,17 +383,25 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitSre(@NotNull PoCoParser.SreContext ctx) {
         if (PoCoUtils.isExchLHSWild(flagStack4Exc)) {
-            if (ctx.re() != null) {
+            if (ctx.re() != null) {             // (+|-)`re' case
                 visitRe(ctx.re());
-            } else if (ctx.qid() != null) {
+            } else if (ctx.qid() != null) {     //$qid case
                 String str = loadFromClosure(ctx.qid().getText());
                 if (str == null)
                     str = ctx.qid().getText();
                 String matchName = "match" + matchNum++;
                 outLine(3, "Match %s = new Match(\"%s\");", matchName, scrubString(str));
                 outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
-            } else if (PoCoUtils.isParsingArg(flagStack4Arg)) {
-                //need add code, missing case
+            } else if (ctx.NEUTRAL() != null) { //neutral case
+                String matchName = "match" + matchNum++;
+                outLine(3, "Match %s = new Match(null, null);", matchName);
+                outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
+            }
+            else if(ctx.srebop() != null) { // srebop(sre0,sre1) case
+                LHSRewildWSreBop(ctx);
+            }
+            else  { // handle both () case and sreuop(sre) case
+                visitChildren(ctx);
             }
         } else {
             if (ctx.NEUTRAL() != null) {
@@ -422,12 +429,32 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         return null;
     }
 
+    private void LHSRewildWSreBop(@NotNull PoCoParser.SreContext ctx) {
+        //in such case that srebop is on the right hand side, because
+        //match no such case, we can treat it as srebop, and the match
+        //will match both sre(0) and sre(1)
+        flagStack4RE.push(ParsFlgConsts.isReBop);
+        String matchsName = "matchs" + matchsNum++;
+        outLine(3, "Matchs %s = new Matchs();", matchsName);
+        matchNames.push(matchsName);
+        visitSre(ctx.sre(0));
+        visitSre(ctx.sre(1));
+        outLine(3, "%s.addMatcher(%s);", currentExchange, matchsName);
+        matchNames.pop();
+        flagStack4RE.pop();
+    }
+
     private void handleSreQidCase(@NotNull PoCoParser.SreContext ctx) {
         //for qid case, currently put the qid info in the positiveRE, so when
         //SreUop is null, then we will check if it is pos or neg, when
         //SreUop is not null, then we treat pos differently
         String sreName = "sre" + sreNum++;
-        outLine(3, "SRE %s = new SRE(%s, null);", sreName, ctx.qid().getText());
+        String varName = policyName +"_"+ctx.qid().getText();
+        if(closure!= null && closure.isVarsContain(varName))
+            outLine(3, "SRE %s = new SRE(\"%s\", null);", sreName, "$"+varName);
+        else
+            outLine(3, "SRE %s = new SRE(\"%s\", null);", sreName, closure.loadFrmFunctions(varName));
+
         if (!sreNames.empty())
             setSREvalue(sreNames.peek(), sreName);
         else
@@ -475,7 +502,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         } else {
             if (PoCoUtils.isExchMatch(flagStack4Exc)) {
                 if (currentMatch.contains("otherMatch"))
-                    outLine(3, "%s.SetSRE1(%s);", currentMatch, sreName);
+                    outLine(3, "%s.setSRE1(%s);", currentMatch, sreName);
+            }else if(PoCoUtils.isExchRHSSre(flagStack4Exc)) {
+                outLine(3, "%s.setSRE(%s);", currentExchange, sreName);
             }
         }
     }
@@ -526,7 +555,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             outLine(3, "%s.setMatchSre(%s);", executionNames.peek(), sreName);
         else {
             outLine(3, "SRE %s = new SRE(null, null);", sreName);
-
             if (PoCoUtils.isExchRHSSre(flagStack4Exc))
                 outLine(3, "%s.setSRE(%s);", currentExchange, sreName);
         }
@@ -626,7 +654,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 content += PoCoUtils.trimEndPunc(argListStr.toString(), ",");
             } else
                 content += "*";
-                //content += ".*";
             content += ")";
         }
         return content;
@@ -661,7 +688,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             content += "(";
             if (ctx.opparamlist().getText().equals("%")) {
                 content += "*";
-                //content += ".*";
             } else {
                 resetArgStr();
                 flagStack4Arg.push(ParsFlgConsts.parsArgs);
@@ -709,6 +735,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         visitChildren(ctx);
         flagStack4RE.pop();
 
+        //if not the case that is rebop is inside another rebop, then we will
+        //set the parsed value to proper attribute,
         if (flagStack4RE.empty() || !PoCoUtils.isReBopFlag(flagStack4RE)) {
             String temp = PoCoUtils.trimEndPunc(reBopStr.toString(), "|");
             resetREBopStr();
@@ -724,7 +752,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 //if it is Bopsre case, we will need postpone setSRE till pop to the right Sre
                 if (PoCoUtils.isExchRHSSre(flagStack4Exc) && !PoCoUtils.isSREBopCase(flagStack4Sre))
                     outLine(3, "%s.setSRE(%s);", currentExchange, sreNames.peek());
-            } else if (PoCoUtils.isIREMatch(flagStack4RE)) {
+            }
+            else if (PoCoUtils.isIREMatch(flagStack4RE)) {
                 if (PoCoUtils.isIREAction(flagStack4RE)) {
                     temp = PoCoUtils.getMethodSignature(temp);
                     outLine(3, "%s.setMatchString(\"%s\");", currentMatch, temp);
@@ -758,15 +787,17 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 argListStr.append(ctx.getText() + ",");
             }
         } else {
-            if (ctx.rebop() != null) {
+            if (ctx.rebop() != null && !ctx.re(1).getText().toString().equals("()")) {
                 flagStack4RE.push(ParsFlgConsts.isReBop);
                 String matchsName = "matchs" + matchsNum++;
                 outLine(3, "Matchs %s = new Matchs(\"||\");", matchsName);
                 matchNames.push(matchsName);
                 visitChildren(ctx);
                 matchNames.pop();
+                outLine(3, "%s.addMatcher(%s);", currentExchange, matchsName);
                 flagStack4RE.pop();
-            } else {
+            }
+            else {
                 String matchStr = null;
                 if (ctx.qid() != null) {
                     // if it is a variable, that means we need dynamically check its value at runtime,
@@ -777,11 +808,12 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                         matchStr = loadFromClosure(policyName + "_" + ctx.qid().getText());
                     }
                 } else if (ctx.function() != null) {
+                    //first handle function name
                     matchStr = ctx.function().fxnname().getText();
-
                     if (ctx.function().INIT() != null)
                         matchStr = matchStr.substring(0, matchStr.length() - 1) + ".new";
 
+                    //first handle function parameters
                     if (ctx.function().arglist() != null
                             && ctx.function().arglist().getText().trim().length() > 0) {
                         flagStack4Arg.push(ParsFlgConsts.parsArgs);
@@ -789,7 +821,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                         visitChildren(ctx.function());
                         flagStack4Arg.pop();
                         matchStr += "(" + PoCoUtils.trimEndPunc(argListStr.toString(), ",") + ")";
-
                     }
                 } else {
                     matchStr = ctx.getText();
@@ -803,7 +834,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                     String matchName = "match" + matchNum++;
                     outLine(3, "Match %s = new Match(\"%s\");", matchName, PoCoUtils.validateStr(matchStr.trim()));
                     outLine(3, "%s.addChild(%s);", matchNames.peek(), matchName);
-                    outLine(3, "%s.addMatcher(%s);", currentExchange, matchNames.peek());
                 }
             }
         }
@@ -861,8 +891,10 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         else if (fieldName.contains("bopSRE")) {
             if (PoCoUtils.isSREBop1(flagStack4Sre))
                 outLine(3, "%s.setSRE1(%s);", fieldName, sreName);
-            else //if (PoCoUtils.isSREBop2(flagStack4Sre))
+            else {//if (PoCoUtils.isSREBop2(flagStack4Sre))
                 outLine(3, "%s.setSRE2(%s);", fieldName, sreName);
+                outLine(3, "%s.setSRE(%s);", currentMatch, fieldName);
+            }
         }
     }
 

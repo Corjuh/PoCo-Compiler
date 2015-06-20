@@ -1,5 +1,6 @@
 package com.poco.PoCoCompiler;
 
+import java.util.ArrayList;
 import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -327,5 +328,50 @@ public class PoCoUtils {
             return true;
         else
             return false;
+    }
+
+    /**
+     * take care the case where the single pointcut contained more than one function
+     * cannot direct use string.split("|") due to the fact that the function parameters
+     * may also contains "|", such as [`#java.lang.String{.exe|.vbs|.hta|.mdb|.bad}']
+     * @param methodStr
+     * @return
+     */
+    public static String[] parseFunStr(String methodStr) {
+        ArrayList<String> methodStrs = new ArrayList<String>();
+        String restStr = methodStr;
+
+        int lParenIndex = methodStr.indexOf('(', 0);
+        int rParenIndex = restStr.indexOf(')', lParenIndex);
+
+        //no | case
+        if (rParenIndex == methodStr.length() - 1){
+            methodStrs.add(methodStr);
+        }
+        else {
+            while (lParenIndex != -1 && rParenIndex != -1) {
+                String left = restStr.substring(0, lParenIndex + 1);
+                String args = restStr.substring(lParenIndex + 1, rParenIndex);
+                restStr = restStr.substring(rParenIndex,
+                        restStr.length());
+
+                methodStrs.add(left + args + ")");
+
+                if (restStr.trim().equals(")")) {
+                    break;
+                } else {
+                    //delete the ")"
+                    restStr = restStr.substring(1);
+                    if (restStr.startsWith("|"))
+                        restStr = restStr.substring(1);
+                    lParenIndex = restStr.indexOf('(', 0);
+                    if (lParenIndex != -1)
+                        rParenIndex = restStr.indexOf(')', lParenIndex);
+                    else
+                        rParenIndex = -1;
+                }
+            }
+        }
+        return methodStrs.toArray(new String[methodStrs.size()]);
     }
 }

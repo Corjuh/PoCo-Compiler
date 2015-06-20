@@ -234,9 +234,9 @@ public class PointCutGen {
                         genArgs4PTs(argStrs, argsList.length, count++, i, argTyp);
                     }
                     else {
-                        if(argsList[i].equals("*")) {
-                            argStrs[3] += "..";
-                            argStrs[1] += "*";
+                        if(argsList[i].equals("\\*")) {
+                            argStrs[3] += "*";
+                            argStrs[1] += "..";
                         } else {
                             argStrs[3] += argsList[i];
                             argStrs[1] += " value" + count++;

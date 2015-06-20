@@ -290,37 +290,10 @@ public class RuntimeUtils {
 		}
 	}
 
-	public static boolean StringMatch(String matchingVal, String matchRegex) {
-		if(isVariable(matchRegex))
-			matchRegex = DataWH.dataVal.get(matchRegex.substring(1)).getObj().toString();
-		String regex = validateStr(matchRegex);
-
-		// Pattern pattern = Pattern.compile(strictifyMatch(regex));
-		Pattern pattern = Pattern.compile(regex);
-		Matcher matcher = pattern.matcher(matchingVal);
-		return matcher.find();
-	}
-
 	public static String validateStr(String str) {
 		return str.replaceAll("(%|\\$[a-zA-Z0-9\\.\\-_]+)", "")
 				.replaceAll("#|\\{|\\}", "").replace("(", "\\(")
 				.replace(")", "\\)").replace("*", "(.*)");
-	}
-
-	public static String strictifyMatch(String str) {
-		String returnStr = "";
-		while (str.contains("*")) {
-			int leftIndex = str.indexOf("*");
-			if (leftIndex > 0)
-				returnStr += "(" + str.substring(0, leftIndex) + ")$";
-			returnStr += "(.*)";
-			if (leftIndex + 1 < str.length() - 1)
-				str = str.substring(leftIndex + 1, str.length());
-			else
-				break;
-		}
-		returnStr += "(" + str + ")$";
-		return returnStr;
 	}
 
 	public static String[] objMethodCall(String str) {
@@ -413,15 +386,6 @@ public class RuntimeUtils {
 		// step 2: trim the return type from the function
 		return getfunTypName(methodStr)[1];
 
-	}
-
-	public static boolean matchStack4Constr(Stack<String> events, Constructor run) {
-		String className = RuntimeUtils.trimClassName(run.getDeclaringClass().toString());
-		className +=".new";
-		if (events != null && events.peek().contains(className))
-			return true;
-
-		return false;
 	}
 
 	public static boolean matchSig(String matchingVal, Constructor run){
