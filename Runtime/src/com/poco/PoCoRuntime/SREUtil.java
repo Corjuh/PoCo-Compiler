@@ -2,7 +2,8 @@ package com.poco.PoCoRuntime;
 
 import dk.brics.automaton.Automaton;
 import dk.brics.automaton.RegExp;
-
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -11,170 +12,185 @@ import java.util.regex.Pattern;
  */
 
 public class SREUtil {
-	/**
-	 * This function is used to perform Binary Set Operations on SRES
-	 *
-	 * @param operator
-	 *            It defines the set operator, which can be Union, Punion,
-	 *            Disjunction, Conjunction and Equals
-	 * @param sre1
-	 *            It is the first SRE value
-	 * @param sre2
-	 *            It is the second SRE value
-	 * @return the result SRE
-	 */
+
+	// use for case of operate on two SREs
 	public static SRE performBOPs(String operator, SRE sre1, SRE sre2) {
 		if (isEmpty(sre1) && isEmpty(sre2))
 			return null;
-
-		String positiveRE = null, negativeRE = null;
-		switch (operator) {
-		case "Union":
-		case "Punion":
-		case "Disjunction":
-			if (sre1.positiveRE().trim().equals(sre2.positiveRE().trim())){
-				positiveRE = sre1.positiveRE().trim();
-			}else if (sre1.positiveRE().trim() 
-					.contains(sre2.positiveRE().trim()))  
-				positiveRE = sre1.positiveRE().trim();
-			else if (sre2.positiveRE().trim() 
-					.contains(sre1.positiveRE().trim())) 
-				positiveRE = sre2.positiveRE().trim();
-			else 
-				positiveRE = operate("Union", sre1.positiveRE(),
-						sre2.positiveRE());
-			
-			if (sre1.negativeRE().trim().equals(sre2.negativeRE().trim()))
-				negativeRE = sre1.negativeRE().trim();
-			else if (sre1.negativeRE().trim()
-					.contains(sre2.negativeRE().trim()))
-				negativeRE = sre1.negativeRE().trim();
-			else if (sre2.negativeRE().trim()
-					.contains(sre1.negativeRE().trim()))
-				negativeRE = sre2.negativeRE().trim();
-			else
-				negativeRE = operate("Union", sre1.negativeRE(),
-						sre2.negativeRE());
-			
-			if (operator.equals("Union")) {
-				// Positive favoring union of SREs
-				if (negativeRE != null)
-					negativeRE = operate("Minus", negativeRE, positiveRE);
-			} else if (operator.equals("Punion")) {
-				// Negative favoring union of SREs
-				if (positiveRE != null)
-					positiveRE = operate("Minus", positiveRE, negativeRE);
-			}
-			break;
-		case "Conjunction":
-			// pos = (pos1 n pos2) U (neg1 n neg2);
-		case "Equals":
-			if (sre1.positiveRE().trim().equals(sre2.positiveRE().trim()))
-				positiveRE = sre1.positiveRE().trim();
-			else if (sre1.positiveRE().trim()
-					.contains(sre2.positiveRE().trim()))
-				positiveRE = sre2.positiveRE().trim();
-			else if (sre2.positiveRE().trim()
-					.contains(sre1.positiveRE().trim()))
-				positiveRE = sre1.positiveRE().trim();
-			else
-				positiveRE = operate("InterSection", sre1.positiveRE(),
-						sre2.positiveRE());
-
-			if (operator.equals("Union")) {
-				if (sre1.negativeRE().trim().equals(sre2.negativeRE().trim()))
-					negativeRE = sre1.negativeRE().trim();
-				else if (sre1.negativeRE().trim()
-						.contains(sre2.negativeRE().trim()))
-					negativeRE = sre1.negativeRE().trim();
-				else if (sre2.negativeRE().trim()
-						.contains(sre1.negativeRE().trim()))
-					negativeRE = sre2.negativeRE().trim();
-				else
-					negativeRE = operate("Union", sre1.negativeRE(),
-							sre2.negativeRE());
-			} else {
-				if (sre1.negativeRE().trim().equals(sre2.negativeRE().trim()))
-					negativeRE = sre1.negativeRE().trim();
-				else if (sre1.negativeRE().trim()
-						.contains(sre2.negativeRE().trim()))
-					negativeRE = sre2.negativeRE().trim();
-				else if (sre2.negativeRE().trim()
-						.contains(sre1.negativeRE().trim()))
-					negativeRE = sre1.negativeRE().trim();
-				else
-					negativeRE = operate("InterSection", sre1.negativeRE(),
-							sre2.negativeRE());
-				positiveRE = operate("Union", positiveRE, negativeRE);
-				// nes = % - pos
-				negativeRE = performUOPs("Complement",
-						new SRE(positiveRE, null)).getNegativeRE();
-			}
-			break;
-		default:
-			break;
-		}
-		return new SRE(positiveRE, negativeRE);
+		else
+			return performBOPs(operator, new SRE[] {sre1, sre2});
 	}
 
-	/**
-	 * This function is used to perform Binary Set Operations on SRES
-	 *
-	 * @param operator
-	 *            It defines the set operator, which can be Complement, action,
-	 *            result, positive and negative
-	 * @param sre
-	 *            It is the first SRE value
-	 * @return the result SRE
-	 */
+	public static SRE performBOPs(String operator, SRE[] sres) {
+		switch (operator) {
+			case "Union"		:
+				return unionOp(sres);
+			case "Punion"		:
+				return punionOp(sres);
+			case "Disjunction"	:
+				return disjunctionOp(sres);
+			case "Conjunction"	:
+				return conjunctionOp(sres);
+			case "Equals"		:
+				return equalsOp(sres);
+			default				:	return null;
+		}
+	}
+
+	private static SRE equalsOp(SRE[] sres) {
+		// pos = (pos1 n pos2) U (neg1 n neg2);
+		// nes = % - pos
+
+		ArrayList<Automaton> posAms = genPosAutomaton(sres);
+		ArrayList<Automaton> negAms = genNegAutomaton(sres);
+
+		Automaton amPosResult = automatonConj(posAms);
+		Automaton amNegResult = automatonConj(negAms);
+
+		amPosResult = amPosResult.union(amNegResult);
+		amNegResult = amPosResult.complement();
+
+		return new SRE(amPosResult.toString(), amNegResult.toString());
+	}
+
+	private static SRE conjunctionOp(SRE[] sres) {
+		// pos = (pos1 n pos2) U (neg1 n neg2);
+		ArrayList<Automaton> posAms = genPosAutomaton(sres);
+		ArrayList<Automaton> negAms = genNegAutomaton(sres);
+
+		Automaton amPosResult = automatonConj(posAms);
+		Automaton amNegResult = automatonConj(negAms);
+
+		amPosResult = amPosResult.union(amNegResult);
+
+		return new SRE(amPosResult.toString(), amNegResult.toString());
+	}
+
+	private static SRE disjunctionOp(SRE[] sres) {
+		ArrayList<Automaton> posAms = genPosAutomaton(sres);
+		ArrayList<Automaton> negAms = genNegAutomaton(sres);
+
+		Automaton amPosResult = Automaton.union(posAms);
+		Automaton amNegResult = Automaton.union(negAms);
+
+		return new SRE(amPosResult.toString(),	amNegResult.toString());
+	}
+
+	private static SRE punionOp(SRE[] sres) {
+		ArrayList<Automaton> posAms = genPosAutomaton(sres);
+		ArrayList<Automaton> negAms = genNegAutomaton(sres);
+
+		Automaton amPosResult = Automaton.union(posAms);
+		Automaton amNegResult = Automaton.union(negAms);
+
+		// Negative favoring union of SREs
+		if (amPosResult != null)
+			amPosResult =  amPosResult.minus(amNegResult);
+
+		return new SRE(amPosResult.toString(),	amNegResult.toString());
+	}
+
+	private static SRE unionOp(SRE[] sres) {
+		ArrayList<Automaton> posAms = genPosAutomaton(sres);
+		ArrayList<Automaton> negAms = genNegAutomaton(sres);
+
+		Automaton amPosResult = Automaton.union(posAms);
+		Automaton amNegResult = Automaton.union(negAms);
+
+		// Positive favoring union of SREs
+		if (amNegResult != null)
+			amNegResult =  amNegResult.minus(amPosResult);
+
+		return new SRE(amPosResult.toString(),	amNegResult.toString());
+
+	}
+
+	private static Automaton automatonConj(ArrayList<Automaton> posAms) {
+		int i = 0;
+		Automaton calcultedPosAm =null;
+		for(Iterator<Automaton> it=posAms.iterator(); it.hasNext();i++) {
+			if(i==0) {
+				calcultedPosAm = it.next();
+			}else {
+				Automaton temp = it.next();
+				if(calcultedPosAm == null || temp == null)
+					break;
+				else
+					calcultedPosAm = calcultedPosAm.intersection(temp);
+			}
+		}
+		return calcultedPosAm;
+	}
+
+	private static ArrayList<Automaton> genPosAutomaton(SRE[] sres) {
+		return genAutomaton(sres,0);
+	}
+
+	private static ArrayList<Automaton> genNegAutomaton(SRE[] sres) {
+		return genAutomaton(sres,1);
+	}
+
+	private static ArrayList<Automaton> genAutomaton(SRE[] sres, int mode) {
+		String[] sreStrs = new String[sres.length];
+		for(int i = 0; i<sres.length; i++) {
+			if(mode ==0)
+				sreStrs[i] = sres[i].positiveRE().trim();
+			else
+				sreStrs[i] = sres[i].negativeRE().trim();
+		}
+
+		ArrayList<Automaton> returnAms = new ArrayList<>();
+		for(int i = 0; i<sres.length; i++) {
+			returnAms.add(new RegExp(RuntimeUtils.validateStr(sreStrs[i])).toAutomaton());
+		}
+		return returnAms;
+	}
+
 	public static SRE performUOPs(String operator, SRE sre) {
 		if (isEmpty(sre))
 			return null;
-
-		SRE up8edSre = sre.genSRE();
-
 		switch (operator) {
-		case "Complement": // Switches sign of SRE
-			return new SRE(sre.getNegativeRE(), sre.getPositiveRE());
-		case "Action": // Includes only the actions in SRE
-			RegExp rePos = new RegExp(sre.getPositiveRE().replace("%", ".*"));
-			RegExp reNeg = new RegExp(sre.getNegativeRE().replace("%", ".*"));
-			RegExp action = new RegExp(".+\\(.*\\)");
-			Automaton amPos = rePos.toAutomaton();
-			Automaton amNeg = reNeg.toAutomaton();
-			Automaton amAct = action.toAutomaton();
-			return new SRE(amPos.intersection(amAct).toString(), amPos
-					.intersection(amAct).toString());
+			case "Complement":
+				// Switches sign of SRE
+				return new SRE(sre.getNegativeRE(), sre.getPositiveRE());
 
-		case "Result": // Includes only the results in SRE
-			RegExp rePos1 = new RegExp(sre.getPositiveRE().replace("%", ".*"));
-			RegExp reNeg1 = new RegExp(sre.getNegativeRE().replace("%", ".*"));
-			RegExp action1 = new RegExp(".+\\(.*\\)");
-			Automaton amPos1 = rePos1.toAutomaton();
-			Automaton amNeg1 = reNeg1.toAutomaton();
-			Automaton amAct1 = action1.toAutomaton();
-			Automaton resPos = amPos1.minus(amPos1.intersection(amAct1));
-			Automaton resNeg = amNeg1.minus(amNeg1.intersection(amAct1));
-			return new SRE(resPos.toString(), resNeg.toString());
+			case "Action":
+				// Includes only the actions in SRE
+				RegExp rePos = new RegExp(sre.getPositiveRE().replace("%", ".*"));
+				RegExp reNeg = new RegExp(sre.getNegativeRE().replace("%", ".*"));
+				RegExp action = new RegExp(".+\\(.*\\)");
+				Automaton amPos = rePos.toAutomaton();
+				Automaton amNeg = reNeg.toAutomaton();
+				Automaton amAct = action.toAutomaton();
+				return new SRE(amPos.intersection(amAct).toString(), amPos
+						.intersection(amAct).toString());
 
-		case "Positive": // Includes only positive portion of SRE
-			return new SRE(sre.getPositiveRE(), null);
-		case "Negative": // Includes only negative portion of SRE
-			return new SRE(null, sre.getNegativeRE());
-		default:
-			return sre;
+			case "Result":
+				// Includes only the results in SRE
+				RegExp rePos1 = new RegExp(sre.getPositiveRE().replace("%", ".*"));
+				RegExp reNeg1 = new RegExp(sre.getNegativeRE().replace("%", ".*"));
+				RegExp action1 = new RegExp(".+\\(.*\\)");
+				Automaton amPos1 = rePos1.toAutomaton();
+				Automaton amNeg1 = reNeg1.toAutomaton();
+				Automaton amAct1 = action1.toAutomaton();
+				Automaton resPos = amPos1.minus(amPos1.intersection(amAct1));
+				Automaton resNeg = amNeg1.minus(amNeg1.intersection(amAct1));
+				return new SRE(resPos.toString(), resNeg.toString());
+
+			case "Positive":
+				// Includes only positive portion of SRE
+				return new SRE(sre.getPositiveRE(), null);
+
+			case "Negative":
+				// Includes only negative portion of SRE
+				return new SRE(null, sre.getNegativeRE());
+			default:
+
+				return sre;
 		}
 	}
 
 	public static SRE getBaseSRE(SRE sre) {
-		if(sre.getPositiveRE().startsWith("$")) {
-			String posVarName = sre.getPositiveRE().substring(1);
-			sre.setPositiveRE(DataWH.dataVal.get(posVarName).getObj().toString());
-		}
-		if(sre.getNegativeRE().startsWith("$")) {
-			String posVarName = sre.getNegativeRE().substring(1);
-			sre.setNegativeRE(DataWH.dataVal.get(posVarName).getObj().toString());
-		}
 		Class<BopSRE> classBS = BopSRE.class;
 		Class<UopSRE> classUS = UopSRE.class;
 		Class<? extends SRE> classChild = sre.getClass();
@@ -193,56 +209,10 @@ public class SREUtil {
 		}
 	}
 
-	/**
-	 * This function use to operate set operations
-	 *
-	 * @param op
-	 *            This is the first parameter to specify the set operator, which
-	 *            can be union, punion, conjunction and disjunction
-	 * @param sre1
-	 *            This is the first sre value
-	 * @param sre2
-	 *            This is the second sre value
-	 * @return
-	 */
-	private static String operate(String op, String sre1, String sre2) {
-		if ((sre1 == null || sre1.trim().equals(""))
-				&& (sre2 == null || sre2.trim().equals("")))
-			return null;
-		String returnRe = null;
-		if (!sre1.trim().equals("")) { // sre1pos is not empty
-			if (!sre2.trim().equals("")) { // case both positive is not empty
-				RegExp re1 = new RegExp(RuntimeUtils.validateStr(sre1));
-				RegExp re2 = new RegExp(RuntimeUtils.validateStr(sre2));
-				Automaton am1 = re1.toAutomaton();
-				Automaton am2 = re2.toAutomaton();
-				switch (op) {
-				case "Union":
-					returnRe = unionOP(am1, am2);
-					break;
-				case "InterSection":
-					returnRe = interSectOP(am1, am2);
-					break;
-				case "Minus":
-					returnRe = minusOP(am1, am2);
-					break;
-				default:
-					break;
-				}
-			} else { // sre2pos is empty, so union is just the sre1Pos
-				returnRe = sre1;
-			}
-		} else { // sre1pos is empty
-			if (!sre2.trim().equals("")) { // case both positive is not empty
-				returnRe = sre2;
-			}
-		}
-		return returnRe;
-	}
 
 	/**
 	 * This function is used to check if the given SRE is Infinite or not.
-	 * 
+	 *
 	 * @param sre
 	 * @return it returns ture if either positiveRE or negativeRE is Infinite
 	 */
@@ -330,14 +300,13 @@ public class SREUtil {
 		else
 			return isSreFieldNull(sre.positiveRE()) && isSreFieldNull(sre.getNegativeRE());
 	}
-	
-	 
+
+
 	public static boolean isSreFieldNull(String sreStr) {
 		if(sreStr == null)
 			return true;
 		return (sreStr.equals("null") || sreStr.trim().equals(""));
 	}
-	
 
 	private static boolean isEqual(String sre1, String sre2) {
 		RegExp re1 = new RegExp(sre1.replace("%", ".*"));
