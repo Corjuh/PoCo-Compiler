@@ -17,6 +17,6 @@ public class InfintMatch extends Match {
      * if match the event, then return true, else return false
      */
     public boolean accepts(Event event) {
-        return SREUtil.isInfinite(matchSre.genSRE());
+        return SREUtil.isInfinite(matchSre);
     }
 }

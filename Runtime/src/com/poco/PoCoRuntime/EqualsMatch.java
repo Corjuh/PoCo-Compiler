@@ -18,8 +18,8 @@ public class EqualsMatch extends Match{
      * if match the event, then return true, else return false
      */
     public boolean accepts(Event event) {
-        SRE sre1 = matchSre1.genSRE();
-        SRE sre2 = matchSre1.genSRE();
+        SRE sre1 = matchSre1;
+        SRE sre2 = matchSre2;
         return SREUtil.isEquals(sre1,sre2);
     }
 }
