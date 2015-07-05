@@ -11,6 +11,7 @@ public class PointCutGen {
     private final PrintWriter out;
     private String aspectName;
     private String policyName;
+    private String poRootName;
 
     private Closure closure;
     private HashMap<String, String> bindingVars;
@@ -19,17 +20,12 @@ public class PointCutGen {
     private HashMap<String, HashMap<String, String>> resultPtCut;
     private HashMap<String, HashMap<String, String>> prmResPtCut;
     private HashMap<String, HashMap<String, String>> actResPtCut;
-    private HashMap<String, String> objParams;
     private int pointcutNum = 0;
 
-
-    public void setObjParams(HashMap<String, String> objParams) {
-        this.objParams = objParams;
-    }
-
-    public PointCutGen(PrintWriter out, String policyName, int indentLevel, Closure closure,
+    public PointCutGen(PrintWriter out, String poRootName, String policyName, int indentLevel, Closure closure,
                        HashMap actionPCs, HashMap resPCs, HashMap promResPCs) {
         this.out = out;
+        this.poRootName = poRootName;
         this.policyName = policyName;
         this.aspectName = "Aspect" + policyName;
         this.indentLevel = indentLevel;
@@ -74,43 +70,22 @@ public class PointCutGen {
         outLine(0, "import java.lang.reflect.Method;\n");
         outLine(0, "import java.lang.reflect.Constructor;\n");
         outLine(0, "public aspect %s {", aspectName);
-        outLine(1, "private DummyRootPolicy root = new DummyRootPolicy( new %s() );\n", policyName);
+
+        //if no root, that means it would be a atom policy, then the policy DAG would just be
+        //a root with this atom poicy as its only child
+        if(poRootName == null || poRootName.length()==0)
+            outLine(1, "private RootPolicy root = new RootPolicy(new %s() );\n", policyName);
+        else {
+            outLine(1, "private RootPolicy %s = new RootPolicy();\n", poRootName);
+            //missing need add here
+        }
     }
 
     private void genDataHW() {
-        if (objParams != null && objParams.size() > 0) {
+        if (closure != null && closure.getVars().size()>0) {
             outLine(1, "public " + aspectName + "() {");
-
-            for (String key : objParams.keySet()) {
-                String str = "";
-                String varContext = "";
-                VarTypeVal varTypeVal = (VarTypeVal) closure.getVars().get(key);
-
-                //if this variable is used to save an method signature
-                if (objParams.get(key).toString().equals("action")) {
-                    if (varTypeVal != null)
-                        varContext = varTypeVal.getVarContext();
-                    if (varContext == null || varContext.equals("%"))
-                        varContext = "*";
-                    str = genTypValStr("java.lang.String", PoCoUtils.validateStr(varContext));
-                } else { //variable will be used to store an object
-                    String varType = null;
-                    if (varTypeVal != null) {
-                        varType = varTypeVal.getVarType();
-                        varContext = varTypeVal.getVarContext();
-                    }
-                    if (varType == null || varType.equals(""))
-                        varType = "java.lang.String";
-                    if (varContext == null || varContext.equals("%")) {
-                        if (varType.equals("java.lang.String"))
-                            varContext = "*";
-                        else
-                            varContext = "null";
-                    }
-                    str = genTypValStr(varType, PoCoUtils.validateStr(varContext));
-                }
-                outLine(2, "DataWH.dataVal.put(\"" + key + "\"," + str.replace("%", "*"));
-            }
+            for (Object varname : closure.getVars().keySet())
+                outLine(2, "DataWH.dataVal.put(\"" + varname + "\"," + "new TypeVal(\"java.lang.String\",\"\"));");
             outLine(1, "}\n");
         }
     }
@@ -234,9 +209,9 @@ public class PointCutGen {
                         genArgs4PTs(argStrs, argsList.length, count++, i, argTyp);
                     }
                     else {
-                        if(argsList[i].equals("\\*")) {
-                            argStrs[3] += "*";
-                            argStrs[1] += "..";
+                        if(argsList[i].equals("*")) {
+                            argStrs[3] += "..";
+                            argStrs[1] += "*";
                         } else {
                             argStrs[3] += argsList[i];
                             argStrs[1] += " value" + count++;
@@ -327,19 +302,19 @@ public class PointCutGen {
             if (conditionState != null && conditionState.length() > 0) {
                 outLine(2, "if (" + conditionState + ") {");
                 valueBind4Advices(varsNeed2Bind, 3);
-                outLine(3, "root.queryAction(new Event(thisJoinPoint, \"Action\"));");
+                outLine(3, "root.queryAction(new Action(thisJoinPoint));");
                 outLine(3, "return proceed(%s);", argStrs[2]);
                 outLine(2, "} else");
                 outLine(3, "return proceed(%s);", argStrs[2]);
             } else {
                 valueBind4Advices(varsNeed2Bind, 2);
-                outLine(2, "root.queryAction(new Event(thisJoinPoint, \"Action\"));");
+                outLine(2, "root.queryAction(new Action(thisJoinPoint));");
                 outLine(2, "return proceed(%s);", argStrs[2]);
             }
         }
         else {
             outLine(1, "Object around(): %s() {", pointcutName);
-            outLine(2, "root.queryAction(new Event(thisJoinPoint, \"Action\"));");
+            outLine(2, "root.queryAction(new Action(thisJoinPoint));");
             outLine(2, "return proceed();");
         }
         outLine(1, "}\n");
@@ -393,7 +368,7 @@ public class PointCutGen {
                 outLine(2, "if (" + conditionState + ") {");
 
                 valueBind4Advices(varsNeed2Bind, 3);
-                outLine(3, "root.queryAction(new Event(thisJoinPoint, \"Action\"));");
+                outLine(3, "root.queryAction(new Action(thisJoinPoint));");
                 //before will do not proceed the action, so no variable binding for result
                 outLine(3, "return;");
                 outLine(2, "}");
@@ -408,7 +383,7 @@ public class PointCutGen {
 
             outLine(1, "before(): %s() {", pointcutName);
             valueBind4Advices(varsNeed2Bind, 2);
-            outLine(3, "root.queryAction(new Event(thisJoinPoint, \"Action\"));");
+            outLine(3, "root.queryAction(new Action(thisJoinPoint));");
             //before will do not proceed the action, so no variable binding for result
             outLine(3, "return;");
             outLine(1, "}\n");
@@ -416,9 +391,9 @@ public class PointCutGen {
     }
 
     private void genEvent4queryAction(int offset) {
-        outLine(offset, "Event event = new Event(thisJoinPoint, \"Result\", ret);");
-        outLine(offset, "root.queryAction(event);");
-        outLine(offset, "return event.getResult();");
+        outLine(offset, "Result result = new Result(thisJoinPoint, ret);");
+        outLine(offset, "root.queryAction(result);");
+        outLine(offset, "return result.getResult();");
     }
 
     private String genCoditionStatements(Hashtable<String, String> argVal4Match) {
@@ -558,8 +533,8 @@ public class PointCutGen {
         outLine(3, "Object ret = proceed(run);");
         outLine(3, "String retTyp = RuntimeUtils.trimClassName(ret.getClass().toString());");
         genVarBing4Prom();
-        outLine(3, "PromotedEvent event = new PromotedEvent(thisJoinPoint,run,\"Result\",ret);");
-        outLine(3, "root.queryAction(event);");
+        outLine(3, "PromotedResult promRes = new PromotedResult(thisJoinPoint,run,ret);");
+        outLine(3, "root.queryAction(promRes);");
         outLine(3, "return ret;");
         outLine(2, "}");
         outLine(2, "else");
@@ -575,8 +550,8 @@ public class PointCutGen {
         outLine(3, "String retTyp = run.getName();");
         genVarBing4Prom();
 
-        outLine(3, "PromotedEvent event = new PromotedEvent(thisJoinPoint, run, ret);");
-        outLine(3, "root.queryAction(event);");
+        outLine(3, "PromotedResult promRes = new PromotedResult(thisJoinPoint, run, ret);");
+        outLine(3, "root.queryAction(promRes);");
         outLine(3, "return ret;");
         outLine(2, "}");
         outLine(2, "else");
@@ -611,57 +586,6 @@ public class PointCutGen {
                 out.format(" ");
         }
         out.format(text, args);
-    }
-
-    private String genTypValStr(String varType, String varContext) {
-        switch (varType) {
-            case "int":
-                if (varContext.equals("null"))
-                    return "new TypeVal(\"int\",null));";
-                else
-                    return "new TypeVal(\"int\",new Integer(\"" + varContext + "\")));";
-            case "short":
-                if (varContext.equals("null"))
-                    return "new TypeVal(\"short\",null));";
-                else
-                    return "new TypeVal(\"short\",new Integer(\"" + varContext + "\")));";
-            case "long":
-                if (varContext.equals("null"))
-                    return "new TypeVal(\"long\",null));";
-                else
-                    return "new TypeVal(\"long\",new Long(\"" + varContext + "\")));";
-            case "double":
-                if (varContext.equals("null"))
-                    return "new TypeVal(\"double\",null));";
-                else
-                    return "new TypeVal(\"double\",new Double(\"" + varContext + "\")));";
-            case "float":
-                if (varContext.equals("null"))
-                    return "new TypeVal(\"float\",null));";
-                else
-                    return "new TypeVal(\"float\",new Float(\"" + varContext + "\")));";
-            case "boolean":
-                if (varContext.equals("null"))
-                    return "new TypeVal(\"boolean\",null));";
-                else
-                    return "new TypeVal(\"boolean\",new Boolean(\"" + varContext + "\")));";
-            case "char":
-                if (varContext.equals("null"))
-                    return "new TypeVal(\"char\",null));";
-                else
-                    return "new TypeVal(\"char\",new Character(" + varContext + ".CharAt(0))));";
-                //case "Message":
-            case "javax.mail.Message":
-                if (varContext.equals("null"))
-                    return "new TypeVal(\"javax.mail.Message\",null));";
-                else
-                    return "new TypeVal(\"javax.mail.Message\",  null));";
-            default:
-                if (varContext.equals("null"))
-                    return "new TypeVal(\"java.lang.String\",null));";
-                else
-                    return "new TypeVal(\"java.lang.String\",\"" + varContext + "\"));";
-        }
     }
 
     private String loadValFrmClosure(String varName) {

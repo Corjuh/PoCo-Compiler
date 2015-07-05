@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.Iterator;
 
 /**
  * Root policy that defers all decisions to its single child Polipocy. Created
@@ -12,287 +11,312 @@ import java.util.Iterator;
  * parse/codegen tree-defining policies.
  */
 public class RootPolicy {
-	//private Policy child;
-	protected ArrayList<Policy> children = new ArrayList<>();
-	private Stack<String> monitoringEvents;
-	public Stack<String> promotedEvents;
-	private String strategy = "";
+    // private Policy child;
+    protected ArrayList<Policy> children = new ArrayList<>();
+    private Stack<String> monitoringEvents;
+    public Stack<String> promotedEvents;
+    private String strategy = "";
 
-	public String getStrategy() {
-		return strategy;
-	}
+    public String getStrategy() {
+        return strategy;
+    }
 
-	public void setStrategy(String strategy) {
-		this.strategy = strategy;
-	}
+    public void setStrategy(String strategy) {
+        this.strategy = strategy;
+    }
 
-	public void addChild(Policy child) {
-		this.children.add(child);
-	}
+    public void addChild(Policy child) {
+        this.children.add(child);
+    }
+
+    public RootPolicy() {
+        this.monitoringEvents = new Stack<>();
+        this.promotedEvents = new Stack<>();
+    }
+
+    public RootPolicy(Policy child) {
+        // this.child = child;
+        this.children.add(child);
+        this.monitoringEvents = new Stack<>();
+        this.promotedEvents = new Stack<>();
+    }
+
+    /**
+     * AspectJ calls this method on any attempted action.
+     *
+     * @param event security-relevant action caught by AspectJ
+     * @throws Exception
+     */
+    public void queryAction(Event event) {
+        if (event.getEventType() == null || event.getEventType() != "Result")
+            monitoringEvents.push(event.getSignature());
+
+        boolean isAccept = false;
+        SRE result = null;
+
+        // clear all requiredResult
+        DataWH.clearAllResult();
+
+        ArrayList<SRE> res4SREs = new ArrayList<SRE>();
+        for (int i = 0; i < children.size(); i++) {
+            if (children.get(i).accepts(event)) {
+                isAccept = true;
+                res4SREs.add(children.get(i).query(event));
+            } else
+                res4SREs.add(null);
+        }
+
+        // when accept is false, the returned SRE value is NULL
+        if (!isAccept)
+            System.exit(-1);
+
+        // if the strategy is not empty, then perform the strategy on all the
+        // children results
+        // otherwise, set the first child's result as final result
+        if (this.strategy != null && this.strategy.trim().length() > 0) {
+            result = SREUtil.performBOPs(strategy, res4SREs);
+        } else {
+            result = res4SREs.get(0);
+            //System.out.println("result---" + result);
+        }
 
 
-	public RootPolicy() {
-		this.monitoringEvents = new Stack<>();
-		this.promotedEvents = new Stack<>();
-	}
+        boolean posMatch = false;
+        boolean negMatch = false;
 
-	public RootPolicy(Policy child) {
-		//this.child = child;
-		this.monitoringEvents = new Stack<>();
-		this.promotedEvents = new Stack<>();
-	}
+        // System.out.format("Root policy queried with event: \"%s\"\n",event.getSignature());
+        if (SREUtil.isCalculatedSRE(result)) {
+            if (((CalculatedSRE) result).getPosSREs().size() > 0)
+                posMatch = true;
+        } else if (!SREUtil.isSreFieldNull(result.getPositiveRE())) {
+            posMatch = true;
+            // System.out.format("Child policy returned +`%s'\n",result.positiveRE());
+        }
 
+        if (SREUtil.isCalculatedSRE(result)) {
+            if (((CalculatedSRE) result).getNegSREs().size() > 0)
+                negMatch = true;
+        } else if (!SREUtil.isSreFieldNull(result.getNegativeRE())) {
+            negMatch = true;
+            // System.out.format("Child policy returned -`%s'\n",result.negativeRE()+"\n");
+        }
 
-	/**
-	 * AspectJ calls this method on any attempted action.
-	 *
-	 * @param event
-	 *            security-relevant action caught by AspectJ
-	 * @throws Exception
-	 */
-	public void queryAction(Event event) {
-		if (event.getEventType() == null || event.getEventType() != "Result")
-			monitoringEvents.push(event.getSignature());
+        // Neutral case which means should be okay if
+        if (!(posMatch || negMatch)) {
+            // System.out.println("Child policy returned Neutral");
+            return;
+        }
 
-		boolean isAccept = false;
-		SRE result = null;
+        if (posMatch) {
+            ArrayList<SRE> posRets = new ArrayList<SRE>();
+            if (SREUtil.isCalculatedSRE(result))
+                posRets.addAll(((CalculatedSRE) result).getPosSREs());
+            else
+                posRets.add(result);
 
-		//clear all requiredResult
-		DataWH.clearAllResult();
+            for (SRE posSre : posRets) {
+                String resultPos = posSre.getPositiveRE();
+                // handle the case of update the return value
+                // not a function call but an object value, then it is the case
+                // of
+                // update the return value
+                String funReg = "(.+)\\((.*)\\)";
+                Pattern funPtn = Pattern.compile(funReg);
+                Matcher funMth = funPtn.matcher(resultPos);
+                String objReg = "#(.+)\\{(.+)\\}";
+                Pattern objPtn = Pattern.compile(objReg);
+                Matcher objMth = objPtn.matcher(resultPos);
+                if (!funMth.find() && objMth.find()) {
+                    event.setResult(genNewResult(objMth.group(1).trim(), objMth
+                            .group(2).trim()));
+                    return;
+                }
+                // end of handling this case
 
-		for(Iterator<Policy>it = children.iterator(); it.hasNext();) {
-			if(it.next().accepts(event)) {
-				isAccept = true;
-				break;
-			}
-		}
-		//when accept is false, the returned SRE value is NULL
-		if(!isAccept)
-			System.exit(-1);
+                boolean isMonitoring = false;
+                boolean isObjMethodCall = false;
+                String methodSignature = "";
+                String[] vals = null;
 
+                if (monitoringEvents.isEmpty() && resultPos != null) {
+                    isMonitoring = false;
+                } else {
+                    // Handle the case object method call, need check the method
+                    // signature first,
+                    // if already in monitoringEvents, then it will be allowed,
+                    // otherwise it will be promoted
+                    if (resultPos.startsWith("$")) {
+                        String varName = resultPos.substring(1);
+                        vals = RuntimeUtils.objMethodCall(varName);
+                        if (vals != null) {
+                            isObjMethodCall = true;
+                            methodSignature = DataWH.dataVal.get(vals[0])
+                                    .getType().toString()
+                                    + "." + vals[1] + "(" + vals[2] + ")";
+                            methodSignature = RuntimeUtils
+                                    .getMethodSignature(methodSignature);
+                        } else if (DataWH.dataVal.containsKey(varName)
+                                && DataWH.dataVal.get(varName).getObj() != null) {
+                            // the case of allowing an  monitored method
+                            methodSignature = DataWH.dataVal.get(varName)
+                                    .getObj().toString();
+                        } else
+                            throw new NullPointerException(
+                                    "No such object named " + varName + " exist!");
+                    } else
+                        methodSignature = RuntimeUtils
+                                .getMethodSignature(resultPos);
 
-		SRE[] res4SREs = new SRE[children.size()];
-		for(int i = 0; i<children.size(); i++) {
-			res4SREs[i] = children.get(i).query(event);
-		}
+                    if (RuntimeUtils.matchFunction(monitoringEvents.peek(),
+                            methodSignature))
+                        isMonitoring = true;
+                }
 
-		if(this.strategy != null && this.strategy.trim().length()>0)
-			result = SREUtil.performBOPs(strategy, res4SREs);
+                if (isMonitoring) {
+                    // System.out.println("the action " +
+                    // monitoringEvents.peek() +
+                    // " will be allowed!\n");
+                    monitoringEvents.pop();
+                } else {
+                    // System.out.println("the action " + resultPos +
+                    // " will be promoted!");
+                    try {
+                        // first find the number of the arguments
+                        int numOfArgs = 0;
+                        String[] paramStrs = null;
+                        Object[] obj4Args = null;
+                        String methodname;
+                        String strParams;
 
-		boolean posMatch = false;
-		boolean negMatch = false;
+                        // if it is object method call case
+                        if (isObjMethodCall) {
+                            if (DataWH.dataVal.get(vals[0]).getObj() != null)
+                                methodname = vals[1];
+                            else
+                                throw new NullPointerException(
+                                        "calling the instance method of a null object!");
+                        } else
+                            methodname = RuntimeUtils.getMethodName(resultPos);
 
-		//System.out.format("Root policy queried with event: \"%s\"\n",event.getSignature());
-		if (!SREUtil.isSreFieldNull(result.getPositiveRE())) {
-			posMatch = true;
-			//System.out.format("Child policy returned +`%s'\n",result.positiveRE());
-		}
+                        promotedEvents.push(methodSignature);
+                        strParams = RuntimeUtils.getfunArgstr(resultPos);
 
-		if (!SREUtil.isSreFieldNull(result.getNegativeRE())) {
-			negMatch = true;
-			//System.out.format("Child policy returned -`%s'\n",result.negativeRE()+"\n");
-		}
+                        if (strParams == null || strParams.length() == 0)
+                            paramStrs = null;
+                        else
+                            paramStrs = strParams.split(",");
+                        if (paramStrs != null && paramStrs.length > 0) {
+                            obj4Args = new Object[paramStrs.length];
+                            for (int i = 0; i < paramStrs.length; i++)
+                                obj4Args[i] = getObj(paramStrs[i]);
+                        }
 
-		// Neutral case which means should be okay if
-		if (!(posMatch || negMatch)) {
-			// System.out.println("Child policy returned Neutral");
-			return;
-		}
+                        if (isObjMethodCall) {
+                            Promoter.Reflect(DataWH.dataVal.get(vals[0])
+                                            .getObj(), vals[1] + "(" + vals[2] + ")",
+                                    obj4Args);
+                        } else {
+                            Promoter.Reflect(null, resultPos, obj4Args);
+                        }
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            }
+        }
 
-		if (posMatch) {
-			String resultPos = result.positiveRE();
+        if (negMatch) {
+            // if already on stack, show System.exit(-1);
+            ArrayList<SRE> negRets = new ArrayList<SRE>();
+            if (SREUtil.isCalculatedSRE(result))
+                negRets.addAll(((CalculatedSRE) result).getNegSREs());
+            else
+                negRets.add(result);
 
-			// handle the case of update the return value
-			// not a function call but an object value, then it is the case of
-			// update the return value
-			String funReg = "(.+)\\((.*)\\)";
-			Pattern funPtn = Pattern.compile(funReg);
-			Matcher funMth = funPtn.matcher(resultPos);
-			String objReg = "#(.+)\\{(.+)\\}";
-			Pattern objPtn = Pattern.compile(objReg);
-			Matcher objMth = objPtn.matcher(resultPos);
-			if (!funMth.find() && objMth.find()) {
-				event.setResult(genNewResult(objMth.group(1).trim(), objMth
-						.group(2).trim()));
-				return;
-			}
-			// end of handling this case
+            for (SRE negSre : negRets) {
 
-			boolean isMonitoring = false;
-			boolean isObjMethodCall = false;
-			String methodSignature = "";
-			String[] vals = null;
+                if (!monitoringEvents.empty()) {
+                    if (RuntimeUtils.matchFunction(monitoringEvents.peek(), negSre.getNegativeRE())) {
+                        System.out.println(monitoringEvents.peek() + "action is not allowed to be executed!");
+                        System.out.println("System will exit!");
+                        monitoringEvents.pop();
+                        System.exit(-1);
+                    }
+                }
 
-			if (monitoringEvents.isEmpty() && resultPos != null) {
-				isMonitoring = false;
-			} else {
-				// Handle the case object method call, need check the method
-				// signature first,
-				// if already in monitoringEvents, then it will be allowed,
-				// otherwise it will be promoted
-				if (resultPos.startsWith("$")) {
-					String varName = resultPos.substring(1);
-					vals = RuntimeUtils.objMethodCall(varName);
-					if (vals != null) {
-						isObjMethodCall = true;
-						methodSignature = DataWH.dataVal.get(vals[0]).getType().toString()
-								+ "." + vals[1] + "(" + vals[2] + ")";
-						methodSignature = RuntimeUtils
-								.getMethodSignature(methodSignature);
-					} else if (DataWH.dataVal.get(varName).getObj() != null) { // the
-						// case
-						// of
-						// allowing
-						// an
-						// monitored
-						// method
-						methodSignature = DataWH.dataVal.get(varName).getObj()
-								.toString();
-					} else
-						throw new NullPointerException("No such object exist.");
-				} else
-					methodSignature = RuntimeUtils
-							.getMethodSignature(resultPos);
+            }
+        }
+        if (posMatch)
+            return;
+    }
 
-				if (RuntimeUtils.matchFunction(monitoringEvents.peek(),
-						methodSignature))
-					isMonitoring = true;
-			}
+    private Object getObj(String objStr) {
+        Object returnObj = null;
+        String reg = "#(.+)\\{(.+)\\}";
+        Pattern pattern = Pattern.compile(reg);
+        Matcher matcher = pattern.matcher(objStr);
+        if (matcher.find()) {
+            String id = matcher.group(2).trim();
+            if (id.startsWith("$")) {
+                returnObj = DataWH.dataVal.get(id.substring(1)).getObj();
+            } else {
+                returnObj = genNewResult(matcher.group(1).trim(), matcher
+                        .group(2).trim());
+                // if the obj type is String, check to see if the string
+                // contains variable
+                if (matcher.group(1).trim().equals("java.lang.String")) {
+                    String newStr = returnObj.toString();
+                    reg = "(.*)(\\$(\\w+))(.*)";
+                    pattern = Pattern.compile(reg);
+                    matcher = pattern.matcher(newStr);
+                    while (matcher.find()) {
+                        if (DataWH.dataVal != null
+                                && DataWH.dataVal.containsKey(matcher.group(3))) {
+                            if (DataWH.dataVal.get(matcher.group(3)).getObj() != null) {
+                                String strVal = DataWH.dataVal
+                                        .get(matcher.group(3)).getObj()
+                                        .toString();
+                                newStr = newStr.replace(matcher.group(2),
+                                        strVal);
+                            }
+                        }
+                        returnObj = newStr;
+                    }
+                }
+            }
+        } else {
+            returnObj = DataWH.dataVal.get(objStr.substring(1)).getObj();
+        }
+        return returnObj;
+    }
 
-			if (isMonitoring) {
-				//System.out.println("the action " + monitoringEvents.peek() +
-				// " will be allowed!\n");
-				monitoringEvents.pop();
-			} else {
-				//System.out.println("the action " + resultPos +
-				//" will be promoted!");
-				try {
-					// first find the number of the arguments
-					int numOfArgs = 0;
-					String[] paramStrs = null;
-					Object[] obj4Args = null;
-					String methodname;
-					String strParams;
+    private Object genNewResult(String type, String value) {
+        Object retObj = null;
+        switch (type) {
+            case "int":
+            case "Integer":
+                retObj = new Integer(value);
+                break;
+            case "long":
+                retObj = new Long(value);
+                break;
+            case "double":
+                retObj = new Double(value);
+                break;
+            case "float":
+                retObj = new Float(value);
+                break;
+            case "boolean":
+                retObj = new Boolean(value);
+                break;
+            case "char":
+                retObj = new Character(value.charAt(0));
+                break;
+            default:
+                retObj = new String(value);
+        }
 
-					// if it is object method call case
-					if (isObjMethodCall) {
-						if (DataWH.dataVal.get(vals[0]).getObj() != null)
-							methodname = vals[1];
-						else
-							throw new NullPointerException(
-									"calling the instance method of a null object!");
-					} else
-						methodname = RuntimeUtils.getMethodName(resultPos);
-
-					promotedEvents.push(methodSignature);
-					strParams = RuntimeUtils.getfunArgstr(resultPos);
-
-					if (strParams == null || strParams.length() == 0)
-						paramStrs = null;
-					else
-						paramStrs = strParams.split(",");
-					if (paramStrs != null && paramStrs.length > 0) {
-						obj4Args = new Object[paramStrs.length];
-						for (int i = 0; i < paramStrs.length; i++)
-							obj4Args[i] = getObj(paramStrs[i]);
-					}
-
-					if (isObjMethodCall) {
-						Promoter.Reflect(DataWH.dataVal.get(vals[0]).getObj(),
-								vals[1] + "(" + vals[2] + ")", obj4Args);
-					} else {
-						Promoter.Reflect(null, resultPos, obj4Args);
-					}
-				} catch (Exception ex) {
-					ex.printStackTrace();
-				}
-			}
-		}
-
-		if (negMatch) {
-			// if already on stack, show System.exit(-1);
-			if (!monitoringEvents.empty()
-					&& monitoringEvents.peek().contains(
-					result.negativeRE().toString())) {
-				monitoringEvents.pop();
-			}
-		}
-
-		if (posMatch)
-			return;
-		if (negMatch)
-			System.exit(-1);
-	}
-
-	private Object getObj(String objStr) {
-		Object returnObj = null;
-		String reg = "#(.+)\\{(.+)\\}";
-		Pattern pattern = Pattern.compile(reg);
-		Matcher matcher = pattern.matcher(objStr);
-		if (matcher.find()) {
-			String id = matcher.group(2).trim();
-			if (id.startsWith("$")) {
-				returnObj = DataWH.dataVal.get(id.substring(1))
-						.getObj();
-			} else {
-				returnObj = genNewResult(matcher.group(1).trim(), matcher
-						.group(2).trim());
-				// if the obj type is String, check to see if the string
-				// contains variable
-				if (matcher.group(1).trim().equals("java.lang.String")) {
-					String newStr = returnObj.toString();
-					reg = "(.*)(\\$(\\w+))(.*)";
-					pattern = Pattern.compile(reg);
-					matcher = pattern.matcher(newStr);
-					while (matcher.find()) {
-						if (DataWH.dataVal != null
-								&& DataWH.dataVal.containsKey(matcher.group(3))) {
-							if (DataWH.dataVal.get(matcher.group(3)).getObj() != null) {
-								String strVal = DataWH.dataVal
-										.get(matcher.group(3)).getObj()
-										.toString();
-								newStr = newStr.replace(matcher.group(2),
-										strVal);
-							}
-						}
-						returnObj = newStr;
-					}
-				}
-			}
-		}
-		else {
-			returnObj = DataWH.dataVal.get(objStr.substring(1)).getObj();
-		}
-		return returnObj;
-	}
-
-	private Object genNewResult(String type, String value) {
-		Object retObj = null;
-		switch (type) {
-			case "int":
-			case "Integer":
-				retObj = new Integer(value);
-				break;
-			case "long":
-				retObj = new Long(value);
-				break;
-			case "double":
-				retObj = new Double(value);
-				break;
-			case "float":
-				retObj = new Float(value);
-				break;
-			case "boolean":
-				retObj = new Boolean(value);
-				break;
-			case "char":
-				retObj = new Character(value.charAt(0));
-				break;
-			default:
-				retObj = new String(value);
-		}
-
-		return retObj;
-	}
+        return retObj;
+    }
 
 }

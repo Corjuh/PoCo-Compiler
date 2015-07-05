@@ -18,14 +18,14 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     private Closure closure;
     private String policyName = "";
+    private String poRootName = "";
+
+    public String getPoRootName() {
+        return poRootName;
+    }
 
     private Stack<Integer> parsFlags;
     private Stack<String> bindVarName;
-
-    //used to store all the parameters that needed as obj in order to promote or process
-    //since not all the variables are needed as obj type
-    //better performance for gening DataWH, no need iterate all pointcuts
-    private HashMap<String, String> objParams = new HashMap<String, String>();
 
     //use the 2nd String field to flag action bindings verse result bindings
     //action bindings bind method signature to the variable, while
@@ -49,6 +49,20 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     private static String scrubString(String input) {
         return input.replaceAll("(%|\\$[a-zA-Z0-9\\.\\-_]+)", "");
+    }
+
+    @Override
+    public Void visitPimport(@NotNull PoCoParser.PimportContext ctx) {
+        //need to import those included policies' pointcut
+
+        return null;
+    }
+
+    @Override
+    public Void visitTreedef(@NotNull PoCoParser.TreedefContext ctx) {
+        poRootName = ctx.id(0).getText().trim();
+        policyName = poRootName;
+        return null;
     }
 
     @Override
@@ -167,7 +181,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 //record the binding info then parse its children
                 if (closure != null && closure.isVarsContain(policyName + ctx.id().getText())) {
                     varBind4thisPC.put(policyName + ctx.id().getText(), "result");
-                    objParams.put(policyName + ctx.id().getText(), "result");
                     visitChildren(ctx);
                 } else
                     PoCoUtils.throwNoSuchVarExpection(ctx.id().getText());
@@ -212,7 +225,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         // 3. raise the NullPointerException
         if (closure != null && closure.isVarsContain(policyName + str)) {
             String varTyp = closure.loadFrmVars(policyName + str).getVarType();
-            objParams.put(policyName + str, "result");
             argStr.append("#" + varTyp + "{$" + policyName + str + "},");
         } else if (closure != null && closure.isFunctionsContain(policyName + str)) {
             argStr.append(closure.getFunctionContext(policyName + str) + ",");
@@ -279,7 +291,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         if (closure != null && closure.isFunctionsContain(qidStr)) {
             return closure.getFunctionContext(qidStr);
         } else if (closure != null && closure.isVarsContain(qidStr)) {
-            objParams.put(qidStr, "action");
             return closure.getVarContext(qidStr);
         } else
             throw new NullPointerException("No such var named " + qidStr + " exist.");
@@ -303,7 +314,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         //      2. store the object into objParams HashMap
         if (closure != null && closure.isVarsContain(policyName + objInfos[0])) {
             pointcutStr.append("$" + policyName + objInfos[0] + "." + objInfos[1]);
-            objParams.put(policyName + objInfos[0], "result");
         } else
             PoCoUtils.throwNoSuchVarExpection(objInfos[0]);
     }
@@ -328,10 +338,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     public HashMap<String, HashMap<String, String>> getPCStrs4Promoter() {
         return frmPrmResPT2BndVar;
-    }
-
-    public HashMap<String, String> getObjParams() {
-        return objParams;
     }
 
     private void add2PCHashmaps() {

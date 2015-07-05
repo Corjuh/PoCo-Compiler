@@ -11,8 +11,6 @@ import org.aspectj.lang.JoinPoint;
 
 public class RuntimeUtils {
 	public static boolean matchFunction(String eventSig, String matchStr) {
-		// if (eventSig.contains(matchStr) || matchStr.contains(eventSig))
-		// return true;
 		// step1: check directly if the sig matches
 		matchStr = getMethodSignature(matchStr);
 
@@ -290,10 +288,37 @@ public class RuntimeUtils {
 		}
 	}
 
+	public static boolean StringMatch(String matchingVal, String matchRegex) {
+		if(isVariable(matchRegex))
+			matchRegex = DataWH.dataVal.get(matchRegex.substring(1)).getObj().toString();
+		String regex = validateStr(matchRegex);
+
+		// Pattern pattern = Pattern.compile(strictifyMatch(regex));
+		Pattern pattern = Pattern.compile(regex);
+		Matcher matcher = pattern.matcher(matchingVal);
+		return matcher.find();
+	}
+
 	public static String validateStr(String str) {
 		return str.replaceAll("(%|\\$[a-zA-Z0-9\\.\\-_]+)", "")
 				.replaceAll("#|\\{|\\}", "").replace("(", "\\(")
 				.replace(")", "\\)").replace("*", "(.*)");
+	}
+
+	public static String strictifyMatch(String str) {
+		String returnStr = "";
+		while (str.contains("*")) {
+			int leftIndex = str.indexOf("*");
+			if (leftIndex > 0)
+				returnStr += "(" + str.substring(0, leftIndex) + ")$";
+			returnStr += "(.*)";
+			if (leftIndex + 1 < str.length() - 1)
+				str = str.substring(leftIndex + 1, str.length());
+			else
+				break;
+		}
+		returnStr += "(" + str + ")$";
+		return returnStr;
 	}
 
 	public static String[] objMethodCall(String str) {
@@ -353,7 +378,7 @@ public class RuntimeUtils {
 		methodName.append(run.getDeclaringClass().getName() + "."
 				+ run.getName() + "(");
 
-		if (run.getTypeParameters().length > 0) {
+		if (run.getParameterTypes().length > 0) {
 			Type[] paraTypes = run.getParameterTypes();
 			for (int i = 0; i < paraTypes.length; i++) {
 				methodName.append(trimClassName(paraTypes[i].toString()));
@@ -365,6 +390,8 @@ public class RuntimeUtils {
 	}
 
 	public static boolean isVariable(String varName) {
+		if(varName == null || varName.trim().length()==0)
+			return false;
 		return varName.startsWith("$");
 	}
 
@@ -388,11 +415,26 @@ public class RuntimeUtils {
 
 	}
 
+	public static boolean matchStack4Constr(Stack<String> events, Constructor run) {
+		String className = RuntimeUtils.trimClassName(run.getDeclaringClass().toString());
+		className +=".new";
+		if (events != null && events.peek().contains(className))
+			return true;
+
+		return false;
+	}
+
 	public static boolean matchSig(String matchingVal, Constructor run){
 		String regex = validateStr(getConstruSig(run));
 		Pattern pattern = Pattern.compile(regex);
 		Matcher matcher = pattern.matcher(matchingVal);
 		return matcher.find();
+	}
+
+	public static String loadValFrmDataWH(String sreStrVal) {
+		String varVal = DataWH.dataVal.get(sreStrVal.substring(1)).getObj()
+				.toString();
+		return varVal;
 	}
 
 	public static boolean matchSig(String matchingVal, Method run){

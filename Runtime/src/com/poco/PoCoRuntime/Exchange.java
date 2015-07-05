@@ -22,16 +22,23 @@ public class Exchange extends EventResponder implements Matchable, Queryable {
 
     @Override
     public boolean accepts(Event event) {
-        if(matcher == null) //_ case
+        if (matcher == null) //_ case
             return true;
-        return  matcher.accepts(event); 
+        return matcher.accepts(event);
     }
 
     @Override
     public SRE query(Event event) {
-        if (this.accepts(event)) 
-            return returnSRE;
-         
+        if (this.accepts(event)) {
+            if (SREUtil.isBopSre(returnSRE)) {
+                BopSRE temp = (BopSRE) returnSRE;
+                return SREUtil.performBOPs(temp.getSrebop(), temp.getSre1(), temp.getSre2());
+            } else if (SREUtil.isUopSre(returnSRE)) {
+                UopSRE temp = (UopSRE) returnSRE;
+                return SREUtil.performUOPs(temp.getSreuop(), temp.getSre());
+            } else
+                return returnSRE;
+        }
         return null;
     }
 
@@ -40,8 +47,8 @@ public class Exchange extends EventResponder implements Matchable, Queryable {
         return "Exchange [matcher=" + matcher + ", returnSRE=" + returnSRE
                 + "]";
     }
-    
-    public void resetChildrenCursor(){
-    	return;
+
+    public void resetChildrenCursor() {
+        return;
     }
 }

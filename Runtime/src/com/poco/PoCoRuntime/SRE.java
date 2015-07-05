@@ -1,26 +1,22 @@
 package com.poco.PoCoRuntime;
 
-/**
- * Signed regular expression from PoCo.
- */
+import dk.brics.automaton.Automaton;
+import dk.brics.automaton.RegExp;
+
 /**
  * Signed regular expression from PoCo.
  */
 public class SRE {
-    // SRE Unary Operators: Complement; Actions; Results; Positive; Negative
-    protected String positiveRE = null;
-    protected String negativeRE = null;
+    private String positiveRE;
+    private String negativeRE;
 
     public void setPositiveRE(String positiveRE) {
         this.positiveRE = positiveRE;
-        positiveRE = genSRE().getPositiveRE();
-        negativeRE = genSRE().getNegativeRE();
     }
 
     public void setNegativeRE(String negativeRE) {
+        //this.negativeRE = convertSRE(negativeRE);
         this.negativeRE = negativeRE;
-        positiveRE = genSRE().getPositiveRE();
-        negativeRE = genSRE().getNegativeRE();
     }
 
     public SRE() {
@@ -29,27 +25,112 @@ public class SRE {
     }
 
     public SRE(String positive, String negative) {
-        positiveRE = convertSRE(positive);
-        negativeRE = convertSRE(negative);
-        positiveRE = genSRE().getPositiveRE();
-        negativeRE = genSRE().getNegativeRE();
-    }
+        if(positive!= null && positive.trim().length()>0)
+            this.positiveRE = positive;
 
-    protected SRE genSRE() {
-        return SREUtil.getBaseSRE(this);
-
+        if(negative!= null && negative.trim().length()>0)
+            negativeRE = negative;
     }
 
     public boolean isNeutral() {
-        return (positiveRE == null && negativeRE == null);
+        if (SREUtil.isSreFieldNull(positiveRE)
+                && SREUtil.isSreFieldNull(negativeRE))
+            return true;
+        else {
+            String posTemp = getReValue(this.positiveRE);
+            String negTemp = getReValue(this.negativeRE);
+            return (SREUtil.isSreFieldNull(posTemp) && SREUtil.isSreFieldNull(negTemp));
+        }
     }
 
-    public String positiveRE() {
-        if (positiveRE != null) {
-            return positiveRE;
-        } else {
-            return "";
-        }
+    private String getReValue(String reStr) {
+        String returnStr = reStr;
+        if (SREUtil.isSreFieldNull(returnStr) && RuntimeUtils.isVariable(returnStr))
+            returnStr = RuntimeUtils.loadValFrmDataWH(returnStr);
+        return returnStr;
+    }
+
+    public SRE complement() {
+        String posTemp = getReValue(this.positiveRE);
+        String negTemp = getReValue(this.negativeRE);
+        return new SRE(negTemp, posTemp);
+    }
+
+    /**
+     * Includes only the actions in SRE
+     *
+     * @return
+     */
+    public SRE getAction() {
+        String posTemp = getReValue(this.positiveRE);
+        String negTemp = getReValue(this.negativeRE);
+
+        RegExp rePos = new RegExp(posTemp.replace("%", ".*"));
+        RegExp reNeg = new RegExp(negTemp.replace("%", ".*"));
+        RegExp action = new RegExp(".+\\(.*\\)");
+
+        Automaton amPos = rePos.toAutomaton();
+        Automaton amNeg = reNeg.toAutomaton();
+        Automaton amAct = action.toAutomaton();
+
+        SRE returnSRE = new SRE();
+        if (amPos.subsetOf(amPos.intersection(amAct)))
+            returnSRE.setPositiveRE(posTemp);
+
+        if (amNeg.subsetOf(amNeg.intersection(amAct)))
+            returnSRE.setNegativeRE(negTemp);
+
+        return returnSRE;
+
+    }
+
+    /**
+     * Includes only the results in SRE resPos =
+     * amPos.minus(amPos.intersection(amAct)); resNeg =
+     * amNeg.minus(amNeg.intersection(amAct));
+     *
+     * @return
+     */
+    public SRE getResult() {
+        String posTemp = getReValue(this.positiveRE);
+        String negTemp = getReValue(this.negativeRE);
+
+        RegExp rePos = new RegExp(posTemp.replace("%", ".*"));
+        RegExp reNeg = new RegExp(negTemp.replace("%", ".*"));
+        RegExp action = new RegExp(".+\\(.*\\)");
+        Automaton amPos = rePos.toAutomaton();
+        Automaton amNeg = reNeg.toAutomaton();
+        Automaton amAct = action.toAutomaton();
+
+        Automaton resPos = amPos.minus(amPos.intersection(amAct));
+        Automaton resNeg = amNeg.minus(amNeg.intersection(amAct));
+
+        SRE returnSRE = new SRE();
+        if (amPos.subsetOf(resPos))
+            returnSRE.setPositiveRE(posTemp);
+
+        if (amNeg.subsetOf(resNeg))
+            returnSRE.setNegativeRE(negTemp);
+
+        return returnSRE;
+    }
+
+    /**
+     * Includes only positive portion of SRE
+     *
+     * @return
+     */
+    public SRE getPostiveVal() {
+        return new SRE(getReValue(this.positiveRE), null);
+    }
+
+    /**
+     * Includes only negative portion of SRE
+     *
+     * @return
+     */
+    public SRE getNegativeVal() {
+        return new SRE(null, getReValue(this.negativeRE));
     }
 
     public String getPositiveRE() {
@@ -58,14 +139,6 @@ public class SRE {
 
     public String getNegativeRE() {
         return negativeRE;
-    }
-
-    public String negativeRE() {
-        if (negativeRE != null) {
-            return negativeRE;
-        } else {
-            return "";
-        }
     }
 
     /**
@@ -77,18 +150,14 @@ public class SRE {
      * @return Proper Java RegEx
      */
     public static String convertSRE(String sre) {
-        if (sre == null) {
+        if (sre == null || sre.trim().length()==0)
             return null;
-        }
 
-        // TODO: Flesh out this method. Currently just replaces removes the
-        // wildcard
         return sre.replaceAll("\\(%\\)", "");
     }
 
     @Override
     public String toString() {
-        return "SRE [positiveRE=" + positiveRE + ", negativeRE=" + negativeRE
-                + "]";
+        return "SRE [positiveRE=" + positiveRE + ", negativeRE=" + negativeRE  + "]";
     }
 }

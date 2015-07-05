@@ -47,6 +47,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     //use to save the transactions that need to be added into Util
     private String transactions = null;
     private String policyName = null;
+    private String poRootName = null;
 
     //this stack is used to flag the status when parsing arguments
     private Stack<Integer> flagStack4Arg;
@@ -126,6 +127,28 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 out.format(" ");
         }
         out.format(text, args);
+    }
+
+    @Override
+    public Void visitTreedef(@NotNull PoCoParser.TreedefContext ctx) {
+        poRootName = ctx.id(0).getText();
+        policyName = ctx.id(0).getText();
+
+        //TREE id=srebop(policyargs) case, e.g., tree rootNode=Union(DenyEmails(),NoOpenPorts())
+        if(ctx.srebop() != null) {
+            outLine(0, "%s.setStrategy(\"%s\");",poRootName,ctx.srebop().getText());
+            visitChildren(ctx);
+        }
+        else {
+
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitPolicyarg(@NotNull PoCoParser.PolicyargContext ctx) {
+        outLine(0, "%s.addChild(\"%s\");",poRootName,ctx.getText());
+        return null;
     }
 
     /**
@@ -383,30 +406,39 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitSre(@NotNull PoCoParser.SreContext ctx) {
         if (PoCoUtils.isExchLHSWild(flagStack4Exc)) {
-            if (ctx.re() != null) {             // (+|-)`re' case
+            if (ctx.re() != null) {
+                // (+|-)`re' case
                 visitRe(ctx.re());
-            } else if (ctx.qid() != null) {     //$qid case
+            }
+            else if (ctx.qid() != null) {
+                //$qid case
                 String str = loadFromClosure(ctx.qid().getText());
                 if (str == null)
                     str = ctx.qid().getText();
                 String matchName = "match" + matchNum++;
                 outLine(3, "Match %s = new Match(\"%s\");", matchName, scrubString(str));
                 outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
-            } else if (ctx.NEUTRAL() != null) { //neutral case
+            }
+            else if (ctx.NEUTRAL() != null) {
+                //neutral case
                 String matchName = "match" + matchNum++;
-                outLine(3, "Match %s = new Match(null, null);", matchName);
+                outLine(3, "Match %s = new Match(\"*\");", matchName);
                 outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
             }
-            else if(ctx.srebop() != null) { // srebop(sre0,sre1) case
+            else if(ctx.srebop() != null) {
+                // srebop(sre0,sre1) case
                 LHSRewildWSreBop(ctx);
             }
-            else  { // handle both () case and sreuop(sre) case
+            else  {
+                // handle both () case and sreuop(sre) case
                 visitChildren(ctx);
             }
-        } else {
+        }
+        else {
             if (ctx.NEUTRAL() != null) {
                 handleSreNeutral();
-            } else if (ctx.PLUS() != null | ctx.MINUS() != null) { // (+|-)`re' case
+            } else if (ctx.PLUS() != null | ctx.MINUS() != null) {
+                // (+|-)`re' case
                 String sreName = "sre" + sreNum++;
                 sreNames.push(sreName);
                 outLine(3, "SRE %s = new SRE(null, null);", sreName);
@@ -416,13 +448,21 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                     return null;
 
                 handlePosNegReCase(ctx, sreName);
-            } else if (ctx.srebop() != null) {  // srebop(sre0,sre1) case
+            }
+            else if (ctx.srebop() != null) {
+                // srebop(sre0,sre1) case
                 handleSreBopCase(ctx);
-            } else if (ctx.sreuop() != null) {   // sreuop(sre0) case
+            }
+            else if (ctx.sreuop() != null) {
+                // sreuop(sre0) case
                 handleSreUopCase(ctx);
-            } else if (ctx.DOLLAR() != null) {   //$qid case
+            }
+            else if (ctx.DOLLAR() != null) {
+                //$qid case
                 handleSreQidCase(ctx);
-            } else if (ctx.LPAREN() != null) {  //() case
+            }
+            else if (ctx.LPAREN() != null) {
+                //() case
                 visitChildren(ctx);
             }
         }
@@ -893,7 +933,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 outLine(3, "%s.setSRE1(%s);", fieldName, sreName);
             else {//if (PoCoUtils.isSREBop2(flagStack4Sre))
                 outLine(3, "%s.setSRE2(%s);", fieldName, sreName);
-                outLine(3, "%s.setSRE(%s);", currentMatch, fieldName);
             }
         }
     }
