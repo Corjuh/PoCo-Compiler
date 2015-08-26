@@ -55,7 +55,7 @@ public class RootPolicy {
         SRE result = null;
 
         // clear all requiredResult
-        DataWH.clearAllResult();
+        //DataWH.clearAllResult();
 
         ArrayList<SRE> res4SREs = new ArrayList<SRE>();
         for (int i = 0; i < children.size(); i++) {

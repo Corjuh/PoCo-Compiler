@@ -22,6 +22,10 @@ class Test { public int foo(int x) { return x; } }
 NoCreateClassFiles() :
 <_ => -`java.io.File.<init>(#java.lang.String{%.class})|java.io.File.<init>(\*, #java.lang.String{%.class})'>*
 
+
+NoCreateClassFiles() :
+@creatFile()[`java.io.File.<init>(#java.lang.String{%.class})|java.io.File.<init>(\*, #java.lang.String{%.class})'] :RE
+<_ => -`$creatFile'>*
 **********************************************RuntimeDemo.java********************************************
 import java.io.File;  
 public class RuntimeDemo {
@@ -60,7 +64,6 @@ public class RuntimeDemo {
      	  System.out.println("............End executing............\n");
      } 
 }
- 
 =================================================================================
 =================================================================================
 Attachments() :
@@ -234,7 +237,7 @@ transaction private static Boolean IsTrustedPackage(stacktrace)
 =================================================================================
 IsClientSigned(Policy p1, Policy p2):
 <!Action(`isSigned()') => Union($p2(),  +`isSigned()')>*
-  (<Result(`isSigned()', `#Boolean{true}')  => $p1()>  <_ => $p1()>*)
+  (<Result(`isSigned()', `#Boolean{true}')  => $p1()> <_ => $p1()>*)
  |(<Result(`isSigned()', `#Boolean{false}') => $p2()> <_ => $p2()>*)
 =================================================================================
 Audit(Policy p, String f) :
@@ -299,6 +302,30 @@ var ig    : RE
 <!Result(`com.poco.InterruptGen.<init>($interval,$percent)', `%')
      => +`com.poco.InterruptGen.<init>($interval,$percent)'>*
 < Result(`@ig[com.poco.InterruptGen.<init>($interval,$percent)]', `%') => +`$ig.start()'>
+
+
+
+
+package com.poco; 
+import javax.swing.JOptionPane;
+
+public class RuntimeDemo {
+	public static void main(String[] args) {
+		doPrint();
+	}
+	
+	public static void doPrint() {
+		for(int i = 0; i<1000000; i++){
+			System.out.println(i);
+			for (long j = 0; j<10000000000L; j++) j=j+1;
+		}
+	}
+	
+	public int ShowDialog(String s) {
+		int option = JOptionPane.showConfirmDialog(null, s, "Warning", 0);
+		return option;
+	}
+}
 ==============================================================================================================
 OutgoingMail(java.lang.String ContactInfo) :
 var msg: RE
@@ -497,15 +524,71 @@ Main():
 tree rootNode = Union(DenyEmails(), NoOpenPorts())
 
 =================================================================================
+IsClientSigned(Policy p1, Policy p2):
+<!Action(`isSigned()') => Union($p2(),  +`isSigned()')>*
+  (<Result(`isSigned()', `#Boolean{true}')  => $p1()>  <_ => $p1()>*)
+ |(<Result(`isSigned()', `#Boolean{false}') => $p2()> <_ => $p2()>*)
 
+DenyEmails() :
+var msg: RE
+@SendMail(msg)  [`void javax.mail.Transport.send(#javax.mail.Message{$msg})']: RE 
+@logMessage(msg)[`com.poco.MailUtil.logMessage(#javax.mail.Message{$msg})']: RE 
+(<!Action(`$SendMail(%)') => Neutral >*
+ < Action(`$SendMail(@msg[%])') => Union(+`$logMessage($msg)', -`$SendMail(%)')>)*
+ 
+
+OutgoingMail(java.lang.String ContactInfo) :
+var msg: RE
+@SendMail(msg)  [`void javax.mail.Transport.send(#javax.mail.Message{$msg})']: RE
+@Confirm(msg)   [`com.poco.MailUtil.confirm(#javax.mail.Message{$msg})']: RE
+@logMessage(msg)[`com.poco.MailUtil.logMessage(#javax.mail.Message{$msg})']: RE
+@AddBCC(msg)    [`com.poco.MailUtil.addBcc(#javax.mail.Message{$msg})']: RE
+@ConcatContactMsg(msg) [`String com.poco.MailUtil.concatContactMsg(#javax.mail.Message{$msg},#java.lang.String{$ContactInfo})']: RE
+
+map(  Union, -`$SendMail(@msg[%])',
+    <! Action(`$SendMail(@msg[%])') => Neutral >*
+    <  Action(`$SendMail(@msg[%])') => +`$logMessage($msg)'> 
+    <!(Result(`$logMessage($msg)', `%') || Result(`$SendMail($msg)', `%')) => +`$logMessage($msg)'>*
+   (<  Result(`$SendMail($msg)',`%') => Neutral>|<Result(`$logMessage($msg)',`%') => +`$Confirm($msg)'>)
+    <!(Result(`$Confirm($msg)',`%')||Result(`$SendMail($msg)',`%')) => +`$Confirm($msg)'>*
+    (< Result(`$SendMail($msg)', `%') => Neutral>
+   | (<Result(`$Confirm($msg)',`#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$AddBCC($msg,#java.lang.String{ta4poco\@gmail.com})'>
+     |<Result(`$Confirm($msg)',`#Integer{#javax.swing.JOptionPane{NO_OPTION}}') => -`$SendMail(%)'>)
+    )    
+    <!(Result(`$AddBCC($msg,#java.lang.String{ta4poco\@gmail.com})',`%')||Result(`$SendMail($msg)',`%'))=>+`$AddBCC($msg,#java.lang.String{ta4poco\@gmail.com})'>*
+     ( <Result(`$SendMail($msg)', `%') => Neutral>
+     | <Result(`$AddBCC($msg,#java.lang.String{ta4poco\@gmail.com})', `%') => +`$ConcatContactMsg($msg, $ContactInfo)'>
+     )
+     <!(Result(`$ConcatContactMsg($msg,$ContactInfo)', `%')||Result(`$SendMail($msg)', `%')) => +`$ConcatContactMsg($msg, $ContactInfo)'>*
+     ( <Result(`$SendMail($msg)',`%')=>Neutral>|<Result(`$ConcatContactMsg($msg,$ContactInfo)',`%') => +`$SendMail($msg)'>)
+     < Result(`$SendMail($msg)',`%') => +`#java.lang.String{OK}'>
+)*
+
+Main():
+tree combo = IsClientSigned(OutgoingMail(#java.lang.String{aa@bb.com}), DenyEmails())
+=================================================================================
 import Policy1
 import Policy2
 import Policy3
 import Policy4
 
-@ports[`#integer{180|190}'] : RE
-
 Main():
 tree p2subtree
 tree combo = Policy1(Policy2(Policy3()), @p2subtree[Policy2(Policy4())])
 tree final = Policy1(combo(), p2subtree())
+
+
+=================================================================================
+DenyEmails() :
+var msg: RE
+@SendMail(msg)  [`void javax.mail.Transport.send(#javax.mail.Message{$msg})']: RE 
+@logMessage(msg)[`com.poco.MailUtil.logMessage(#javax.mail.Message{$msg})']: RE 
+(<!Action(`$SendMail(%)') => Neutral >*
+ < Action(`$SendMail(@msg[%])') => Union(+`$logMessage($msg)', -`$SendMail(%)')>)*
+ 
+NoOpenPorts() : 
+@ports()[!`#int{143|993|25|110|995}'] :RE
+<_ => -`java.net.ServerSocket.<init>($ports)'>*
+
+Main():
+tree rootNode = Union(DenyEmails(), NoOpenPorts())

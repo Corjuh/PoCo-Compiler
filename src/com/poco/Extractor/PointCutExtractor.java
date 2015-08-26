@@ -18,11 +18,12 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     private Closure closure;
     private String policyName = "";
-    private String poRootName = "";
 
-    public String getPoRootName() {
-        return poRootName;
-    }
+    //used to save the policy hierarchy information
+    private HashMap<String, PolicyTreeNode> policy2Props = new HashMap<String, PolicyTreeNode>();
+    private ArrayList<String> policies = new ArrayList<String>();
+
+    private Stack<String> currRootName;
 
     private Stack<Integer> parsFlags;
     private Stack<String> bindVarName;
@@ -31,6 +32,10 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     //action bindings bind method signature to the variable, while
     //result bindings bind method result    to the variable
     private HashMap<String, String> varBind4thisPC = new HashMap<String, String>();
+
+    public HashMap<String, PolicyTreeNode> getPolicy2Props() {
+        return policy2Props;
+    }
 
     private StringBuilder argStr;
     private StringBuilder pointcutStr;
@@ -41,6 +46,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         this.argStr = new StringBuilder();
         this.parsFlags = new Stack<>();
         this.bindVarName = new Stack<>();
+        this.currRootName = new Stack<>();
     }
 
     public void resetPTStr() {
@@ -60,14 +66,53 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     @Override
     public Void visitTreedef(@NotNull PoCoParser.TreedefContext ctx) {
-        poRootName = ctx.id(0).getText().trim();
-        policyName = poRootName;
+        String treeid = ctx.id(0).getText().trim();
+        currRootName.push(treeid);
+        if (ctx.srebop() != null) {
+            String strategy = ctx.srebop().getText().trim();
+            if (policy2Props.containsKey(treeid)) {
+                PolicyTreeNode node = policy2Props.get(treeid);
+                node.setStrategy(strategy);
+                policy2Props.put(treeid, node);
+            } else {
+                policy2Props.put(treeid, new PolicyTreeNode(strategy));
+            }
+        } else if (ctx.id(1) != null) { //id case
+            policy2Props.put(treeid, new PolicyTreeNode());
+        } else {
+            policy2Props.put(treeid, new PolicyTreeNode());
+        }
+
+        visitChildren(ctx);
+        currRootName.pop();
+        return null;
+    }
+
+    public Void visitPolicyarg(@NotNull PoCoParser.PolicyargContext ctx) {
+        String childId = ctx.id().getText();
+        if (!currRootName.isEmpty()) {
+            String ancestor = currRootName.peek();
+
+            if (policy2Props.containsKey(ancestor)) {
+                PolicyTreeNode treeNode = policy2Props.get(ancestor);
+                treeNode.addChildren(childId);
+                policy2Props.put(ancestor, treeNode);
+
+                if (policy2Props.containsKey(childId))
+                    treeNode = policy2Props.get(childId);
+                else
+                    treeNode = new PolicyTreeNode();
+                treeNode.setAncestor(ancestor);
+                policy2Props.put(childId, treeNode);
+            }
+        }
         return null;
     }
 
     @Override
     public Void visitPocopol(@NotNull PoCoParser.PocopolContext ctx) {
         policyName = ctx.id().getText().trim() + "_";
+        policies.add(ctx.id().getText().trim());
         visitChildren(ctx);
         return null;
     }
@@ -138,6 +183,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     public Void visitSre(@NotNull PoCoParser.SreContext ctx) {
         if (ctx.NEUTRAL() != null)
             resetPTStr();
+
         if (ctx.qid() != null) {
             pointcutStr.append("* " + ctx.qid().getText() + "(..)");
         } else if (ctx.srebop() != null) {
@@ -268,7 +314,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         if (isMthdCallFrmObj(ctx.qid().getText())) {
             up8ObjVarName(PoCoUtils.objMethodCall(ctx.qid().getText()));
         } else {
-            if(closure.isFunctionsContain(policyName + ctx.qid().getText())) {
+            if (closure.isFunctionsContain(policyName + ctx.qid().getText())) {
                 String funcStr = getFunInfoFrmClosure(policyName + ctx.qid().getText());
                 funcStr = funcStr.replace("%", "*");
                 if (funcStr != null) {
@@ -342,14 +388,15 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     private void add2PCHashmaps() {
         String ptStr = this.pointcutStr.toString().trim();
+
         //handle the case if there is "|" case, such as
         //ptStr = "java.io.File.new(#String{*.class})|java.io.File.new(\*,#String{*.class})
-        String[] funStrs =PoCoUtils.parseFunStr(ptStr);
+        String[] funStrs = PoCoUtils.parseFunStr(ptStr);
 
         //1. reset global variable pointcutStr
         resetPTStr();
 
-        for(String str: funStrs) {
+        for (String str : funStrs) {
             //2. add to the appropriate pointcut set
             if (!PoCoUtils.isResultFlag(parsFlags)) {
                 //Add this pointcut to action set if it is an LHS action pointcut
@@ -433,8 +480,17 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         varBind4thisPC = new HashMap<String, String>();
     }
 
-    public String getPolicyName() {
-        return policyName.substring(0, policyName.length() - 1);
+    public ArrayList<String> getPolicyNames() {
+        return policies;
+    }
+
+    public String getRoot() {
+        Set<String> keys = this.policy2Props.keySet();
+        for (String key : keys) {
+            if (policy2Props.get(key).getAncestor() == null)
+                return key;
+        }
+        return null;
     }
 
 }

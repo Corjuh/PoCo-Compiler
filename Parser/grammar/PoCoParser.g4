@@ -9,7 +9,7 @@ options { tokenVocab=PoCoLexer; }
 policy:     pimports macrodecls ppol |
             pimports ppol |
             macrodecls ppol |
-            ppol;
+            ;
 
 ppol:       metapol |
             pocopol |

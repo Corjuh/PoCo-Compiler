@@ -10,15 +10,41 @@ import java.util.Iterator;
 public abstract class Policy extends EventResponder implements Queryable, Matchable {
     protected ArrayList<Policy> children = new ArrayList<>();
     protected AbstractExecution rootExecution;
-    private   String strategy = "";
     protected String policyName = "";
+
+    private String strategy = "";
+
+    //used to record the query status of the policy
+    private boolean isQueried;
+
+    //used to store the quereid result
+    private SRE queriedResult;
+    private boolean isAccept;
+
+    public SRE getQueriedResult() {
+        return queriedResult;
+    }
+
+    public void setQueriedResult(SRE queriedResult) {
+        this.queriedResult = queriedResult;
+    }
 
     public String getPolicyName() {
         return this.policyName;
     }
 
     public Policy() {
+        isQueried = false;
+        isAccept  = false;
+        queriedResult = null;
+    }
 
+    public boolean isQueried() {
+        return isQueried;
+    }
+
+    public void setIsQueried(boolean isQueried) {
+        this.isQueried = isQueried;
     }
 
     public void setPolicyName(String policyName) {
@@ -26,6 +52,9 @@ public abstract class Policy extends EventResponder implements Queryable, Matcha
     }
 
     public Policy(String policyName) {
+        isQueried = false;
+        isAccept  = false;
+        queriedResult = null;
         this.policyName = policyName;
     }
 
@@ -40,29 +69,29 @@ public abstract class Policy extends EventResponder implements Queryable, Matcha
     @Override
     public boolean accepts(Event event) {
         //1. check if this policy is queried or not, if so return the queried result
-        if(DataWH.isQueried(this.policyName))  {
-            return DataWH.getAppectVal(policyName);
-        }
-        else {
+        if (this.isQueried) {
+            return this.isAccept;
+        } else {
             //if this policy is a leaf policy that does not have any policy as children
-            if(children.size() ==0) {
-                if(rootExecution.accepts(event)) {
+            if (children.size() == 0) {
+                if (rootExecution.accepts(event)) {
                     return true;
-                }else {
-                    //if not accept, update the DataWH so that it will not check again
-                    DataWH.queryRes.put(this.policyName, new QueryResult(false, null));
+                } else {
+                    //if not accept, update the query state so that it will not check again
+                    this.isQueried =true;
+                    this.isAccept = false;
                     return false;
                 }
-            }
-            else {
+            } else {
                 //if this policy is composed with sub-policies, any sub-policies accepts
                 //it will return true
-                for(Iterator<Policy> it = children.iterator(); it.hasNext(); ) {
-                    if(it.next().accepts(event))
+                for (Iterator<Policy> it = children.iterator(); it.hasNext(); ) {
+                    if (it.next().accepts(event))
                         return true;
                 }
-                //otherwise, update the DataWH and return false
-                DataWH.queryRes.put(this.policyName, new QueryResult(false, null));
+                //otherwise, update the query state and return false
+                this.isQueried =true;
+                this.isAccept = false;
                 return false;
             }
         }
@@ -71,31 +100,47 @@ public abstract class Policy extends EventResponder implements Queryable, Matcha
     @Override
     public SRE query(Event event) {
         //1. check if this policy is queried or not, if so return the queried result
-        if(DataWH.isQueried(this.policyName))  {
-            return DataWH.queryRes.get(this.policyName).getSREResult();
-        }
-        else  { //2. otherwise, query this policy, store the result and return the result
+        if (this.isQueried()) {
+            return this.queriedResult;
+        } else {
+        //2. otherwise, query this policy, store the result and return the result
             //if this policy is a leaf policy that does not have any policy as children
-            if(children.size() ==0) {
-                SRE sreResult = rootExecution.query(event);
-                DataWH.queryRes.put(policyName, new QueryResult(true,sreResult));
-                return sreResult;
+            if (children.size() == 0) {
+                this.isQueried =true;
+                this.isAccept = true;
+                this.queriedResult = rootExecution.query(event);
+                return this.queriedResult;
             } else {
                 ArrayList<SRE> sreResults = new ArrayList<SRE>();
-                int i=0;
-                for(Iterator<Policy> it = children.iterator(); it.hasNext();i++) {
-                    String policyName = it.next().getPolicyName();
-                    if(DataWH.isQueried(policyName)) {
-                        sreResults.add(DataWH.getResultSRE(policyName));
-                    }
-                    else  {
+                boolean isAccept = false;
+                for (Iterator<Policy> it = children.iterator(); it.hasNext();) {
+                    Policy temp = it.next();
+                    if (temp.isQueried()) {
+                        //if any kid of this node is matching the query, then this node will matching the query
+                        if(temp.isAccept) {
+                            isAccept = true;
+                            sreResults.add(temp.getQueriedResult());
+                        }
+                    } else {
                         //no need to store result here, it will be done at its base case
-                        sreResults.add(it.next().query(event));
+                        if(temp.accepts(event)) {
+                            isAccept = true;
+                            sreResults.add(temp.query(event));
+                        }
                     }
                 }
-                SRE temp = SREUtil.performBOPs(this.strategy,sreResults);
-                DataWH.queryRes.put(policyName, new QueryResult(true,temp));
-                return temp;
+
+                this.isQueried=true;
+                //if any of its child matchs the query
+                if(isAccept) {
+                    this.isAccept=true;
+                    this.queriedResult = SREUtil.performBOPs(this.strategy, sreResults);
+                }
+                else {
+                    this.isAccept=false;
+                    this.queriedResult = new SRE(null, null);
+                }
+                return this.queriedResult;
             }
         }
     }

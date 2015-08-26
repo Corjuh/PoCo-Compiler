@@ -7,7 +7,6 @@ import java.util.HashMap;
 
 public final class DataWH {
     public static HashMap<String,TypeVal> dataVal      = new HashMap<String,TypeVal>();
-    public static HashMap<String,QueryResult> queryRes = new HashMap<String,QueryResult>();
 
     public static void updateValue(String key, Object obj) {
         String  typVal  = dataVal.get(key).getType();
@@ -18,22 +17,6 @@ public final class DataWH {
     public static void updateTyeVal(String key, String type, Object obj) {
         dataVal.remove(key);
         dataVal.put(key, new TypeVal(type, obj));
-    }
-
-    public static boolean isQueried(String policyName) {
-        return queryRes.containsKey(policyName);
-    }
-
-    public static boolean getAppectVal(String policyName) {
-        return queryRes.get(policyName).getAcceptVal();
-    }
-
-    public static SRE getResultSRE(String policyName) {
-        return queryRes.get(policyName).getSREResult();
-    }
-
-    public static void clearAllResult() {
-        queryRes.clear();
     }
 
 }

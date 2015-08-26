@@ -47,7 +47,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     //use to save the transactions that need to be added into Util
     private String transactions = null;
     private String policyName = null;
-    private String poRootName = null;
 
     //this stack is used to flag the status when parsing arguments
     private Stack<Integer> flagStack4Arg;
@@ -127,28 +126,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 out.format(" ");
         }
         out.format(text, args);
-    }
-
-    @Override
-    public Void visitTreedef(@NotNull PoCoParser.TreedefContext ctx) {
-        poRootName = ctx.id(0).getText();
-        policyName = ctx.id(0).getText();
-
-        //TREE id=srebop(policyargs) case, e.g., tree rootNode=Union(DenyEmails(),NoOpenPorts())
-        if(ctx.srebop() != null) {
-            outLine(0, "%s.setStrategy(\"%s\");",poRootName,ctx.srebop().getText());
-            visitChildren(ctx);
-        }
-        else {
-
-        }
-        return null;
-    }
-
-    @Override
-    public Void visitPolicyarg(@NotNull PoCoParser.PolicyargContext ctx) {
-        outLine(0, "%s.addChild(\"%s\");",poRootName,ctx.getText());
-        return null;
     }
 
     /**

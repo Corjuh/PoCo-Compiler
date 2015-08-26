@@ -72,27 +72,27 @@ public class SREUtil {
 
 		// 4. add all those positive values into returnSRE since it is favored
 		// by optimistic union, we can just direct at all.
-		for (SRE sre : sres) {
-			if (isCalculatedSRE(sre))
-				returnSRE.AddPosSREs(((CalculatedSRE) sre).getPosSREs());
-			else {
-				SRE temp = new SRE(sre.getPositiveRE(), null);
-				if(!isEmpty(temp))
-					returnSRE.AddPosSRE(temp);
-			}
-		}
+//		for (SRE sre : sres) {
+//			if (isCalculatedSRE(sre))
+//				returnSRE.AddPosSREs(((CalculatedSRE) sre).getPosSREs());
+//			else {
+//				SRE temp = new SRE(sre.getPositiveRE(), null);
+//				if(!isEmpty(temp))
+//					returnSRE.AddPosSRE(temp);
+//			}
+//		}
 
 		// 5. only those in the unioned negative value will be added to
 		// returnSRE,we also need to handle the variable case for checking
 		// if it satisfies the condition, that is be subset of Negvals
-		ArrayList<String> negReStrs = getNegREsfrmSre(sres);
-		ArrayList<Automaton> negReAms = genAutomaton(negReStrs);
-		int i = 0;
-		for (Automaton autom : negReAms) {
-			if (autom.subsetOf(amNegResult))
-				returnSRE.AddNegSRE(new SRE(null, negReStrs.get(i)));
-			i++;
-		}
+//		ArrayList<String> negReStrs = getNegREsfrmSre(sres);
+//		ArrayList<Automaton> negReAms = genAutomaton(negReStrs);
+//		int i = 0;
+//		for (Automaton autom : negReAms) {
+//			if (autom.subsetOf(amNegResult))
+//				returnSRE.AddNegSRE(new SRE(null, negReStrs.get(i)));
+//			i++;
+//		}
 
 		// 6. add the unioned value to the returnSRE
 		returnSRE.setPositiveRE(amPosResult.toString());
@@ -129,24 +129,24 @@ public class SREUtil {
 		// 4. add all those negative RE values into returnSRE since it is
 		// favored
 		// by pessimistic union
-		for (SRE sre : sres) {
-			SRE temp = new SRE(null, sre.getNegativeRE());
-			if(!isEmpty(temp))
-				returnSRE.AddNegSRE(temp);
-		}
+//		for (SRE sre : sres) {
+//			SRE temp = new SRE(null, sre.getNegativeRE());
+//			if(!isEmpty(temp))
+//				returnSRE.AddNegSRE(temp);
+//		}
 
 		// 5. only those in the unioned positive value will be added to
 		// returnSRE, posReStrs will just be the orginal RE values, and
 		// variable will be handled within genAutomaton function, since
 		// we should add original variable name to the returnSRE
-		ArrayList<String> posReStrs = getPosREsfrmSre(sres);
-		ArrayList<Automaton> posReAms = genAutomaton(posReStrs);
-		int i = 0;
-		for (Automaton autom : posReAms) {
-			if (autom.subsetOf(amPosResult))
-				returnSRE.AddPosSRE(new SRE(posReStrs.get(i), null));
-			i++;
-		}
+//		ArrayList<String> posReStrs = getPosREsfrmSre(sres);
+//		ArrayList<Automaton> posReAms = genAutomaton(posReStrs);
+//		int i = 0;
+//		for (Automaton autom : posReAms) {
+//			if (autom.subsetOf(amPosResult))
+//				returnSRE.AddPosSRE(new SRE(posReStrs.get(i), null));
+//			i++;
+//		}
 
 		// 6. add the unioned value to the returnSRE
 		returnSRE.setPositiveRE(amPosResult.toString());
@@ -181,26 +181,26 @@ public class SREUtil {
 		// returnSRE, posReStrs will just be the original RE values, and
 		// variable will be handled within genAutomaton function, since
 		// we should add original variable name to the returnSRE
-		ArrayList<String> reStrs = getPosREsfrmSre(sres);
-		ArrayList<Automaton> reAms = genAutomaton(reStrs);
-		int i = 0;
-		for (Automaton autom : reAms) {
-			if (autom.subsetOf(amPosResult))
-				returnSRE.AddPosSRE(new SRE(reStrs.get(i), null));
-			i++;
-		}
+//		ArrayList<String> reStrs = getPosREsfrmSre(sres);
+//		ArrayList<Automaton> reAms = genAutomaton(reStrs);
+//		int i = 0;
+//		for (Automaton autom : reAms) {
+//			if (autom.subsetOf(amPosResult))
+//				returnSRE.AddPosSRE(new SRE(reStrs.get(i), null));
+//			i++;
+//		}
 
 		// 6. only those in the conjuncted negative value will be added to
 		// returnSRE,we also need to handle the variable case for checking
 		// if it satisfies the condition, that is be subset of Negvals
-		i = 0;
-		reStrs = getNegREsfrmSre(sres);
-		reAms = genAutomaton(reStrs);
-		for (Automaton autom : reAms) {
-			if (autom.subsetOf(amNegResult))
-				returnSRE.AddNegSRE(new SRE(null, reStrs.get(i)));
-			i++;
-		}
+//		i = 0;
+//		reStrs = getNegREsfrmSre(sres);
+//		reAms = genAutomaton(reStrs);
+//		for (Automaton autom : reAms) {
+//			if (autom.subsetOf(amNegResult))
+//				returnSRE.AddNegSRE(new SRE(null, reStrs.get(i)));
+//			i++;
+//		}
 
 		// 7. add the conjuncted value to the returnSRE
 		returnSRE.setPositiveRE(amPosResult.toString());
@@ -209,6 +209,11 @@ public class SREUtil {
 		return returnSRE;
 	}
 
+	/**
+		conjunction(ArrayList<SRE> sres) 
+		1. returnSRE.pos = intersection(sres.pos)
+		2. returnSRE.neg = union(sres.neg) 
+	*/
 	private static SRE conjunctionOp(ArrayList<SRE> sres) {
 		// 1. Declare returnSRE
 		CalculatedSRE returnSRE = new CalculatedSRE();
@@ -222,32 +227,32 @@ public class SREUtil {
 
 		// 3. perform intersection operation on those those automatons
 		Automaton amPosResult = automatonConj(posAms);
-		Automaton amNegResult = automatonConj(negAms);
+		Automaton amNegResult = Automaton.union(negAms);
 
 		// 4. only those in the conjuncted positive value will be added to
 		// returnSRE, posReStrs will just be the original RE values, and
 		// variable will be handled within genAutomaton function, since
 		// we should add original variable name to the returnSRE
-		ArrayList<String> reStrs = getPosREsfrmSre(sres);
-		ArrayList<Automaton> reAms = genAutomaton(reStrs);
-		int i = 0;
-		for (Automaton autom : reAms) {
-			if (autom.subsetOf(amPosResult))
-				returnSRE.AddPosSRE(new SRE(reStrs.get(i), null));
-			i++;
-		}
+//		ArrayList<String> reStrs = getPosREsfrmSre(sres);
+//		ArrayList<Automaton> reAms = genAutomaton(reStrs);
+//		int i = 0;
+//		for (Automaton autom : reAms) {
+//			if (autom.subsetOf(amPosResult))
+//				returnSRE.AddPosSRE(new SRE(reStrs.get(i), null));
+//			i++;
+//		}
 
 		// 5. only those in the unioned negative value will be added to
 		// returnSRE,we also need to handle the variable case for checking
 		// if it satisfies the condition, that is be subset of Negvals
-		i = 0;
-		reStrs = getNegREsfrmSre(sres);
-		reAms = genAutomaton(reStrs);
-		for (Automaton autom : reAms) {
-			if (autom.subsetOf(amNegResult))
-				returnSRE.AddNegSRE(new SRE(null, reStrs.get(i)));
-			i++;
-		}
+//		i = 0;
+//		reStrs = getNegREsfrmSre(sres);
+//		reAms = genAutomaton(reStrs);
+//		for (Automaton autom : reAms) {
+//			if (autom.subsetOf(amNegResult))
+//				returnSRE.AddNegSRE(new SRE(null, reStrs.get(i)));
+//			i++;
+//		}
 
 		// 6. add the unioned value to the returnSRE
 		returnSRE.setPositiveRE(amPosResult.toString());
@@ -256,6 +261,11 @@ public class SREUtil {
 		return returnSRE;
 	}
 
+	/**
+	disjunction(ArrayList<SRE> sres) 
+	1. returnSRE.pos = union(sres.pos)
+	2. returnSRE.neg = intersection(sres.pos)
+	*/
 	private static SRE disjunctionOp(ArrayList<SRE> sres) {
 		// 1. Declare returnSRE
 		CalculatedSRE returnSRE = new CalculatedSRE();
@@ -269,23 +279,23 @@ public class SREUtil {
 
 		// 3. union those automatons,
 		Automaton amPosResult = Automaton.union(posAms);
-		Automaton amNegResult = Automaton.union(negAms);
+		Automaton amNegResult = automatonConj(negAms);
 
 		// 4. add all pos and neg RE values into returnSRE since it is
-		for (SRE sre : sres) {
-			if (isCalculatedSRE(sre)) {
-				returnSRE.AddPosSREs(((CalculatedSRE) sre).getPosSREs());
-				returnSRE.AddNegSREs(((CalculatedSRE) sre).getNegSREs());
-			} else {
-				SRE temp = new SRE(sre.getPositiveRE(), null);
-				if(!isEmpty(temp))
-					returnSRE.AddPosSRE(temp);
-
-				temp = new SRE(null, sre.getNegativeRE());
-				if(!isEmpty(temp))
-					returnSRE.AddNegSRE(temp);
-			}
-		}
+//		for (SRE sre : sres) {
+//			if (isCalculatedSRE(sre)) {
+//				returnSRE.AddPosSREs(((CalculatedSRE) sre).getPosSREs());
+//				returnSRE.AddNegSREs(((CalculatedSRE) sre).getNegSREs());
+//			} else {
+//				SRE temp = new SRE(sre.getPositiveRE(), null);
+//				if(!isEmpty(temp))
+//					returnSRE.AddPosSRE(temp);
+//
+//				temp = new SRE(null, sre.getNegativeRE());
+//				if(!isEmpty(temp))
+//					returnSRE.AddNegSRE(temp);
+//			}
+//		}
 
 		// 5. add the unioned value to the returnSRE
 		returnSRE.setPositiveRE(amPosResult.toString());
@@ -317,9 +327,7 @@ public class SREUtil {
 	 * and negativeRE fields -- for CalculatedSRE case, will collect info
 	 * from posSREs and negSREs fields
 	 *
-	 * @param sres
-	 * @param mode
-	 *            get the positive value when mode ==0
+	 * @param sres  mode get the positive value when mode ==0
 	 * @return
 	 */
 
@@ -340,13 +348,13 @@ public class SREUtil {
 			// if it is just a simple sre, then directly load RE value from it.
 			// if it is an UopSRE, then we will need to get RE value from its
 			// SRE
-			if (isCalculatedSRE(sre)) {
-				CalculatedSRE temp = (CalculatedSRE) sre;
-				if (mode == 0)
-					hashset.addAll(getPosNegREsfrmSre(temp.getPosSREs(), mode));
-				else
-					hashset.addAll(getPosNegREsfrmSre(temp.getNegSREs(), mode));
-			} else { // a simple SRE case
+//			if (isCalculatedSRE(sre)) {
+//				CalculatedSRE temp = (CalculatedSRE) sre;
+//				if (mode == 0)
+//					hashset.addAll(getPosNegREsfrmSre(temp.getPosSREs(), mode));
+//				else
+//					hashset.addAll(getPosNegREsfrmSre(temp.getNegSREs(), mode));
+//			} else { // a simple SRE case
 				// 2. get the positive value when mode ==0
 				if (mode == 0) {
 					if (!isSreFieldNull(sre.getPositiveRE()))
@@ -355,7 +363,7 @@ public class SREUtil {
 					if (!isSreFieldNull(sre.getNegativeRE()))
 						hashset.add(sre.getNegativeRE().trim());
 				}
-			}
+			//}
 		}
 		return new ArrayList<String>(hashset);
 	}
@@ -489,11 +497,11 @@ public class SREUtil {
 		return (sreStr.equals("null") || sreStr.trim().equals(""));
 	}
 
-	public static boolean isCalculatedSRE(SRE sre) {
-		Class<CalculatedSRE> calcSreClass = com.poco.PoCoRuntime.CalculatedSRE.class;
-		Class<? extends SRE> thisClass = sre.getClass();
-		return calcSreClass.isAssignableFrom(thisClass);
-	}
+//	public static boolean isCalculatedSRE(SRE sre) {
+//		Class<CalculatedSRE> calcSreClass = com.poco.PoCoRuntime.CalculatedSRE.class;
+//		Class<? extends SRE> thisClass = sre.getClass();
+//		return calcSreClass.isAssignableFrom(thisClass);
+//	}
 
 	public static boolean isUopSre(SRE sre) {
 		Class<UopSRE> uopSreClass = com.poco.PoCoRuntime.UopSRE.class;
