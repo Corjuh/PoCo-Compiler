@@ -152,8 +152,9 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                         handleRebop(ctx);
                     } else if (ctx.qid() != null) {
                         handleQid(ctx);
-                    } else
+                    } else {
                         visitChildren(ctx);
+                    }
                 } else {
                     //if it parsing functions, no need update parameter
                     if (isParsClosurFuncs()) {
@@ -171,7 +172,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                                 str = closure.getFunctionContext(temp);
                             } else if (funArgTypLs.size() > 0) {
                                 String argTypOnStack = funArgTypLs.peek();
-                                while(argTypOnStack.equals("\\*")) {
+                                while (argTypOnStack.equals("\\*")) {
                                     currParsArgs.append("\\*,");
                                     funArgTypLs.pop();
                                     argTypOnStack = funArgTypLs.peek();
@@ -221,7 +222,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
             String varName = PoCoUtils.attachPolicyName(policyName, "$" + ctx.id().getText());
             if (PoCoUtils.isParsingArg(parsingFlags)) {
                 String argTypOnStack = funArgTypLs.peek();
-                while(argTypOnStack.equals("\\*")) {
+                while (argTypOnStack.equals("\\*")) {
                     currParsArgs.append("\\*,");
                     funArgTypLs.pop();
                     argTypOnStack = funArgTypLs.peek();
@@ -245,7 +246,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
             if (closure.loadFrmFunctions(varName).getVarContext() != null) {
                 String temp = closure.loadFrmFunctions(varName).getVarContext();
                 if (ctx.opparamlist() != null) {
-                    if(ctx.opparamlist().getText().trim().equals("%"))
+                    if (ctx.opparamlist().getText().trim().equals("%"))
                         return;
                     //get the function arguments' signature
                     String methodName = PoCoUtils.getMethodName(temp);
@@ -315,7 +316,6 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                     }
                 } else
                     closure.addFunction(varName, new VarTypeVal(varTyp, temp));
-
             }
         }
     }
@@ -333,30 +333,39 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
     }
 
     private void handleFunc(@NotNull PoCoParser.ReContext ctx) {
-        String funcStr = ctx.function().getText();
-        if (ctx.function().INIT() != null)
-            funcStr = PoCoUtils.attachPolicyName(policyName, ctx.function().fxnname().getText() + "new");
+        String validStr = "";
+        String methodName = ctx.function().fxnname().getText().trim();
+
+        if (methodName.startsWith("$")) {
+            validStr = PoCoUtils.attachPolicyName(policyName, methodName);
+        } else if (ctx.function().INIT() != null) {
+            validStr = methodName + "new";
+        } else {
+            //if it is not constructor case, then it is necessary to check whether the return type is
+            // specified or not, if not, then attach "* " as its prefix.
+            if (methodName.split("\\s").length == 1)
+                validStr = "* " + methodName;
+            else
+                validStr = methodName;
+        }
+
         if (ctx.function().arglist() != null) {
-            if (funcStr.indexOf('(') != -1)
-                funcStr = funcStr.substring(0, funcStr.indexOf('('));
+            if (validStr.indexOf('(') != -1) {
+                validStr = validStr.substring(0, validStr.indexOf('('));
+            }
             parsingFlags.push(ParsFlgConsts.parsArgs);
             resetCurrParsArgs();
             visitChildren(ctx.function().arglist());
-            funcStr += "(" + PoCoUtils.trimEndPunc(currParsArgs.toString(), ",") + ")";
+            validStr += "(" + PoCoUtils.trimEndPunc(currParsArgs.toString(), ",") + ")";
             parsingFlags.pop();
         }
 
         if (isParsClosurFuncs()) {
             if (PoCoUtils.closurFunwUop(flagStack4Funcs))
-                funcStr = "[^" + funcStr + "]";
-
-            //for the case when variable declared within the functions,
-            //the variables' scope are only limited to this function's declaration
-            if (funcStr.startsWith("$"))
-                funcStr = policyName + funcStr;
+                validStr =  "[^" + validStr + "]";
 
             if (PoCoUtils.isReBopFlag(flagStack4RE))
-                currParsVal.append(funcStr);
+                currParsVal.append(validStr);
             else {
                 //check if the variable name is unique!
                 String varName = policyName + bindings.peek();
@@ -367,10 +376,10 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                         e.printStackTrace();
                     }
                 } else
-                    closure.addFunction(varName, new VarTypeVal("java.lang.String", funcStr));
+                    closure.addFunction(varName, new VarTypeVal("java.lang.String", validStr));
             }
         } else {
-            currParsVal.append(funcStr);
+            currParsVal.append(validStr);
         }
     }
 

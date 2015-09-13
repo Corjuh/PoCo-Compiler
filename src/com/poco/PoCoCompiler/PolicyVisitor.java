@@ -242,7 +242,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         } else if (ctx.matchs() != null) {
             handleMatchsPart(ctx);
         }
-
         flagStack4Exc.push(ParsFlgConsts.isExchRHSSre);
         visitSre(ctx.sre());
         flagStack4Exc.pop();
@@ -619,6 +618,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 reBopStr.append(content + "|");
             } else {
                 if (PoCoUtils.isPosNegRe4SRE(flagStack4RE)) {
+
                     if (PoCoUtils.isSrePosRE(flagStack4RE))
                         outLine(3, "%s.setPositiveRE(\"%s\");", sreNames.peek(), content);
                     else

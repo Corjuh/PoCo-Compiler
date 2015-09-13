@@ -26,11 +26,13 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     private Stack<String> currRootName;
 
     private Stack<Integer> parsFlags;
+    private Stack<Integer> actResFlags;
     private Stack<String> bindVarName;
 
     //use the 2nd String field to flag action bindings verse result bindings
-    //action bindings bind method signature to the variable, while
-    //result bindings bind method result    to the variable
+    //sig    bindings bind method signature to the variable, while
+    //action bindings happen before allowing proceeding, and
+    //result bindings happen after  allowing proceeding
     private HashMap<String, String> varBind4thisPC = new HashMap<String, String>();
 
     public HashMap<String, PolicyTreeNode> getPolicy2Props() {
@@ -45,6 +47,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         this.pointcutStr = new StringBuilder();
         this.argStr = new StringBuilder();
         this.parsFlags = new Stack<>();
+        this.actResFlags = new Stack<>();
         this.bindVarName = new Stack<>();
         this.currRootName = new Stack<>();
     }
@@ -142,9 +145,9 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     public Void visitExch(@NotNull PoCoParser.ExchContext ctx) {
         if (ctx.INPUTWILD() != null) {
             //just need monitor the action on the RHS of =>, but treat as LHS
-            parsFlags.push(ParsFlgConsts.isAction);
+            actResFlags.push(ParsFlgConsts.isAction);
             visitSre(ctx.sre());
-            parsFlags.pop();
+            actResFlags.pop();
         } else if (ctx.matchs() != null) {
             visitMatchs(ctx.matchs());
             visitSre(ctx.sre());
@@ -170,13 +173,13 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     @Override
     public Void visitIre(@NotNull PoCoParser.IreContext ctx) {
-        if (ctx.ACTION() != null)
-            parsFlags.push(ParsFlgConsts.isAction);
-        else
-            parsFlags.push(ParsFlgConsts.isResult);
+        if (ctx.ACTION() != null) {
+            actResFlags.push(ParsFlgConsts.isAction);
+        }else
+            actResFlags.push(ParsFlgConsts.isResult);
 
         visitRe(ctx.re(0));
-        parsFlags.pop();
+        actResFlags.pop();
         return null;
     }
 
@@ -226,7 +229,13 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 bindVarName.push(policyName + ctx.id().getText());
                 //record the binding info then parse its children
                 if (closure != null && closure.isVarsContain(policyName + ctx.id().getText())) {
-                    varBind4thisPC.put(policyName + ctx.id().getText(), "result");
+                    //if it is an action pointcut, the binding happens before allowing proceeding
+                    //otherwise, the binding happens after proceeding (result)
+                    if (isActionPointCut()) {
+                        varBind4thisPC.put(policyName + ctx.id().getText(), "action");
+                    }else {
+                        varBind4thisPC.put(policyName + ctx.id().getText(), "result");
+                    }
                     visitChildren(ctx);
                 } else
                     PoCoUtils.throwNoSuchVarExpection(ctx.id().getText());
@@ -249,7 +258,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         if (bindVarName.size() > 0) {
             //variable binding case needs to store binding info 1st, then visit children
             if (isActionPointCut()) {
-                varBind4thisPC.put(bindVarName.peek(), "action");
+                varBind4thisPC.put(bindVarName.peek(), "sig");
             } else {
                 varBind4thisPC.put(bindVarName.peek(), "result");
             }
@@ -398,9 +407,9 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
         for (String str : funStrs) {
             //2. add to the appropriate pointcut set
-            if (!PoCoUtils.isResultFlag(parsFlags)) {
+            if (!PoCoUtils.isResultFlag(actResFlags)) {
                 //Add this pointcut to action set if it is an LHS action pointcut
-                if (PoCoUtils.isActionFlag(parsFlags)) {
+                if (PoCoUtils.isActionFlag(actResFlags)) {
                     addUp8ActionSet(str);
                 } else {
                     //pointcut is not an IRE result and it is on the RHS of the exchange, then
@@ -473,7 +482,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     }
 
     private boolean isActionPointCut() {
-        return (PoCoUtils.isActionFlag(parsFlags));
+        return (PoCoUtils.isActionFlag(actResFlags));
     }
 
     private void resetVarBind4PC() {

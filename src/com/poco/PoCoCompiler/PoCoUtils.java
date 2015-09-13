@@ -63,6 +63,17 @@ public class PoCoUtils {
         return null;
     }
 
+    public static boolean isPoCoObject(String objStr) {
+        if (objStr == null)
+            return false;
+        Pattern pattern = Pattern.compile("#(.+)\\{(.+)\\}");
+        Matcher matcher = pattern.matcher(objStr);
+        if (matcher.find())
+            return true;
+        else
+            return false;
+    }
+
     public static String getObjVal(String objStr) {
         return getInfoFrmObj(objStr,2);
     }
@@ -70,6 +81,7 @@ public class PoCoUtils {
     public static String getObjType(String objStr) {
         return getInfoFrmObj(objStr,1);
     }
+
     /**
     * get infomation about an object string, if an argu is * return null
     * @param objStr
@@ -77,8 +89,7 @@ public class PoCoUtils {
     * @return
     */
     private static String getInfoFrmObj(String objStr, int mode) {
-        String reg = "#(.+)\\{(.+)\\}";
-        Pattern pattern = Pattern.compile(reg);
+        Pattern pattern = Pattern.compile("#(.+)\\{(.+)\\}");
         Matcher matcher = pattern.matcher(objStr);
         if (matcher.find()) {
             return matcher.group(mode).trim();
