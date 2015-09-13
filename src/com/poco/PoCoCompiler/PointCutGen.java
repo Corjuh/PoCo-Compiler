@@ -194,14 +194,14 @@ public class PointCutGen {
                         argStrs2.add("value" + count);
                         if (isPrimitiveType(argTyp)) {
                             if (argTyp.equals("java.lang.String") || argTyp.equals("String")) {
-                                argStrs4.add("#" + argTyp + "{" + "value" + count + "}");
+                                argStrs4.add("#" + argTyp + "{\"+" + "value" + count + "+\"}");
                             } else {
                                 argStrs5.add("String arg" + count + " = genValueofStr(value)" + count);
-                                argStrs4.add("#" + argTyp + "{" + "arg" + count + "}");
+                                argStrs4.add("#" + argTyp + "{\"+" + "arg" + count + "+\"}");
                             }
                         } else {
                             argStrs5.add("String arg" + count + " = getAddr(value)" + count);
-                            argStrs4.add("#" + argTyp + "{" + "arg" + count + "}");
+                            argStrs4.add("#" + argTyp + "{\"+" + "arg" + count + "+\"}");
                         }
                         count++;
                     } else if (argsList[i].trim().equals("\\*")) {
