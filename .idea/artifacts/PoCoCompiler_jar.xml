@@ -4,7 +4,6 @@
     <root id="archive" name="PoCoCompiler.jar">
       <element id="module-output" name="PoCoCompiler" />
       <element id="module-output" name="Parser" />
-      <element id="file-copy" path="$USER_HOME$/Downloads/antlr-4.5-complete.jar" />
       <element id="file-copy" path="$USER_HOME$/Downloads/asm-5.0.3.jar" />
       <element id="file-copy" path="$USER_HOME$/Downloads/asm-commons-5.0.3.jar" />
       <element id="file-copy" path="$USER_HOME$/Downloads/jopt-simple-4.7.jar" />

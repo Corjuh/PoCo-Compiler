@@ -1,5 +1,4 @@
 // Generated from /Users/yan/Dropbox/PoCo-Compiler/Parser/grammar/PoCoParser.g4 by ANTLR 4.5.1
-package com.poco.PoCoParser;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 
 /**

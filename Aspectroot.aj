@@ -18,7 +18,7 @@ public aspect AspectRoot {
     }
 
     pointcut PointCut0(int value0):
-        call(ket.new(int)) && args(value0);
+        call(java.net.Ser*v*rSocket.new(int)) && args(value0);
 
     Object around(int value0): PointCut0(value0) {
         if (!RuntimeUtils.valueMatch(new Integer(value0).toString(), "143|993|25|110|995")) {
@@ -40,18 +40,10 @@ public aspect AspectRoot {
                 SequentialExecution rootExec = new SequentialExecution("none");
                 SequentialExecution exec0 = new SequentialExecution("*");
                 Exchange exch0 = new Exchange();
-                Matchs matchs0 = new Matchs("||");
-                Matchs matchs1 = new Matchs("||");
-                Match match0 = new Match("java.net.Serve");
-                matchs1.addChild(match0);
-                Match match1 = new Match("*");
-                matchs1.addChild(match1);
-                exch0.addMatcher(matchs1);
-                Match match2 = new Match("ket.new(!#int{143|993|25|110|995})");
-                matchs0.addChild(match2);
-                exch0.addMatcher(matchs0);
+                Match match0 = new Match("java.net.Ser*v*erSocket.new(!#int{143|993|25|110|995})");
+                exch0.addMatcher(match0);
                 SRE sre0 = new SRE(null, null);
-                sre0.setNegativeRE("java.net.Serve|ket.new(!#int{143|993|25|110|995})");
+                sre0.setNegativeRE("java.net.Ser*v*erSocket.new(!#int{143|993|25|110|995})");
                 exch0.setSRE(sre0);
                 exec0.addChild(exch0);
                 exec0.setHasExch(true);

@@ -64,14 +64,16 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     }
 
     @Override
-    public Void visitPimport(@NotNull PoCoParser.PimportContext ctx) {
+    public Void visitPimport(PoCoParser.PimportContext ctx) {
         //need to import those included policies' pointcut
 
         return null;
     }
 
     @Override
-    public Void visitTreedef(@NotNull PoCoParser.TreedefContext ctx) {
+    public Void visitTreedef( PoCoParser.TreedefContext ctx) {
+
+        System.out.println("=========");
         String treeid = ctx.id(0).getText().trim();
         currRootName.push(treeid);
         if (ctx.srebop() != null) {
@@ -402,7 +404,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     private void add2PCHashmaps() {
         String ptStr = this.pointcutStr.toString().trim();
 
-        System.out.println("~~~~~~~~~~~~"+ptStr);
         //handle the case if there is "|" case, such as
         //ptStr = "java.io.File.new(#String{*.class})|java.io.File.new(\*,#String{*.class})
         String[] funStrs = PoCoUtils.parseFunStr(ptStr);

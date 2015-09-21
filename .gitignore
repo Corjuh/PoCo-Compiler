@@ -87,3 +87,13 @@ src/com/poco/PoCoParser/PoCoParserListener.java
 src/com/poco/PoCoParser/PoCoParserVisitor.java
 
 *.pdf
+
+src/com/poco/PoCoParser/PoCoLexer.java
+
+src/com/poco/PoCoParser/PoCoLexer.java
+
+src/com/poco/PoCoParser/PoCoParser.java
+
+src/com/poco/PoCoParser/PoCoParser.tokens
+
+src/com/poco/PoCoParser/PoCoParser.tokens

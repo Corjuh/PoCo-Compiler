@@ -9,7 +9,7 @@ options { tokenVocab=PoCoLexer; }
 policy:     pimports macrodecls ppol |
             pimports ppol |
             macrodecls ppol |
-            ;
+            ppol;
 
 ppol:       metapol |
             pocopol |
@@ -202,7 +202,7 @@ re:         rewild |
 function:   fxnname INIT LPAREN arglist RPAREN |
             fxnname LPAREN arglist RPAREN ;
 
-fxnname:    SYM+ |
+fxnname:    SYM* rewild ((SYM)+ (rewild)?)* |
             object |
             object SYM+ ;
 

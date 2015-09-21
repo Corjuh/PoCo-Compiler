@@ -253,7 +253,6 @@ public class Compiler {
     }
 
     /**
-     * Parses the supplied PoCo Policy file, if it exists. Otherwise exits with error.
      * <p/>
      * Step #1 in compilation process as the parse tree is required by other phases.
      */
@@ -274,6 +273,7 @@ public class Compiler {
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         PoCoParser parser = new PoCoParser(tokens);
         this.parseTree = parser.policy();
+
     }
 
     /**
