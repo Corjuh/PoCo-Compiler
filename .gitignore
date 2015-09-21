@@ -85,3 +85,5 @@ src/com/poco/PoCoParser/PoCoParserBaseListener.java
 src/com/poco/PoCoParser/PoCoParserBaseVisitor.java
 src/com/poco/PoCoParser/PoCoParserListener.java
 src/com/poco/PoCoParser/PoCoParserVisitor.java
+
+*.pdf
