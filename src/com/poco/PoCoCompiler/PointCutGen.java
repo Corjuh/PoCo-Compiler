@@ -184,7 +184,10 @@ public class PointCutGen {
                         //store the arg along with the value it need to be matched
                         if (argVal4Match == null)
                             argVal4Match = new Hashtable<>();
-                        argVal4Match.put(argTyp + " value" + count, argValStr);
+                        if (PoCoUtils.reContainNotMatch(argsList[i]))
+                            argVal4Match.put("!" + argTyp + " value" + count, argValStr);
+                        else
+                            argVal4Match.put(argTyp + " value" + count, argValStr);
 
                         //generate the correct argument String for aspectj advice
                         //generate the correct argument String for aspectj advice
@@ -196,7 +199,7 @@ public class PointCutGen {
                             if (argTyp.equals("java.lang.String") || argTyp.equals("String")) {
                                 argStrs4.add("#" + argTyp + "{\"+" + "value" + count + "+\"}");
                             } else {
-                                argStrs5.add("String arg" + count + " = genValueofStr(value)" + count);
+                                argStrs5.add("String arg" + count + " = RuntimeUtils.genValueofStr(value" + count + ");");
                                 argStrs4.add("#" + argTyp + "{\"+" + "arg" + count + "+\"}");
                             }
                         } else {
@@ -204,13 +207,13 @@ public class PointCutGen {
                             argStrs4.add("#" + argTyp + "{\"+" + "arg" + count + "+\"}");
                         }
                         count++;
-                    } else if (argsList[i].trim().equals("\\*")) {
+                    } else if (argsList[i].trim().equals("*")) {
                         argStrs3.add("..");
-                        argStrs1.add("*");
+                        argStrs1.add("..");
                         argStrs4.add("*");
                     } else {
-                        argStrs3.add(argsList[i]);
-                        argStrs1.add(" value" + count++);
+                        argStrs1.add("..");
+                        //argStrs1.add(" value" + count++);
                         argStrs4.add(argsList[i]);
                     }
                 }
@@ -232,8 +235,8 @@ public class PointCutGen {
                     if (bindingVars.get(varName).toString().equals("result")) {
                         varsNeed2Bind4Res.put(PoCoUtils.getMethodRtnTyp(methodSig) + " ret", "$" + varName.toString());
                     } else {  //binding action signature to a variable case
-                        String sig = methodName + "(" + argStrs[4] + ")";
-                        varsNeed2Bind4Act.put("java.lang.String \"" + sig + "\"", "sig$" + varName.toString());
+                        String sig = "RuntimeUtils.getNameFrmJonPiont(thisJoinPoint)" + "+\"(" + argStrs[4] + ")\"";
+                        varsNeed2Bind4Act.put("java.lang.String " + sig, "sig$" + varName.toString());
                     }
                 }
             }
@@ -259,7 +262,6 @@ public class PointCutGen {
                 outLine(2, "call(%s) && args(%s);\n", callStr, argStrs[1]);
             else
                 outLine(2, "call(%s);\n", callStr);
-
         } else {
             callStr = methodName.replace("\\", "");
             outLine(1, "pointcut PointCut%d():", pointcutNum);
@@ -454,13 +456,21 @@ public class PointCutGen {
      */
     private String genCoditionStatement(String type, String valName, String matchVal, int mode) {
         if (matchVal != null && matchVal.length() > 0) {
+            boolean isNotMatch = type.startsWith("!");
+            if(isNotMatch)
+                type = type.substring(1);
+
             matchVal = matchVal.replace("%", "*");
             if (isPrimitiveType(type)) {
                 String str = genValueofStr(type, valName);
+
                 if (PoCoUtils.isPoCoObject(matchVal))
                     matchVal = PoCoUtils.getObjVal(matchVal);
-                //if(PoCoUtils.isVariable(matchVal) && closure.isFunctionsContain())
-                return "RuntimeUtils.valueMatch(" + str + ", \"" + matchVal + "\")";
+
+                if (isNotMatch)
+                    return "!RuntimeUtils.valueMatch(" + str + ", \"" + matchVal + "\")";
+                else
+                    return "RuntimeUtils.valueMatch(" + str + ", \"" + matchVal + "\")";
             } else {
                 if (matchVal.startsWith("$") && closure.isVarsContain(matchVal.substring(1))) {
                     matchVal = "RuntimeUtils.getFrmDbWH(\"" + matchVal.substring(1) + "\")";
@@ -670,4 +680,5 @@ public class PointCutGen {
                 return false;
         }
     }
+
 }

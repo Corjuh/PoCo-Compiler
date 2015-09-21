@@ -5,7 +5,10 @@ import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseVisitor;
 import org.antlr.v4.runtime.misc.NotNull;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Set;
+import java.util.Stack;
 
 /**
  * Created by caoyan on 11/7/14.
@@ -175,7 +178,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     public Void visitIre(@NotNull PoCoParser.IreContext ctx) {
         if (ctx.ACTION() != null) {
             actResFlags.push(ParsFlgConsts.isAction);
-        }else
+        } else
             actResFlags.push(ParsFlgConsts.isResult);
 
         visitRe(ctx.re(0));
@@ -233,7 +236,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                     //otherwise, the binding happens after proceeding (result)
                     if (isActionPointCut()) {
                         varBind4thisPC.put(policyName + ctx.id().getText(), "action");
-                    }else {
+                    } else {
                         varBind4thisPC.put(policyName + ctx.id().getText(), "result");
                     }
                     visitChildren(ctx);
@@ -295,6 +298,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         //  1.2 otherwise, get the method name
         if (ctx.function().INIT() != null) {
             pointcutStr.append(ctx.function().fxnname().getText() + "new");
+            System.out.println(ctx.function().fxnname().getText());
         } else {
             String temp = ctx.function().fxnname().getText().trim();
             pointcutStr.append(PoCoUtils.formatFuncRetTyp(temp));
@@ -398,6 +402,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     private void add2PCHashmaps() {
         String ptStr = this.pointcutStr.toString().trim();
 
+        System.out.println("~~~~~~~~~~~~"+ptStr);
         //handle the case if there is "|" case, such as
         //ptStr = "java.io.File.new(#String{*.class})|java.io.File.new(\*,#String{*.class})
         String[] funStrs = PoCoUtils.parseFunStr(ptStr);

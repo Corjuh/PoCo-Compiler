@@ -607,8 +607,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 } else {
                     if (PoCoUtils.isParsingArg(flagStack4Arg)) {
                         argListStr.append(ctx.getText() + ",");
-                    }else
+                    }else {
                         content = ctx.getText();
+                    }
                 }
             }
             if (PoCoUtils.isParsingArg(flagStack4Arg))
@@ -618,10 +619,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 reBopStr.append(content + "|");
             } else {
                 if (PoCoUtils.isPosNegRe4SRE(flagStack4RE)) {
-
-                    if (PoCoUtils.isSrePosRE(flagStack4RE))
+                    if (PoCoUtils.isSrePosRE(flagStack4RE)) {
                         outLine(3, "%s.setPositiveRE(\"%s\");", sreNames.peek(), content);
-                    else
+                    }else
                         outLine(3, "%s.setNegativeRE(\"%s\");", sreNames.peek(), content);
 
                     if (PoCoUtils.isMapSreFlag(flagStack4Exc))
@@ -636,7 +636,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                     //if content is variable then do nothing, otherwise make sure get
                     //the valid method signature for matching string
                     if(!PoCoUtils.isVariable(content))
-                        content = PoCoUtils.getMethodSignature(content);
+                        //content = PoCoUtils.getMethodSignature(content);
                     outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content);
                 }
             }
@@ -646,10 +646,10 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
     private void handleRE4IREcase(String content) {
         if (PoCoUtils.isIREAction(flagStack4RE)) {
-            content = PoCoUtils.getMethodSignature(content);
+            //content = PoCoUtils.getMethodSignature(content);
             outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content);
         } else if (PoCoUtils.isIREResult(flagStack4RE)) {
-            content = PoCoUtils.getMethodSignature(content);
+            //content = PoCoUtils.getMethodSignature(content);
             outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content);
         } else //if (PoCoUtils.isIREResMatch(flagStack4RE)) {
             outLine(3, "%s.setResultMatchStr(\"%s\");", currentMatch, content);
@@ -772,7 +772,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             }
             else if (PoCoUtils.isIREMatch(flagStack4RE)) {
                 if (PoCoUtils.isIREAction(flagStack4RE)) {
-                    temp = PoCoUtils.getMethodSignature(temp);
+                    //temp = PoCoUtils.getMethodSignature(temp);
                     outLine(3, "%s.setMatchString(\"%s\");", currentMatch, temp);
                 } else if (PoCoUtils.isIREResult(flagStack4RE)) {
                     outLine(3, "%s.setMatchString(\"%s\");", currentMatch, temp);
@@ -780,7 +780,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                     outLine(3, "%s.setResultMatchStr(\"%s\");", currentMatch, temp);
                 }
             } else if (PoCoUtils.isExchMatch(flagStack4Exc)) {
-                temp = PoCoUtils.getMethodSignature(temp);
+                //temp = PoCoUtils.getMethodSignature(temp);
                 outLine(3, "%s.setMatchString(\"%s\");", currentMatch, temp);
             }
         }
@@ -928,6 +928,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                     return value;
                 //will add more case here
             default:
+                System.out.println("I am here=============");
+                System.out.println("#"+type + "{"+value+"}");
                 return value;
         }
     }

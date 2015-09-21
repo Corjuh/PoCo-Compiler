@@ -2,6 +2,10 @@ Trivial(): <_ => Neutral>*
 =================================================================================
 =================================================================================
 Test():
+(<Action(`int com.poco.Test.foo(%)') => +`#int{22}'>)*
+=================================================================================
+=================================================================================
+Test():
 (<Result(`int com.poco.Test.foo(%)', `#int{1}') => +`#int{11}'>
 |<Result(`int com.poco.Test.foo(%)', `#int{2}') => +`#int{22}'>)*
 
@@ -68,14 +72,14 @@ public class RuntimeDemo {
 =================================================================================
 Attachments() :
 var call: RE
-@ext()[`#java.lang.String{.exe|.vbs|.hta|.mdb|.bad}']  :RE  
+@ext()[`#java.lang.String{%.exe|%.vbs|%.hta|%.mdb|%.bad}']  :RE  
 @message(call)[`#java.lang.String{Allowing a dangerous file is creating via\: $call \?}'] :RE
 map (Union, -`java.io.FileWriter.<init>($ext()) | java.io.FileWriter.<init>($ext(),boolean)',
      <!Action(`java.io.FileWriter.<init>($ext())| java.io.FileWriter.<init>($ext(),boolean)') => Neutral>*
      < Action(`@call[java.io.FileWriter.<init>($ext()) | java.io.FileWriter.<init>($ext(),boolean)]') => +`com.poco.RuntimeDemo.ShowDialog($message)'>
      <!Result(`com.poco.RuntimeDemo.ShowDialog($message)', `%') => +`com.poco.RuntimeDemo.ShowDialog($message)'>*
      ( <Result(`com.poco.RuntimeDemo.ShowDialog($message)', `#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$call'>
-              | <_ => Neutral>)
+      |<Result(`com.poco.RuntimeDemo.ShowDialog($message)', `#Integer{#javax.swing.JOptionPane{NO_OPTION}}') => Neutral>)
 )* 
 -----------------------------------------------RuntimeDemo.java------------------------------------------------
 import java.io.FileWriter;
@@ -106,12 +110,12 @@ public class RuntimeDemo {
 ConfirmAndAllowOnlyHTTP() :
 var call :RE
 @ports()[`#int{80|443}'] :RE
-@message(call)[`#java.lang.String{Allow to establish network connection via port\: $ports \?}'] :RE
+@message(call)[`#java.lang.String{Do you want to allow establishing network connection via port 80 or 443\?}'] :RE
 map (Union,  -`java.net.ServerSocket.<init>($ports)',
      <!Action(`java.net.ServerSocket.<init>($ports)') => Neutral>* 
      <Action(`@call[java.net.ServerSocket.<init>($ports)]')  => +`com.poco.RuntimeDemo.ShowDialog($message)'>*
      ( <Result(`com.poco.RuntimeDemo.ShowDialog($message)', `#Integer{#javax.swing.JOptionPane{OK_OPTION}}') => +`$call'>
-              | <_ =>  -`$call'>)
+      |<Result(`com.poco.RuntimeDemo.ShowDialog($message)', `#Integer{#javax.swing.JOptionPane{NO_OPTION}}') => -`$call'>)
 )*
 ----------------------------------------RuntimeDemo.java------------------------------------------
 package com.poco;

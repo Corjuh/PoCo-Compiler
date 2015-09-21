@@ -303,8 +303,9 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                     temp = getVarValFrmClosure(ctx.object().re().getText());
                 }
                 if (PoCoUtils.closurFunwUop(flagStack4Funcs))
-                    temp = "[^" + temp + "]";
-                temp = PoCoUtils.attachPolicyName(policyName, "#" + varTyp + "{" + temp + "}");
+                    temp = PoCoUtils.attachPolicyName(policyName, "!#" + varTyp + "{" + temp + "}");
+                else
+                    temp = PoCoUtils.attachPolicyName(policyName, "#" + varTyp + "{" + temp + "}");
 
                 //check if the variable name is unique!
                 String varName = policyName + bindings.peek();
@@ -362,7 +363,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
 
         if (isParsClosurFuncs()) {
             if (PoCoUtils.closurFunwUop(flagStack4Funcs))
-                validStr =  "[^" + validStr + "]";
+                validStr = "[^" + validStr + "]";
 
             if (PoCoUtils.isReBopFlag(flagStack4RE))
                 currParsVal.append(validStr);

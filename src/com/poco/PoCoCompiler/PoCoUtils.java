@@ -385,4 +385,13 @@ public class PoCoUtils {
         }
         return methodStrs.toArray(new String[methodStrs.size()]);
     }
+
+    public static boolean reContainNotMatch(String str) {
+        if (str == null)
+            return false;
+        // We assume that there will be no nested PoCo object
+        Pattern pattern = Pattern.compile("!#(.+)\\{(.+)\\}");
+        Matcher matcher = pattern.matcher(str);
+        return matcher.find();
+    }
 }
