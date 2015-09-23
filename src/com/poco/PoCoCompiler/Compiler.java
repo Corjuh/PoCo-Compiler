@@ -273,7 +273,6 @@ public class Compiler {
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         PoCoParser parser = new PoCoParser(tokens);
         this.parseTree = parser.policy();
-
     }
 
     /**

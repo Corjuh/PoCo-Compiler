@@ -72,8 +72,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     @Override
     public Void visitTreedef( PoCoParser.TreedefContext ctx) {
-
-        System.out.println("=========");
         String treeid = ctx.id(0).getText().trim();
         currRootName.push(treeid);
         if (ctx.srebop() != null) {
@@ -300,7 +298,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         //  1.2 otherwise, get the method name
         if (ctx.function().INIT() != null) {
             pointcutStr.append(ctx.function().fxnname().getText() + "new");
-            System.out.println(ctx.function().fxnname().getText());
         } else {
             String temp = ctx.function().fxnname().getText().trim();
             pointcutStr.append(PoCoUtils.formatFuncRetTyp(temp));
@@ -403,7 +400,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     private void add2PCHashmaps() {
         String ptStr = this.pointcutStr.toString().trim();
-
         //handle the case if there is "|" case, such as
         //ptStr = "java.io.File.new(#String{*.class})|java.io.File.new(\*,#String{*.class})
         String[] funStrs = PoCoUtils.parseFunStr(ptStr);

@@ -928,8 +928,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                     return value;
                 //will add more case here
             default:
-                System.out.println("I am here=============");
-                System.out.println("#"+type + "{"+value+"}");
                 return value;
         }
     }

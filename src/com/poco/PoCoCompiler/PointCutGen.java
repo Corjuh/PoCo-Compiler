@@ -122,6 +122,7 @@ public class PointCutGen {
         Set<String> keys = pointcuts.keySet();
         for (Iterator<String> key = keys.iterator(); key.hasNext(); ) {
             String entry = key.next();
+
             bindingVars = pointcuts.get(entry);
             /*
             pointcut PointCut1(java.lang.String value0):
@@ -207,13 +208,13 @@ public class PointCutGen {
                             argStrs4.add("#" + argTyp + "{\"+" + "arg" + count + "+\"}");
                         }
                         count++;
-                    } else if (argsList[i].trim().equals("*")) {
+                    } else if (argsList[i].trim().equals("\\*") || argsList[i].trim().equals("..")) {
                         argStrs3.add("..");
                         argStrs1.add("..");
                         argStrs4.add("*");
                     } else {
                         argStrs1.add("..");
-                        //argStrs1.add(" value" + count++);
+                        argStrs3.add("..");
                         argStrs4.add(argsList[i]);
                     }
                 }
@@ -468,15 +469,15 @@ public class PointCutGen {
                     matchVal = PoCoUtils.getObjVal(matchVal);
 
                 if (isNotMatch)
-                    return "!RuntimeUtils.valueMatch(" + str + ", \"" + matchVal + "\")";
+                    return "!RuntimeUtils.strValMatch(" + str + ", \"" + matchVal + "\")";
                 else
-                    return "RuntimeUtils.valueMatch(" + str + ", \"" + matchVal + "\")";
+                    return "RuntimeUtils.strValMatch(" + str + ", \"" + matchVal + "\")";
             } else {
                 if (matchVal.startsWith("$") && closure.isVarsContain(matchVal.substring(1))) {
                     matchVal = "RuntimeUtils.getFrmDbWH(\"" + matchVal.substring(1) + "\")";
-                    return "RuntimeUtils.ObjMatch(" + valName + ", " + matchVal + ")";
+                    return "RuntimeUtils.objMatch(" + valName + ", " + matchVal + ")";
                 } else
-                    return "RuntimeUtils.ObjMatch(" + valName + ", \"" + matchVal + "\")";
+                    return "RuntimeUtils.objMatch(" + valName + ", \"" + matchVal + "\")";
             }
         }
         return null;

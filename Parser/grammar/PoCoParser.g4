@@ -202,7 +202,7 @@ re:         rewild |
 function:   fxnname INIT LPAREN arglist RPAREN |
             fxnname LPAREN arglist RPAREN ;
 
-fxnname:    SYM* rewild ((SYM)+ (rewild)?)* |
+fxnname:    SYM* rewild? ((SYM)+ (rewild)?)* |
             object |
             object SYM+ ;
 
