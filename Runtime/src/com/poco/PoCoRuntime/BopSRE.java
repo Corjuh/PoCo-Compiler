@@ -29,40 +29,38 @@ public class BopSRE extends SRE {
 		this.srebop = srebop;
 	}
 
+	public String getSrebop() {
+		return srebop;
+	}
+
 	public BopSRE(String srebop, SRE sre1, SRE sre2) {
 		this.srebop = srebop;
 		this.sre1 = sre1;
 		this.sre2 = sre2;
 	}
 
-	public void setSRE1(SRE sre1) {
-		this.sre1 = sre1;
-	}
-
-	public void setSRE2(SRE sre2) {
-		this.sre2 = sre2;
-	}
-
-	@Override
 	/**
-	 * return the complement value of a BopSRE. which includes:
-	 * a) both is sre1 and sre2 should be set as their complement value
-	 * b) its SRE value need to be set as its complement
-	 * c) its posSRES value and negSREs need to be switched
-	 * Variable case can be ignore here
+	 * return the complement value of a BopSRE. which includes: a) both is sre1
+	 * and sre2 should be set as their complement value b) its SRE value need to
+	 * be set as its complement c) its posSRES value and negSREs need to be
+	 * switched Variables cases do not need to be handled.
 	 */
+	@Override
 	public SRE complement() {
-		return (SREUtil.performBOPs(this.srebop, sre1, sre2)).complement();
+		SRE temp = this.getAbsVal();
+		return temp.complement();
 	}
 
 	/**
-	 * Includes only the actions in SRE
+	 * Includes only the actions in SRE In this function, the variable value
+	 * will be loaded in order to know whether it is an action or not.
 	 *
 	 * @return
 	 */
 	@Override
 	public SRE getAction() {
-		return (SREUtil.performBOPs(this.srebop, sre1, sre2)).getAction();
+		SRE temp = this.getAbsVal();
+		return temp.getAction();
 	}
 
 	/**
@@ -72,15 +70,17 @@ public class BopSRE extends SRE {
 	 */
 	@Override
 	public SRE getResult() {
-		return (SREUtil.performBOPs(this.srebop, sre1, sre2)).getResult();
+		SRE temp = this.getAbsVal();
+		return temp.getResult();
 	}
 
-	@Override
 	/**
 	 * Includes only positive portion of SRE
 	 */
+	@Override
 	public SRE getPostiveVal() {
-		return (SREUtil.performBOPs(this.srebop, sre1, sre2)).getPostiveVal();
+		SRE temp = this.getAbsVal();
+		return temp.getPostiveVal();
 	}
 
 	/**
@@ -88,12 +88,39 @@ public class BopSRE extends SRE {
 	 *
 	 * @return
 	 */
+	@Override
 	public SRE getNegativeVal() {
-		return (SREUtil.performBOPs(this.srebop, sre1, sre2)).getNegativeVal();
+		SRE temp = this.getAbsVal();
+		return temp.getNegativeVal();
 	}
 
-	public String getSrebop() {
-		return srebop;
+	@Override
+	public CalculatedSRE convert2CalculatedSre() {
+		return (CalculatedSRE) this.getAbsVal();
 	}
 
+	/**
+	 * get the absolute value of this SRE, that is, apply all the variable
+	 * values.
+	 *
+	 * @param mode
+	 *            0: get the SRE absolute value, that is, apply all the variable
+	 *            values; 1: apply only necessary variables, that is, a. for
+	 *            action case, will only apply the variable as method name b.
+	 *            for result case, will not apply the variable value
+	 * @return
+	 */
+	@Override
+	public SRE getAbsVal() {
+		SRE val4SRE1 = this.sre1.getAbsVal();
+		SRE val4SRE2 = this.sre2.getAbsVal();
+
+		return SREUtil.performBOPs(this.srebop, val4SRE1, val4SRE2);
+	}
+
+	@Override
+	public String toString() {
+		return "BopSRE [srebop=" + srebop + ", sre1=" + sre1 + ", sre2=" + sre2
+				+ "]";
+	}
 }

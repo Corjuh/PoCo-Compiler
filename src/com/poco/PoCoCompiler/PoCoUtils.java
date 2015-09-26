@@ -68,10 +68,7 @@ public class PoCoUtils {
             return false;
         Pattern pattern = Pattern.compile("#(.+)\\{(.+)\\}");
         Matcher matcher = pattern.matcher(objStr);
-        if (matcher.find())
-            return true;
-        else
-            return false;
+        return matcher.find();
     }
 
     public static String getObjVal(String objStr) {
@@ -275,6 +272,10 @@ public class PoCoUtils {
         return PoCoUtils.checkStackFlag(stack, 6);
     }
 
+    //check if the parsing Arg is Result
+    public static boolean hasNone(Stack<Integer> stack) {
+        return PoCoUtils.checkStackFlag(stack, 7);
+    }
 
     public static boolean isMapSreFlag(Stack<Integer> stack) {
         return PoCoUtils.checkStackFlag(stack, 11);

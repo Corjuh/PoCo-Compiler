@@ -5,12 +5,13 @@ package com.poco.PoCoRuntime;
  */
 public class SequentialExecution extends AbstractExecution implements
 		Queryable, Matchable {
-	//use to flag if the sequential Execution has exhange or not, 
-	//if no, it will only have exchange as child
+	// use to flag if the sequential Execution has exhange or not,
+	// if no, it will only have exchange as child
 	private boolean hasExch = false;
 
 	protected boolean currentChildIsZeroPlus = false;
 	protected boolean currentChildIsOnePlus = false;
+	protected boolean currentChildDoneOnce = false;
 
 	public SequentialExecution(String modifier) throws PoCoException {
 		super(modifier);
@@ -18,7 +19,7 @@ public class SequentialExecution extends AbstractExecution implements
 
 	// use to set the current modifier for the first child before start query,
 	// and later update modifier while advance cursor
-	public void getCurrentChildModifier() { 
+	public void getCurrentChildModifier() {
 		if (this.children.size() > 0 && currentCursor < this.children.size()) {
 			Class<AbstractExecution> classAE = AbstractExecution.class;
 			Class<? extends EventResponder> classChild = children.get(
@@ -28,21 +29,37 @@ public class SequentialExecution extends AbstractExecution implements
 						.get(this.currentCursor)).isZeroPlus();
 				currentChildIsOnePlus = ((AbstractExecution) this.children
 						.get(this.currentCursor)).isOnePlus();
+				currentChildDoneOnce = ((AbstractExecution) this.children
+						.get(this.currentCursor)).isDoneOnce();
 			} else {
 				// now is query the exchange, so isZero and isPlus is the same
 			}
 		}
 	}
-	
+
+	// use to set the current modifier for the first child before start query,
+	// and later update modifier while advance cursor
+	public void updateOnePlus() {
+		if (this.children.size() > 0 && currentCursor < this.children.size()) {
+			Class<AbstractExecution> classAE = AbstractExecution.class;
+			Class<? extends EventResponder> classChild = children.get(
+					this.currentCursor).getClass();
+			if (classAE.isAssignableFrom(classChild))
+				((AbstractExecution) this.children.get(this.currentCursor))
+						.setDoneOnce(true);
+		}
+	}
+
 	public boolean childrenExhausted() {
-		if(hasExch)
+		if (hasExch)
 			return true;
 		if (this.children.size() > 0 && currentCursor < this.children.size()) {
 			Class<AbstractExecution> classAE = AbstractExecution.class;
 			Class<? extends EventResponder> classChild = children.get(
 					this.currentCursor).getClass();
-			if (classAE.isAssignableFrom(classChild)) 
-				return ((AbstractExecution) this.children.get(this.currentCursor)).exhausted;				
+			if (classAE.isAssignableFrom(classChild))
+				return ((AbstractExecution) this.children
+						.get(this.currentCursor)).exhausted;
 		}
 		return true;
 	}
@@ -68,15 +85,16 @@ public class SequentialExecution extends AbstractExecution implements
 	protected void advanceCursor() {
 		if (isZeroPlus || isOnePlus) {
 			currentCursor = (currentCursor + 1) % children.size();
-			if(currentCursor ==0 && !this.hasExch) {
-				//reset all its children's currentCursor to 0
+			if (currentCursor == 0 && !this.hasExch) {
+				// reset all its children's currentCursor to 0
 				resetChildrenCursor();
 			}
-			
-		}else
+
+		} else {
 			currentCursor++;
+		}
 		if (currentCursor >= children.size()) {
-			exhausted = true; 
+			exhausted = true;
 		} else {
 			// while advance cursor, we also should update the modifier so that
 			// we always get current execution's modifier
@@ -85,35 +103,38 @@ public class SequentialExecution extends AbstractExecution implements
 	}
 
 	@Override
-	public SRE query(Event event) { 
-		if (children.size() == 0 || exhausted) 
+	public SRE query(Event event) {
+		if (children.size() == 0 || exhausted)
 			return null;
 		resultSRE = children.get(currentCursor).query(event);
-		if (!currentChildIsZeroPlus && !currentChildIsOnePlus && childrenExhausted())  
-				advanceCursor(); 
+
+		if (currentChildIsOnePlus)
+			updateOnePlus();
+
+		if (!currentChildIsZeroPlus && !currentChildIsOnePlus
+				&& childrenExhausted())
+			advanceCursor();
 		return resultSRE;
 	}
 
 	@Override
 	public boolean accepts(Event event) {
-		if (children.size() == 0 || exhausted)  
+		if (children.size() == 0 || exhausted)
 			return false;
 		// The first child of a sequential execution must accept for its parent
 		// to accept
-		if(this.hasExch) {
+		if (this.hasExch) {
 			return children.get(0).accepts(event);
-		}else {
+		} else {
 			boolean result = children.get(currentCursor).accepts(event);
-			//if return false, check if it is exhausted or not, if so, return false
-			if(!result && currentCursor==(children.size()-1)) {
-				this.exhausted = true;
-				return false;
-			}
-			while (!result ) {
+			// if return false, check if it is exhausted or not, if so, return
+			// false
+			while (!result) {
 				getCurrentChildModifier();
-				if (currentChildIsZeroPlus) {
+				if (currentChildIsZeroPlus
+						|| (currentChildIsOnePlus && currentChildDoneOnce)) {
 					advanceCursor();
-					if(!exhausted)
+					if (!exhausted)
 						result = children.get(currentCursor).accepts(event);
 					else
 						return false;
@@ -126,24 +147,24 @@ public class SequentialExecution extends AbstractExecution implements
 	}
 
 	public void resetChildrenCursor() {
-		if(this.hasExch != true && this.children.size() >0){
+		if (this.hasExch != true && this.children.size() > 0) {
 			for (int i = 0; i < this.children.size(); i++) {
-				((AbstractExecution)children.get(i)).currentCursor=0;
-				((AbstractExecution)children.get(i)).exhausted = false;
-				((AbstractExecution)children.get(i)).resetChildrenCursor(); 
+				((AbstractExecution) children.get(i)).currentCursor = 0;
+				((AbstractExecution) children.get(i)).exhausted = false;
+				((AbstractExecution) children.get(i)).resetChildrenCursor();
+				((AbstractExecution) children.get(i)).setDoneOnce(false);
 			}
 		}
 	}
-	 
-	
-	public void setHasExch(boolean boolVal){
+
+	public void setHasExch(boolean boolVal) {
 		this.hasExch = boolVal;
 	}
-	
+
 	@Override
 	public String toString() {
 		return "SequentialExecution [currentCursor=" + currentCursor
-				 + ", children=" + children + "]";
+				+ ", children=" + children + "]";
 	}
 
 }

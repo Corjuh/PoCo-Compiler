@@ -80,7 +80,6 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
             visitChildren(ctx);
             String varVal = PoCoUtils.attachPolicyName(policyName, ctx.id().getText());
             VarTypeVal varTyVal = new VarTypeVal(ctx.qid().getText(), varVal);
-
             String varName = policyName + ctx.id().getText();
             if (closure.isVarsContain(varName) || closure.isFunctionsContain(varName)) {
                 try {

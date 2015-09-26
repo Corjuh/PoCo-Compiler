@@ -2,6 +2,7 @@ package com.poco.PoCoCompiler;
 
 import com.poco.Extractor.Closure;
 import com.poco.Extractor.PointCutExtractor;
+import com.poco.Extractor.VarTypeVal;
 import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseVisitor;
 import org.antlr.v4.runtime.misc.NotNull;
@@ -71,9 +72,13 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
 
     private void genDataHW() {
         outLine(1, "public " + aspectName + "() {");
-        for (Object varname : closure.getVars().keySet())
-            outLine(2, "DataWH.dataVal.put(\"" + varname + "\"," + "new TypeVal(\"java.lang.String\",\"\"));");
-
+        for (Object varname : closure.getVars().keySet()) {
+            VarTypeVal temp = (VarTypeVal) closure.getVars().get(varname);
+            String typ = temp.getVarType();
+            if(typ == null || typ.trim().length()==0 || typ.trim().equals("null"))
+                typ = "java.lang.String";
+            outLine(2, "DataWH.dataVal.put(\"" + varname + "\"," + "new TypeVal(\""+ typ+"\",\"\"));");
+        }
         //if there is no root policy, we will just declear a root and add all the polices to it.
         if (pocoRoot == null || pocoRoot.length() == 0) {
             for (String policy : policies)

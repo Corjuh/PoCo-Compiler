@@ -1,15 +1,16 @@
 package com.poco.PoCoRuntime;
 
-/**
- * Created by caoyan on 3/28/15.
- */
-import java.util.HashMap;
+/* Created by caoyan on 3/28/15.
+        */
+
+        import java.util.HashMap;
 
 public final class DataWH {
-    public static HashMap<String,TypeVal> dataVal      = new HashMap<String,TypeVal>();
+    public static HashMap<String, TypeVal> dataVal = new HashMap<String, TypeVal>();
+    public static HashMap<String, Object> address2ObjVal = new HashMap<String, Object>();
 
     public static void updateValue(String key, Object obj) {
-        String  typVal  = dataVal.get(key).getType();
+        String typVal = dataVal.get(key).getType();
         dataVal.remove(key);
         dataVal.put(key, new TypeVal(typVal, obj));
     }
@@ -21,24 +22,23 @@ public final class DataWH {
 
 }
 
-
 class TypeVal {
     private String type;
     private Object obj;
 
     TypeVal() {
-        this.type      = "java.lang.String";
-        this.obj       = null;
+        this.type = "java.lang.String";
+        this.obj = null;
     }
 
     TypeVal(String type) {
-        this.type      = type;
-        this.obj       = null;
+        this.type = type;
+        this.obj = null;
     }
 
     TypeVal(String type, Object obj) {
-        this.type      = type;
-        this.obj       = obj;
+        this.type = type;
+        this.obj = obj;
     }
 
     public String getType() {
@@ -60,20 +60,20 @@ class TypeVal {
 
 class QueryResult {
     private boolean isAccept;
-    private SRE  	sreResult;
+    private SRE sreResult;
 
     QueryResult(boolean acceptOrNot) {
         this.isAccept = acceptOrNot;
-        this.sreResult   = null;
+        this.sreResult = null;
     }
 
     QueryResult(boolean acceptOrNot, SRE sreResult) {
         this.isAccept = acceptOrNot;
-        this.sreResult   = sreResult;
+        this.sreResult = sreResult;
     }
 
     public void setSREResult(SRE sreResult) {
-        this.sreResult   = sreResult;
+        this.sreResult = sreResult;
     }
 
     public SRE getSREResult() {

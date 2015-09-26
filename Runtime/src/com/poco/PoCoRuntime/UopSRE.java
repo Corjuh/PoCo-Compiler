@@ -11,8 +11,6 @@ public class UopSRE extends SRE {
     public UopSRE(String srebop, SRE sre1) {
         super();
         this.sreuop = srebop;
-        if(sre1 != null)
-            this.sre = SREUtil.performUOPs(srebop, sre1);
     }
 
     public SRE getSre() {
@@ -31,7 +29,7 @@ public class UopSRE extends SRE {
      * Variable case can be ignore here
      */
     public SRE complement() {
-        return (SREUtil.performUOPs(this.sreuop, this.sre)).complement();
+        return this.getAbsVal().complement();
     }
 
     /**
@@ -41,7 +39,7 @@ public class UopSRE extends SRE {
      */
     @Override
     public SRE getAction() {
-        return (SREUtil.performUOPs(this.sreuop, this.sre)).getAction();
+        return this.getAbsVal().getAction();
     }
 
     /**
@@ -51,7 +49,7 @@ public class UopSRE extends SRE {
      */
     @Override
     public SRE getResult() {
-        return (SREUtil.performUOPs(this.sreuop, this.sre)).getResult();
+        return this.getAbsVal().getResult();
     }
 
     @Override
@@ -59,7 +57,7 @@ public class UopSRE extends SRE {
      * Includes only positive portion of SRE
      */
     public SRE getPostiveVal() {
-        return (SREUtil.performUOPs(this.sreuop, this.sre)).getPostiveVal();
+        return this.getAbsVal().getPostiveVal();
     }
 
     /**
@@ -67,11 +65,30 @@ public class UopSRE extends SRE {
      *
      * @return
      */
+    @Override
     public SRE getNegativeVal() {
-        return (SREUtil.performUOPs(this.sreuop, this.sre)).getNegativeVal();
+        return this.getAbsVal().getNegativeVal();
     }
+
+    /**
+     * get the absolute value of this SRE, that is, apply all the variable
+     * values.
+     *
+     * @return the absolute value
+     */
+    @Override
+    public SRE getAbsVal() {
+        SRE val4SRE1 = this.sre.getAbsVal();
+        return SREUtil.performUOPs(this.sreuop, val4SRE1);
+    }
+
 
     public String getSreuop() {
         return sreuop;
+    }
+
+    @Override
+    public CalculatedSRE convert2CalculatedSre() {
+        return SREUtil.performUOPs(this.sreuop, this.sre);
     }
 }

@@ -10,455 +10,753 @@ import java.util.regex.Pattern;
 import org.aspectj.lang.JoinPoint;
 
 public class RuntimeUtils {
-	public static boolean matchFunction(String eventSig, String matchStr) {
-		// step1: check directly if the sig matches
-		matchStr = getMethodSignature(matchStr);
+    public static boolean matchFunction(String methodEventStr, String reg4Match) {
+        if (isMatching(SREUtil.validateStr(reg4Match), methodEventStr))
+            return true;
 
-		Pattern pattern = Pattern.compile(validateStr(matchStr));
-		Matcher matcher = pattern.matcher(eventSig);
-		if (matcher.find())
-			return true;
+        // step 2: try to match method Name and each argument
+        // info[0]: package name; info[1]: method name;
+        // info[2]: argument string; info[3]: returnType
+        String[] infos4RE = getFuncPkgMethArgInfos(reg4Match);
+        String[] infos4Mtd = getFuncPkgMethArgInfos(methodEventStr);
 
-		// step 2: if matchStr contains variable, will need to get variable type
-		// info first, since variable type may dynamically changes.
-		matchStr = handleArgasVarCase(matchStr);
-		pattern = Pattern.compile(validateStr(matchStr));
-		matcher = pattern.matcher(eventSig);
-		if (matcher.find())
-			return true;
+        // a. first check whether the return types are matching
+        boolean isFound = false;
+        // constructor case
+        if (infos4RE[3] == null && infos4Mtd[3] == null) {
+            isFound = true;
+        } else if (infos4RE[3] != null && infos4Mtd[3] != null) {
+            isFound = isMatching(SREUtil.validateStr(infos4RE[3]), infos4Mtd[3]);
+        }
+        if (!isFound)
+            return false;
+        // b. check whether the method name are matching, need take consider of
+        // the case that is to deal with catch all the subclasses
 
-		// step 3: if still not match, then need check the case of dealing with
-		// catch all the subclasses
-		return handleExtendClassCase(eventSig, matchStr);
-	}
+        isFound = isMatching(SREUtil.validateStr(infos4RE[0]), infos4Mtd[0])
+                && isMatching(SREUtil.validateStr(infos4RE[1]), infos4Mtd[1]);
+        // the case that is to deal with catch all the subclasses
+        if (!isFound && infos4RE[0].endsWith("+")) {
+            isFound = handleExtendClassCase(infos4RE[0], infos4Mtd[0],
+                    infos4RE[1], infos4Mtd[1]);
+        }
+        if (!isFound)
+            return false;
 
-	private static boolean handleExtendClassCase(String eventSig,
-												 String matchStr) {
-		String[] matchInfo = getClassInfo(matchStr);
+        // c. if method name and return type are matching, then check the
+        // argument string
 
-		if (!matchInfo[0].endsWith("+"))
-			return false;
-		matchInfo[0] = matchInfo[0].replace("+", ""); // delete \+
+        // the case where the function has no argument
+        if ((infos4RE[2] == null || infos4RE[2].trim().length() == 0)
+                && (infos4Mtd[2] == null || infos4Mtd[2].trim().length() == 0)) {
+            return true;
+        } else {
+            if (infos4RE[2].equals("*")) {
+                return true;
+            } else if (isMatching(SREUtil.validateStr(infos4RE[2]),
+                    infos4Mtd[2])) {
+                return true;
+            } else {
+                String[] argsRE = infos4RE[2].split(",");
+                String[] args = infos4Mtd[2].split(",");
+                if (argsRE.length != args.length)
+                    return false;
+                for (int i = 0; i < argsRE.length; i++) {
+                    if (isRENotMatchCase(argsRE[i])) {
+                        isFound = isNotMatchingCaseMatch(
+                                argsRE[i].substring(1), args[i]);
+                    } else {
+                        isFound = isMatching(SREUtil.validateStr(argsRE[i]),
+                                args[i]);
 
-		String[] eventInfo = getClassInfo(eventSig);
-		try {
-			// e.g., com.poco.AClassLoader
-			Class cls1 = Class.forName(eventInfo[0]);
-			// e.g., java.lang.ClassLoader+
-			Class cls2 = Class.forName(matchInfo[0]);
+                        if (!isFound) {
 
-			if (!cls2.isAssignableFrom(cls1)) {
-				return false;
-			} else {
-				// check method match first or not
-				if (eventInfo[1] == null && matchInfo[1] == null) // constructor
-					// case
-					return true;
-				if (eventInfo[1] == null || matchInfo[1] == null)
-					return false;
+                        }
+                    }
+                    if (!isFound)
+                        break;
+                }
+                return isFound;
+            }
+        }
+    }
 
-				if (!eventInfo[1].equals(matchInfo[1]))
-					return false;
+    private static boolean handleExtendClassCase(String classRE,
+                                                 String classVal, String methodName, String methodReg) {
+        classRE = classRE.substring(0, classRE.length() - 1); // delete \+
+        try {
+            // e.g., com.poco.AClassLoader
+            Class cls1 = Class.forName(classVal);
+            // e.g., java.lang.ClassLoader+
+            Class cls2 = Class.forName(classRE);
 
-				// if names also match then check args
-				if (eventInfo[2] == null && matchInfo[2] == null)
-					return true;
-				if (eventInfo[2] == null || matchInfo[2] == null)
-					return false;
+            if (!cls2.isAssignableFrom(cls1))
+                return false;
+            else {
+                // constructor case
+                if (methodReg == null && methodName == null)
+                    return true;
+                else if (methodReg == null || methodName == null)
+                    return false;
 
-				String[] eventParas = eventInfo[2].split(",");
-				String[] matchParas = matchInfo[2].split(",");
+                return isMatching(SREUtil.validateStr(methodReg), methodName);
+            }
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
+    }
 
-				if (eventParas.length != matchParas.length)
-					return false;
+    /**
+     * This function returns proper information about a method
+     *
+     * @param methodString
+     * @return classInfo[0]: package name; classInfo[1]: method name;
+     * classInfo[2]: argument string; classInfo[3]: returnType
+     */
+    public static String[] getFuncPkgMethArgInfos(String methodString) {
+        String packageNam = "";
+        String methodName = getMethodName(methodString);
+        String methodArgs = getfunArgstr(methodString);
+        String returnType = getMethodRetTyp(methodString);
 
-				boolean isFound = true;
-				for (int j = 0; j < eventParas.length; j++) {
-					if (!matchInfo[j].contains(eventParas[j])) {
-						isFound = false;
-						break;
-					}
-				}
-				return isFound;
-			}
-		} catch (ClassNotFoundException e) {
-			return false;
-		}
-	}
+        // the constructor case
+        if (methodName.endsWith(".new")) {
+            // package class name
+            packageNam = methodName.substring(0, methodName.length() - 4);
+            returnType = null;
+            methodName = "";
+        } else {
+            if (methodName.indexOf('.') != -1
+                    && methodName.indexOf('.') + 1 < methodName.length()) {
+                // package class name
+                packageNam = methodName.substring(0,
+                        methodName.lastIndexOf('.'));
+                // method name, null for constructor case
+                methodName = methodName
+                        .substring(methodName.lastIndexOf('.') + 1);
+            } else {
+                packageNam = methodName;
+                methodName = "";
+            }
+        }
+        return new String[]{packageNam, methodName, methodArgs, returnType};
+    }
 
-	private static String handleArgasVarCase(String matchStr) {
-		String methodName = getMethodName(matchStr);
-		String argStr = getfunArgstr(matchStr);
+    /**
+     * trim the first six letters from the full class name (e.g., trim
+     * "class java.lang.reflect.Method" to "java.lang.reflect.Method")
+     *
+     * @param fullClassName
+     * @return
+     */
+    public static String trimClassName(String fullClassName) {
+        if (fullClassName != null && fullClassName.length() >= 6)
+            if (fullClassName.startsWith("class "))
+                return fullClassName.substring(6, fullClassName.length());
+        return fullClassName;
 
-		if (argStr!= null && argStr.length() > 0) {
-			String[] args = argStr.split(",");
-			StringBuilder argSig = new StringBuilder();
-			for (int i = 0; i < args.length; i++) {
-				if (isVariable(args[i]))
-					argSig.append(DataWH.dataVal.get(args[i].substring(1))
-							.getType().trim());
-				else
-					argSig.append(args[i]);
+    }
 
-				if (i != args.length - 1)
-					argSig.append(",");
-			}
-			matchStr = methodName + "(" + argSig.toString() + ")";
-		}
-		return matchStr;
-	}
+    public static String getMethodSignature(String methodString) {
+        if (methodString == null || methodString.equals("null"))
+            return null;
 
-	public static String[] getClassInfo(String classStr) {
-		String[] classInfo = new String[3];
+        // classInfo[0]: package name; classInfo[1]: method name;
+        // classInfo[2]: argument string; classInfo[3]: returnType
+        String[] infos = getFuncPkgMethArgInfos(methodString);
+        infos[1] = concatClsMethod(infos[0], infos[1]);
 
-		String fullMethodName = classStr;
-		int leftParen = classStr.indexOf('(');
-		int righParen = classStr.indexOf(')');
-		if (leftParen != -1 && righParen != -1)
-			fullMethodName = fullMethodName.substring(0, leftParen).trim();
+        if (infos[2] != null && infos[2].trim().length() > 0) {
+            String[] argArr = infos[2].split(",");
+            for (int i = 0; i < argArr.length; i++) {
+                if (isPoCoObject(argArr[i]))
+                    argArr[i] = getPoCoObjTyp(argArr[i]);
+            }
+            infos[2] = strArrJoin(argArr, ",");
+        } else
+            infos[2] = "";
 
-		// the constructor case
-		if (fullMethodName.split("\\s+").length == 1) {
-			classInfo[0] = fullMethodName.replace(".new", "");
-			classInfo[1] = null;
-			classInfo[2] = null;
-		} else {
-			String reg = "(.+\\.)*(.+)\\((.*)\\)";
-			Pattern pattern = Pattern.compile(reg);
-			Matcher matcher1 = pattern.matcher(classStr);
+        if (infos[3] != null)
+            return infos[3] + " " + infos[1] + "(" + infos[2] + ")";
+        else
+            return infos[1] + "(" + infos[2] + ")";
+    }
 
-			if (matcher1.find()) {
-				// package and class name
-				classInfo[0] = matcher1.group(1).toString();
-				// method name
-				classInfo[1] = matcher1.group(2).toString();
-				// parameter list if not null
-				if (matcher1.group(3) != null
-						&& matcher1.group(3).trim().length() > 0)
-					classInfo[2] = matcher1.group(3).toString();
-			} else { // no arginfo
-				String regNoArg = "(.+\\.)*(.+)";
-				Pattern patNoArg = Pattern.compile(regNoArg);
-				Matcher matNoArg = patNoArg.matcher(classStr);
-				if (matNoArg.find()) {
-					classInfo[0] = matNoArg.group(1).toString();
-					classInfo[1] = matNoArg.group(2).toString();
-					classInfo[2] = null;
-				} else {
-					System.out
-							.println("the method name is invalid, the program will end abnormally!!!");
-					System.exit(-1);
-				}
-			}
-			classInfo[0] = classInfo[0].substring(0, classInfo[0].length() - 1); // delete
-			// end
-			// dot
-		}
-		return classInfo;
-	}
+    public static String concatClsMethod(String className, String methodName) {
+        if (methodName == null || methodName.trim().length() == 0)
+            return className.trim();
+        else
+            return className.trim().concat(".").concat(methodName.trim());
+    }
 
-	public static String[] getfunTypName(String funStr) {
-		String[] returnStr = new String[2];
-		String[] temp = funStr.trim().split("\\s+");
-		if (temp.length == 2) {
-			returnStr[0] = temp[0].trim();
-			returnStr[1] = temp[1].trim();
-			if (temp[1].indexOf('(') != -1)
-				returnStr[1] = temp[1].substring(0, temp[1].indexOf('('));
-		} else {
-			returnStr[0] = "*";
-			returnStr[1] = funStr.trim();
-			if (funStr.indexOf('(') != -1)
-				returnStr[1] = funStr.substring(0, funStr.indexOf('('));
-		}
-		return returnStr;
-	}
+    public static boolean isMethod(String str) {
+        if (str == null)
+            return false;
+        return isMatching("^(.+)\\((.*)\\)$", str);
+    }
 
-	public static String getfunArgstr(String funStr) {
-		String returnStr = null;
-		if (funStr.indexOf('(') != -1 && funStr.indexOf(')') != -1)
-			returnStr = funStr.substring(funStr.indexOf('(') + 1,
-					funStr.indexOf(')')).trim();
-		if (returnStr == null || returnStr.length() == 0)
-			return null;
-		else {
-			// delete empty spaces between all parameters
-			// joinPoint.getSignature().toLongString() will insert an empty
-			// space between each parameter
-			// such as java.io.FileWriter.new(java.lang.String, boolean)
-			String[] args = returnStr.split(",");
-			if (args.length > 1) {
-				StringBuilder sb = new StringBuilder();
-				for (int i = 0; i < args.length; i++) {
-					sb.append(args[i].trim());
-					if (i != args.length - 1)
-						sb.append(",");
-				}
-				returnStr = sb.toString();
-			}
-		}
-		return returnStr;
-	}
+    public static boolean isPoCoObject(String str) {
+        if (str == null)
+            return false;
+        return (!isMethod(str)) && isMatching("#(.+)\\{(.+)\\}", str);
+    }
 
-	/**
-	 * trim the first six letters from the full class name (e.g., trim
-	 * "class java.lang.reflect.Method" to "java.lang.reflect.Method")
-	 *
-	 * @param fullClassName
-	 * @return
-	 */
-	public static String trimClassName(String fullClassName) {
-		if (fullClassName != null && fullClassName.length() >= 6)
-			if (fullClassName.startsWith("class "))
-				return fullClassName.substring(6, fullClassName.length());
-		return fullClassName;
+    public static String getPoCoObjTyp(String str) {
+        return getPoCoObjInfo(str, 1);
+    }
 
-	}
+    public static String getPoCoObjVal(String str) {
+        return getPoCoObjInfo(str, 2);
+    }
 
-	public static String concatClsMethod(String className, String methodName) {
-		return className.trim().concat(".").concat(methodName.trim());
-	}
+    private static String getPoCoObjInfo(String str, int mode) {
+        if (str == null)
+            return null;
 
-	public static String getMethodSignature(String methodString) {
-		int lParenIndex = methodString.indexOf('(', 0);
+        Pattern pattern = Pattern.compile("#(.+)\\{(.+)\\}");
+        Matcher matcher = pattern.matcher(str);
+        if (matcher.find()) {
+            int sharp = str.indexOf('#');
+            int lCBracet = str.indexOf('{');
+            int rCBracet = str.lastIndexOf('}');
+            if (mode == 1)
+                return str.substring(sharp + 1, lCBracet);
+            else
+                return str.substring(lCBracet + 1, rCBracet);
+        }
+        return null;
+    }
 
-		if (lParenIndex == -1)
-			return methodString;
+    public static boolean isPrimitiveType(String varType) {
+        switch (varType) {
+            // primitive types
+            case "byte":
+            case "int":
+            case "short":
+            case "long":
+            case "double":
+            case "float":
+            case "boolean":
+            case "char":
+            case "String":
+            case "java.lang.String":
+                return true;
+            // Non-primitive types
+            default:
+                return false;
+        }
+    }
 
-		String objReg = "#(.+)\\{(.+)\\}";
-		Pattern objPtn = Pattern.compile(objReg);
+    public static String getNameFrmJonPiont(JoinPoint joinPoint) {
+        String methodStr = joinPoint.getSignature().toString();
+        String methodName = getMethodName(methodStr);
+        if (joinPoint.getKind().equals("constructor-call"))
+            methodName += ".new";
+        return methodName;
+    }
 
-		String validateStr = methodString;
-		String returnstr = "";
+    public static String getMethodName(String funStr) {
+        return getMethodInfo(funStr, 0);
+    }
 
-		lParenIndex = validateStr.indexOf('(', 0);
-		int rParenIndex = validateStr.indexOf(')', lParenIndex);
+    public static String getMethodInfos(String funStr) {
+        return getMethodInfo(funStr, 1);
+    }
 
-		while (lParenIndex != -1 && rParenIndex != -1) {
-			String left = validateStr.substring(0, lParenIndex + 1);
-			String args = validateStr.substring(lParenIndex + 1, rParenIndex);
-			validateStr = validateStr.substring(rParenIndex,
-					validateStr.length());
+    public static String getfunArgstr(String funStr) {
+        if (funStr == null)
+            return "";
 
-			String argSig = "";
-			if (args.trim().length() > 0) {
-				String[] argArr = args.split(",");
-				for (int i = 0; i < argArr.length; i++) {
-					Matcher objMth = objPtn.matcher(argArr[i]);
-					if (objMth.find())
-						argSig += argArr[i].replace(objMth.group(0),
-								objMth.group(1));
-					else
-						argSig += argArr[i];
+        String returnStr = getMethodInfo(funStr, 2);
+        // delete empty spaces between all parameters
+        // joinPoint.getSignature().toLongString() will insert an empty
+        // space between each parameter
+        // such as java.io.FileWriter.new(java.lang.String, boolean)
+        if (returnStr == null || returnStr.trim().length() == 0)
+            return "";
 
-					if (i != argArr.length - 1)
-						argSig += ",";
-				}
-			}
-			if (validateStr.trim().equals(")")) {
-				returnstr += left + argSig + validateStr;
-				break;
-			} else {
-				returnstr += left + argSig;
-				lParenIndex = validateStr.indexOf('(', 0);
-				if (lParenIndex != -1)
-					rParenIndex = validateStr.indexOf(')', lParenIndex);
-				else
-					rParenIndex = -1;
-			}
-		}
-		return returnstr;
-	}
+        String[] args = returnStr.split(",");
+        if (args.length > 1) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < args.length; i++) {
+                sb.append(args[i].trim());
+                if (i != args.length - 1)
+                    sb.append(",");
+            }
+            returnStr = sb.toString();
+        }
+        return returnStr;
+    }
 
-	public static String getMethodName(String functionStr) {
-		String reg = "(.+)\\((.*)\\)";
-		Pattern pattern = Pattern.compile(reg);
-		Matcher matcher = pattern.matcher(functionStr);
-		if (matcher.find()) {
-			String temp = matcher.group(1).trim();
-			if (temp.split(" ").length == 2)
-				return temp.split(" ")[1];
-			else
-				return temp;
-		} else {
-			if (functionStr.trim().split(" ").length == 2)
-				return functionStr.trim().split(" ")[1];
-			else
-				return functionStr.trim();
-		}
-	}
+    /**
+     * This function get the requested information of a function
+     *
+     * @param functionStr
+     * @param mode        0: return only methodName info; 1: return method Name along
+     *                    with other information, such as Access Modifiers
+     * @return
+     */
+    private static String getMethodInfo(String functionStr, int mode) {
+        String reg = "^(.+)\\((.*)\\)$";
+        Pattern pattern = Pattern.compile(reg);
+        Matcher matcher = pattern.matcher(functionStr);
+        if (matcher.find()) {
+            int lParen = functionStr.indexOf('(');
+            int rParen = functionStr.lastIndexOf(')');
+            switch (mode) {
+                // 0: return only methodName info
+                case 0:
+                    String temp = functionStr.substring(0, lParen);
+                    int length = temp.split("\\s+").length;
+                    if (length > 1) {
+                        return temp.split("\\s+")[length - 1];
+                    } else
+                        return temp;
+                    // 1: return method Name along with other information, such as
+                    // Access Modifiers
+                case 1:
+                    return functionStr.substring(0, lParen);
+                default: // mode = 2, return argstr
+                    return functionStr.substring(lParen + 1, rParen);
+            }
+        } else {
+            switch (mode) {
+                // 0: return only methodName info
+                case 0:
+                    int length = functionStr.split("\\s+").length;
+                    if (length > 1)
+                        return functionStr.trim().split("\\s+")[length - 1];
+                    else
+                        return functionStr.trim();
+                case 1:
+                    return functionStr;
+                default: // mode = 2, return argstr
+                    return null;
+            }
+        }
+    }
 
-	public static boolean StringMatch(String matchingVal, String matchRegex) {
-		if(isVariable(matchRegex))
-			matchRegex = DataWH.dataVal.get(matchRegex.substring(1)).getObj().toString();
-		String regex = validateStr(matchRegex);
+    public static boolean strValMatch(String matchingVal, String matchRegex) {
+        if (isVariable(matchRegex)) {
+            Object x = DataWH.dataVal.get(matchRegex.substring(1)).getObj();
+            matchRegex = DataWH.dataVal.get(matchRegex.substring(1)).getObj()
+                    .toString();
+        }
+        if (matchRegex == null || matchRegex.trim().length() == 0)
+            return true;
+        else
+            return isMatching("^" + SREUtil.validateSREStr(matchRegex) + "$",
+                    matchingVal);
+    }
 
-		// Pattern pattern = Pattern.compile(strictifyMatch(regex));
-		Pattern pattern = Pattern.compile(regex);
-		Matcher matcher = pattern.matcher(matchingVal);
-		return matcher.find();
-	}
+    public static boolean objMatch(Object obj1, Object obj2) {
+        if (obj2 != null && obj2.toString().equals("%"))
+            return true;
+        return obj1.equals(obj2);
+    }
 
-	public static String validateStr(String str) {
-		return str.replaceAll("(%|\\$[a-zA-Z0-9\\.\\-_]+)", "")
-				.replaceAll("#|\\{|\\}", "").replace("(", "\\(")
-				.replace(")", "\\)").replace("*", "(.*)");
-	}
+    public static String[] objMethodCall(String str) {
+        String[] returnVal = new String[3];
+        String reg = "(.+\\.)(.+)+\\((.*)\\)";
+        Pattern pattern = Pattern.compile(reg);
+        Matcher matcher = pattern.matcher(str);
+        if (matcher.find()) {
+            returnVal[0] = matcher.group(1).substring(0,
+                    matcher.group(1).length() - 1);
+            returnVal[1] = matcher.group(2);
+            returnVal[2] = matcher.group(3).trim();
+        } else {
+            reg = "(.+\\.)(.+)";
+            pattern = Pattern.compile(reg);
+            matcher = pattern.matcher(str);
+            if (matcher.find()) {
+                returnVal[0] = matcher.group(1).substring(0,
+                        matcher.group(1).length() - 1);
+                returnVal[1] = matcher.group(2);
+                returnVal[2] = "";
+            } else
+                returnVal = null;
+        }
+        return returnVal;
+    }
 
-	public static String strictifyMatch(String str) {
-		String returnStr = "";
-		while (str.contains("*")) {
-			int leftIndex = str.indexOf("*");
-			if (leftIndex > 0)
-				returnStr += "(" + str.substring(0, leftIndex) + ")$";
-			returnStr += "(.*)";
-			if (leftIndex + 1 < str.length() - 1)
-				str = str.substring(leftIndex + 1, str.length());
-			else
-				break;
-		}
-		returnStr += "(" + str + ")$";
-		return returnStr;
-	}
+    /**
+     * this method used to check if a method has return value or not if the
+     * method is constructor or the method return type is void then it will
+     * return false, otherwise return true
+     *
+     * @return
+     */
+    public static String getMethodRetTyp(String methodStr) {
+        String methodName = getMethodInfos(methodStr.trim());
+        // constructors have no return type
+        if (methodName.endsWith(".new"))
+            return null;
 
-	public static String[] objMethodCall(String str) {
-		String[] returnVal = new String[3];
-		String reg = "(.+\\.)(.+)+\\((.*)\\)";
-		Pattern pattern = Pattern.compile(reg);
-		Matcher matcher = pattern.matcher(str);
-		if (matcher.find()) {
-			returnVal[0] = matcher.group(1).substring(0,
-					matcher.group(1).length() - 1);
-			returnVal[1] = matcher.group(2);
-			returnVal[2] = matcher.group(3).trim();
-		}
-		else {
-			reg = "(.+\\.)(.+)";
-			pattern = Pattern.compile(reg);
-			matcher = pattern.matcher(str);
-			if (matcher.find()) {
-				returnVal[0] = matcher.group(1).substring(0,
-						matcher.group(1).length() - 1);
-				returnVal[1] = matcher.group(2);
-				returnVal[2] = "";
-			} else
-				returnVal = null;
-		}
-		return returnVal;
-	}
+        if (methodName.split("\\s+").length > 1) {
+            String[] infos = methodName.split("\\s+");
+            return infos[infos.length - 2];
+        } else
+            return "*";
+    }
 
-	/**
-	 * this method used to check if a method has return value or not if the
-	 * method is constructor or the method return type is void then it will
-	 * return false, otherwise return true
-	 *
-	 * @return
-	 */
-	public static boolean hasReturnValue(String methodStr) {
-		methodStr = methodStr.trim();
-		if (!methodStr.startsWith("void ")
-				|| methodStr.split("\\s+").length > 1)
-			return true;
-		else
-			return false;
-	}
+    public static boolean matchingStack(Stack<String> events, Method run) {
+        String className = trimClassName(run.getDeclaringClass().toString());
+        className = concatClsMethod(className, run.getName());
+        if (events != null && events.peek().contains(className))
+            return true;
 
-	public static boolean matchingStack(Stack<String> events, Method run) {
-		String className = RuntimeUtils.trimClassName(run.getDeclaringClass().toString());
-		className = RuntimeUtils.concatClsMethod(className, run.getName());
-		if (events != null && events.peek().contains(className))
-			return true;
+        return false;
+    }
 
-		return false;
-	}
+    public static String getInvokeMethoSig(Method run) {
+        StringBuilder methodName = new StringBuilder();
+        methodName.append(run.getReturnType().getName() + " ");
+        methodName.append(run.getDeclaringClass().getName() + "."
+                + run.getName() + "(");
 
-	public static String getInvokeMethoSig(Method run) {
-		StringBuilder methodName = new StringBuilder();
-		methodName.append(run.getReturnType().getName() + " ");
-		methodName.append(run.getDeclaringClass().getName() + "."
-				+ run.getName() + "(");
+        if (run.getParameterTypes().length > 0) {
+            Type[] paraTypes = run.getParameterTypes();
+            for (int i = 0; i < paraTypes.length; i++) {
+                methodName.append(trimClassName(paraTypes[i].toString()));
+                if (i != paraTypes.length - 1)
+                    methodName.append(",");
+            }
+        }
+        return methodName.append(")").toString();
+    }
 
-		if (run.getParameterTypes().length > 0) {
-			Type[] paraTypes = run.getParameterTypes();
-			for (int i = 0; i < paraTypes.length; i++) {
-				methodName.append(trimClassName(paraTypes[i].toString()));
-				if (i != paraTypes.length - 1)
-					methodName.append(",");
-			}
-		}
-		return methodName.append(")").toString();
-	}
+    public static boolean isVariable(String varName) {
+        if (varName == null || varName.trim().length() == 0)
+            return false;
 
-	public static boolean isVariable(String varName) {
-		if(varName == null || varName.trim().length()==0)
-			return false;
-		return varName.startsWith("$");
-	}
+        return isMatching("^\\$\\w+$", varName);
+    }
 
-	/**
-	 * used to delete the extra property of a methodName
-	 *
-	 * @param methodStr
-	 * @return
-	 */
-	public static String downsizeMethodName(String methodStr) {
-		// step1: trim (public|protected|private) and (static)
-		// will not trim the return type here since constructor don't have return type
-		String methodRex = "(public|protected|private)?\\s(static)?(.+)";
-		Pattern pattern = Pattern.compile(methodRex);
-		Matcher match = pattern.matcher(methodStr);
-		if (match.find())
-			methodStr = match.group(3).trim();
+    public static boolean isVariableCase(String varName) {
+        if (varName == null || varName.trim().length() == 0)
+            return false;
 
-		// step 2: trim the return type from the function
-		return getfunTypName(methodStr)[1];
+        // $variable case
+        if (isMatching("^\\$\\w+$", varName))
+            return true;
+            // $obj.method() | $obj.value case
+        else if (isMatching("^\\$\\w+\\.\\w+(\\(.*\\))?$", varName))
+            return true;
+            // $policyVar case
+        else
+            return isMatching("^\\$\\w+\\(\\)$", varName);
+    }
 
-	}
+    /**
+     * apply all the variable value into the final SRE value
+     *
+     * @param str
+     * @return
+     */
+    public static String applyVarValues(String str) {
+        if (str == null)
+            return null;
+        // for action cases:
+        // a) $methodVar
+        // b) $obj.method($arg1, #int{$arg2});
+        // c) method($arg1, #int{$arg2});
+        // For result cases:
+        // a) $variable
+        // b) $obj.value;
+        // c) #type{$variable};
 
-	public static boolean matchStack4Constr(Stack<String> events, Constructor run) {
-		String className = RuntimeUtils.trimClassName(run.getDeclaringClass().toString());
-		className +=".new";
-		if (events != null && events.peek().contains(className))
-			return true;
+        // =====================VAR TYPE======OBJECT
+        // $method_Variable=====STRING =======METHOD STRIN
+        // $result_Variable=====ANY TYPE======ANY VALUE BUT NOT AN METHOD
+        // $obj.method(...)=====OBJECT =======OBJECT VAL =>LOAD ADDRESS
+        // $obj.value ==========OBJECT =======OBJECT VAL =>LOAD ADDRESS
+        if (str.startsWith("$")) {
+            String varName = getVariableName(str);
+            // $obj.method(...) | $obj.value ==> load address
+            if (varIsObjCase(str)) { // varName includes"$"
+                if (varName != null
+                        && DataWH.dataVal.containsKey(varName.substring(1))) {
+                    Object obj = DataWH.dataVal.get(varName.substring(1))
+                            .getObj();
+                    if (obj == null) {
+                        return null;
+                    } else {
+                        str = str.replace(varName,
+                                Integer.toString(System.identityHashCode(obj)));
+                    }
+                }
+            } else {
+                String varType = DataWH.dataVal.get(varName.substring(1))
+                        .getType();
+                if (varType.equals("String")
+                        || varType.equals("java.lang.String")) {
+                    String varVal = DataWH.dataVal.get(varName.substring(1))
+                            .getObj().toString();
+                    if (isMethod(varVal))
+                        str = str.replace(varName, varVal);
+                    else
+                        str = str.replace(
+                                varName,
+                                getVar(varType,
+                                        DataWH.dataVal
+                                                .get(varName.substring(1))
+                                                .getObj(), false));
+                } else {
+                    str = str.replace(
+                            varName,
+                            getVar(varType,
+                                    DataWH.dataVal.get(varName.substring(1))
+                                            .getObj(), false));
+                }
+            }
+        }
+        // SRE string still contains variables, then just locate the variable
+        // and load the value
+        // method($arg1, #int{$arg2}) || #type{$variable};
+        if (SREUtil.isContaintheChar(str, "$")) {
+            if (isMethod(str)) {
+                String methodName = getMethodInfo(str, 1);
+                String[] args = getfunArgstr(str).split(",");
+                for (int i = 0; i < args.length; i++) {
+                    // $arg1 case
+                    if (args[i].startsWith("$")) {
+                        String val = loadVariable(args[i], 0, false);
+                        String typ = null;
+                        if (DataWH.dataVal.containsKey(args[i].substring(1)))
+                            typ = DataWH.dataVal.get(args[i].substring(1))
+                                    .getType();
+                        args[i] = "#" + typ + "{" + val + "}";
+                    }
+                    // #int{$arg2} case
+                    if (SREUtil.isContaintheChar(args[i], "$")) {
+                        args[i] = loadVariable(args[i], 1, false);
+                    }
+                }
+                str = methodName + "(" + strArrJoin(args, ",") + ")";
+            } else {
+                while (str.contains("$"))
+                    str = loadVariable(str, 1, false);
+            }
+        }
+        return str;
+    }
 
-		return false;
-	}
+    private static boolean varIsObjCase(String str) {
+        return isMatching("^\\$\\w+\\.\\w+(\\(.*\\))?$", str);
+    }
 
-	public static boolean matchSig(String matchingVal, Constructor run){
-		String regex = validateStr(getConstruSig(run));
-		Pattern pattern = Pattern.compile(regex);
-		Matcher matcher = pattern.matcher(matchingVal);
-		return matcher.find();
-	}
+    public static String getVariableName(String str) {
+        if (str == null || str.trim().length() == 0)
+            return null;
 
-	public static String loadValFrmDataWH(String sreStrVal) {
-		String varVal = DataWH.dataVal.get(sreStrVal.substring(1)).getObj()
-				.toString();
-		return varVal;
-	}
+        Pattern pattern = Pattern.compile("(\\$\\w+)(.*)");
+        Matcher matcher = pattern.matcher(str);
+        if (matcher.find())
+            return matcher.group(1);
+        return null;
+    }
 
-	public static boolean matchSig(String matchingVal, Method run){
-		String methodSig = getInvokeMethoSig(run);
-		methodSig = getfunTypName(methodSig)[1];
-		String regex = validateStr(methodSig);
-		Pattern pattern = Pattern.compile(regex);
-		Matcher matcher = pattern.matcher(matchingVal);
-		return matcher.find();
-	}
+    private static String loadVariable(String arg, int mode,
+                                       boolean isMethodName) {
+        if (arg == null || arg.trim().length() == 0)
+            return null;
 
-	public static String getConstruSig(Constructor run) {
-		String className = RuntimeUtils.trimClassName(run.getDeclaringClass().toString()) + ".new";
-		if (run.getTypeParameters().length > 0) {
-			StringBuilder argStr = new StringBuilder();
-			Type[] paras = run.getGenericParameterTypes();
-			for (int i = 0; i < paras.length; i++) {
-				String temp = paras[i].getClass().toString();
-				argStr.append(RuntimeUtils.trimClassName(temp));
-				if (i != paras.length - 1)
-					argStr.append(",");
-			}
-			className += "(" + argStr.toString() + ")";
-		}
-		return className;
-	}
+        String[] regex = {"(\\$\\w+)(.*)", "(.*)(\\$\\w+)(.*)"};
+        Pattern pattern = Pattern.compile(regex[mode]);
+        Matcher matcher = pattern.matcher(arg);
+        if (matcher.find()) {
+            String varName;
+            if (mode == 0)
+                varName = matcher.group(1).trim();
+            else
+                varName = matcher.group(2).trim();
+            if (!DataWH.dataVal.containsKey(varName.substring(1))) {
+                try {
+                    throw new Exception("The variable \""
+                            + varName.substring(1) + "\" does not exist!");
+                } catch (Exception e) {
+                }
+            }
+            String varType = DataWH.dataVal.get(varName.substring(1)).getType();
+            Object varVal = DataWH.dataVal.get(varName.substring(1)).getObj();
+            if (!isMethodName) {
+                if (isPrimitiveType(varType)) {
+                    arg = arg.replace(varName,
+                            varVal.toString().replace(",", ";"));
+                } else {
+                    int varAddress = System.identityHashCode(varVal);
+                    arg = arg.replace(varName, Integer.toString(varAddress));
+                }
+            } else
+                arg = arg.replace(varName,
+                        getPoCoObjVal(getVar(varType, varVal, isMethodName)));
+        }
+        return arg;
+    }
+
+    public static String getVar(String varType, Object varVal,
+                                boolean isMethodName) {
+        if (isPrimitiveType(varType)) {
+            if (isMethodName)
+                return varVal.toString();
+            else
+                return "#" + varType + "{" + varVal.toString() + "}";
+            // Non-primitive types
+        } else {
+            if (isMethodName)
+                return Integer.toString(System.identityHashCode(varVal));
+            else
+                return "#" + varType + "{" + System.identityHashCode(varVal)
+                        + "}";
+        }
+    }
+
+    public static boolean matchStack4Constr(Stack<String> events,
+                                            Constructor run) {
+        String className = trimClassName(run.getDeclaringClass().toString());
+        if (events != null && events.peek().contains(className))
+            return true;
+
+        return false;
+    }
+
+    public static boolean matchSig(String matchingVal, Constructor run) {
+        String regex = SREUtil.validateStr(getConstruSig(run));
+        return isMatching(regex, matchingVal);
+    }
+
+    public static boolean matchSig(String matchingVal, Method run) {
+        String methodSig = getInvokeMethoSig(run);
+        String methodName = getMethodName(methodSig);
+        String argStr = getfunArgstr(methodSig);
+        if (argStr == null || argStr.trim().length() == 0)
+            argStr = "";
+        methodSig = methodName + "(" + argStr + ")";
+
+        return isMatching(SREUtil.validateStr(methodSig), matchingVal);
+    }
+
+    public static String getConstruSig(Constructor run) {
+        String className = trimClassName(run.getDeclaringClass().toString())
+                + ".new";
+        if (run.getTypeParameters().length > 0) {
+            StringBuilder argStr = new StringBuilder();
+            Type[] paras = run.getGenericParameterTypes();
+            for (int i = 0; i < paras.length; i++) {
+                String temp = paras[i].getClass().toString();
+                argStr.append(trimClassName(temp));
+                if (i != paras.length - 1)
+                    argStr.append(",");
+            }
+            className += "(" + argStr.toString() + ")";
+        }
+        return className;
+    }
+
+    public static String getStrValFrmDataWH(String sreStrVal) {
+        if (sreStrVal == null)
+            return null;
+
+        String varVal = DataWH.dataVal.get(sreStrVal.substring(1)).getObj()
+                .toString();
+        return varVal;
+    }
+
+    public static Object getObjFrmDbWH(String varName) {
+        if (varName == null)
+            return null;
+
+        if (DataWH.dataVal.containsKey(varName))
+            return DataWH.dataVal.get(varName).getObj();
+        return null;
+    }
+
+    /**
+     * Join a string array with a separator
+     *
+     * @param strArr
+     * @param separator
+     * @return
+     */
+    public static String strArrJoin(String[] strArr, String separator) {
+        StringBuilder sbStr = new StringBuilder();
+        for (int i = 0; i < strArr.length; i++) {
+            sbStr.append(strArr[i]);
+            if (i != strArr.length - 1)
+                sbStr.append(separator);
+        }
+        return sbStr.toString();
+    }
+
+    private static boolean isRENotMatchCase(String str) {
+        if (str == null)
+            return false;
+        // We assume that there will be no nested PoCo object
+        return isMatching("^!#(.+)\\{(.+)\\}$", str);
+    }
+
+    private static boolean isNotMatchingCaseMatch(String reg, String str4Match) {
+        String typRE = getPoCoObjTyp(reg);
+        String typStr = getPoCoObjTyp(str4Match);
+        // the argument types are not matching
+        if (!isMatching("^(" + SREUtil.validateStr(typRE) + ")$", typStr)) {
+            return false;
+        } else {
+            String valRE = getPoCoObjVal(reg);
+            String valStr = getPoCoObjVal(str4Match);
+            return !isMatching("^(" + SREUtil.validateStr(valRE) + ")$", valStr);
+        }
+    }
+
+    public static boolean isObjCall(String methodName) {
+        return isMatching("\\d+(\\.\\w+)+", methodName);
+    }
+
+    public static String[] getObjAddr4Call(String methodName) {
+        Pattern pattern = Pattern.compile("(\\d+)(\\.\\w+)?\\.(\\w+)");
+        Matcher matcher = pattern.matcher(methodName);
+        if (matcher.find())
+            return new String[]{matcher.group(1), matcher.group(2), matcher.group(3)};
+        else
+            return null;
+    }
+
+    public static boolean isMatching(String reg, String str4Match) {
+        Pattern pattern = Pattern.compile(reg);
+        Matcher matcher = pattern.matcher(str4Match);
+        return matcher.find();
+    }
+
+    public static String genValueofStr(int value0) {
+        return new Integer(value0).toString();
+    }
+
+    public static String genValueofStr(byte value0) {
+        return Byte.toString(value0);
+    }
+
+    public static String genValueofStr(short value0) {
+        return new Integer(value0).toString();
+    }
+
+    public static String genValueofStr(long value0) {
+        return Long.toString(value0);
+    }
+
+    public static String genValueofStr(double value0) {
+        return Double.toString(value0);
+    }
+
+    public static String genValueofStr(float value0) {
+        return Float.toString(value0);
+    }
+
+    public static String genValueofStr(boolean value0) {
+        return Boolean.toString(value0);
+    }
+
+    public static String genValueofStr(char value0) {
+        return Character.toString(value0);
+    }
 }

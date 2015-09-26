@@ -71,7 +71,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     }
 
     @Override
-    public Void visitTreedef( PoCoParser.TreedefContext ctx) {
+    public Void visitTreedef(PoCoParser.TreedefContext ctx) {
         String treeid = ctx.id(0).getText().trim();
         currRootName.push(treeid);
         if (ctx.srebop() != null) {
@@ -153,7 +153,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             actResFlags.pop();
         } else if (ctx.matchs() != null) {
             visitMatchs(ctx.matchs());
-            visitSre(ctx.sre());
+            if(ctx.sre().NEUTRAL() == null)
+                visitSre(ctx.sre());
         }
         return null;
     }
@@ -187,8 +188,10 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     }
 
     public Void visitSre(@NotNull PoCoParser.SreContext ctx) {
-        if (ctx.NEUTRAL() != null)
+        if (ctx.NEUTRAL() != null) {
             resetPTStr();
+            return null;
+        }
 
         if (ctx.qid() != null) {
             pointcutStr.append("* " + ctx.qid().getText() + "(..)");
@@ -235,7 +238,10 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                     //if it is an action pointcut, the binding happens before allowing proceeding
                     //otherwise, the binding happens after proceeding (result)
                     if (isActionPointCut()) {
-                        varBind4thisPC.put(policyName + ctx.id().getText(), "action");
+                        if(ctx.re(0).getText().equals("%"))
+                            varBind4thisPC.put(policyName + ctx.id().getText(), "action%");
+                        else
+                            varBind4thisPC.put(policyName + ctx.id().getText(), "action");
                     } else {
                         varBind4thisPC.put(policyName + ctx.id().getText(), "result");
                     }
@@ -406,7 +412,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
         //1. reset global variable pointcutStr
         resetPTStr();
-
         for (String str : funStrs) {
             //2. add to the appropriate pointcut set
             if (!PoCoUtils.isResultFlag(actResFlags)) {

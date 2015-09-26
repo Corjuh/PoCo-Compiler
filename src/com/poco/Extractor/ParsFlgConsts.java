@@ -12,6 +12,7 @@ public final class ParsFlgConsts {
 
     public static final int hasAsterisk = 5;
     public static final int hasPlus = 6;
+    public static final int hasNone = 7;
 
 
     public static final int isMapSre = 11;

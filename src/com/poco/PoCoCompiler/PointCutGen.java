@@ -170,10 +170,14 @@ public class PointCutGen {
                     String argTyp = PoCoUtils.getObjType(argsList[i]);
 
                     if (argValStr != null) {
+                        String bindKind = "";
                         if (argValStr.startsWith("$") && bindingVars.containsKey(argValStr.substring(1))) {
                             if (argTyp == null)
                                 argTyp = "java.lang.String value";
-                            if (bindingVars.get(argValStr.substring(1)).toString().equals("result")) {
+
+                            bindKind = bindingVars.get(argValStr.substring(1)).toString();
+
+                            if (bindKind.equals("result")) {
                                 //put info in monitorVal
                                 varsNeed2Bind4Res.put(argTyp + " value" + count, argsList[i]);
                             } else {
@@ -182,14 +186,18 @@ public class PointCutGen {
                             }
                             bindingVars.remove(argValStr.substring(1));
                         }
-                        //store the arg along with the value it need to be matched
-                        if (argVal4Match == null)
-                            argVal4Match = new Hashtable<>();
-                        if (PoCoUtils.reContainNotMatch(argsList[i]))
-                            argVal4Match.put("!" + argTyp + " value" + count, argValStr);
-                        else
-                            argVal4Match.put(argTyp + " value" + count, argValStr);
 
+                        //store the arg along with the value it need to be matched
+                        //the % means it can match any value, in such case, no if condition needed.
+                        if (!bindKind.equals("action%")) {
+                            if (argVal4Match == null)
+                                argVal4Match = new Hashtable<>();
+                            if (PoCoUtils.reContainNotMatch(argsList[i]))
+                                argVal4Match.put("!" + argTyp + " value" + count, argValStr);
+                            else {
+                                argVal4Match.put(argTyp + " value" + count, argValStr);
+                            }
+                        }
                         //generate the correct argument String for aspectj advice
                         //generate the correct argument String for aspectj advice
                         argStrs3.add(argTyp);
@@ -204,7 +212,7 @@ public class PointCutGen {
                                 argStrs4.add("#" + argTyp + "{\"+" + "arg" + count + "+\"}");
                             }
                         } else {
-                            argStrs5.add("String arg" + count + " = getAddr(value)" + count);
+                            //argStrs5.add("String arg" + count + " = getAddr(value)" + count);
                             argStrs4.add("#" + argTyp + "{\"+" + "arg" + count + "+\"}");
                         }
                         count++;
@@ -214,14 +222,16 @@ public class PointCutGen {
                         argStrs4.add("*");
                     } else {
                         argStrs1.add("..");
-                        argStrs3.add("..");
-                        argStrs4.add(argsList[i]);
+                        argStrs3.add("*");
+                        argStrs4.add("..");
                     }
                 }
                 argStrs[0] = argStrs0.toString().replace("[", "").replace("]", "").replace(", ", ",");
                 argStrs[1] = argStrs1.toString().replace("[", "").replace("]", "").replace(", ", ",");
                 argStrs[2] = argStrs2.toString().replace("[", "").replace("]", "").replace(", ", ",");
                 argStrs[3] = argStrs3.toString().replace("[", "").replace("]", "").replace(", ", ",");
+                if (argStrs[3].trim().equals("*"))
+                    argStrs[3] = "..";
                 argStrs[4] = argStrs4.toString().replace("[", "").replace("]", "").replace(", ", ",");
             }
             //code gen for this pointcut
@@ -289,7 +299,7 @@ public class PointCutGen {
                 valueBind4Advices(varsNeed2Bind, 3);
                 if (argStrs[2] != null && argStrs[2].trim().length() > 0) {
                     outLine(3, "Object[] objs = new Object[]{" + argStrs[2] + "};");
-                    outLine(3, "root.queryAction(new Action(thisJoinPoint, \"" + argStrs[3] + "\", objs, varNames));");
+                    outLine(3, "root.queryAction(new Action(thisJoinPoint, \"" + argStrs[3].replace("*", "..") + "\", objs, varNames));");
                 } else
                     outLine(3, "root.queryAction(new Action(thisJoinPoint));");
 
@@ -458,9 +468,8 @@ public class PointCutGen {
     private String genCoditionStatement(String type, String valName, String matchVal, int mode) {
         if (matchVal != null && matchVal.length() > 0) {
             boolean isNotMatch = type.startsWith("!");
-            if(isNotMatch)
+            if (isNotMatch)
                 type = type.substring(1);
-
             matchVal = matchVal.replace("%", "*");
             if (isPrimitiveType(type)) {
                 String str = genValueofStr(type, valName);
@@ -474,7 +483,7 @@ public class PointCutGen {
                     return "RuntimeUtils.strValMatch(" + str + ", \"" + matchVal + "\")";
             } else {
                 if (matchVal.startsWith("$") && closure.isVarsContain(matchVal.substring(1))) {
-                    matchVal = "RuntimeUtils.getFrmDbWH(\"" + matchVal.substring(1) + "\")";
+                    matchVal = "RuntimeUtils.getObjFrmDbWH(\"" + matchVal.substring(1) + "\")";
                     return "RuntimeUtils.objMatch(" + valName + ", " + matchVal + ")";
                 } else
                     return "RuntimeUtils.objMatch(" + valName + ", \"" + matchVal + "\")";
@@ -518,7 +527,6 @@ public class PointCutGen {
             for (Iterator<String> it = set.iterator(); it.hasNext(); ) {
                 String argName = it.next();
                 String varName = varsNeed2Bind.get(argName).toString();
-
                 //if it is sig binding case, it will not be used for this query
                 if (varName.startsWith("sig$")) {
                     varName = varName.substring(4);
@@ -527,22 +535,30 @@ public class PointCutGen {
                             sb4NamList.setLength(sb4NamList.length() - 1);
                     }
                 } else {
+                    if (PoCoUtils.isPoCoObject(varName)) {
+                        sb4NamList.append(varName.substring(1));
+                        varName = PoCoUtils.getObjVal(varName);
+                    }
                     varName = varName.substring(1);
-                    sb4NamList.append(varName);
+                    //sb4NamList.append(varName);
                     if (index++ != set.size() - 1)
                         sb4NamList.append(",");
+
                 }
+
                 //typVal[0] will be the new type  of the variable and
                 //typVal[1] will be the new value of the variable
-                String[] typVal = argName.replace("..", "*").split("\\s+");
+                String[] typVal = argName.split("\\s+");
+                typVal[1] = typVal[1].replace("..", "*");
+
                 outLine(offset, "DataWH.updateTyeVal(\"" + varName + "\", \"" + typVal[0] + "\", " + typVal[1] + ");");
 
                 if (!isPrimitiveType(typVal[0]))
                     outLine(offset, "DataWH.address2ObjVal.put(Integer.toString(System.identityHashCode(" + typVal[1] + ")),"
                             + typVal[1] + ");");
             }
-            if (sb4NamList.length() > 0)
-                outLine(offset, "varNames = new String[] {\"" + sb4NamList.toString() + "\"};");
+//            if (sb4NamList.length() > 0)
+//                outLine(offset, "varNames = new String[] {\"" + sb4NamList.toString() + "\"};");
         }
     }
 
@@ -619,6 +635,8 @@ public class PointCutGen {
                 String str = (String) bindingVars.keySet().toArray()[0];
                 outLine(3, "if(RuntimeUtils.matchSig(\"" + PoCoUtils.getMethodSignature(varName) + "\", run)){");
                 outLine(4, "DataWH.updateTyeVal(\"" + str + "\",retTyp, ret);", i++);
+                outLine(4, "if (!RuntimeUtils.isPrimitiveType(retTyp))");
+                outLine(5, "DataWH.address2ObjVal.put(Integer.toString(System.identityHashCode(ret)),ret);");
                 outLine(3, "}");
             }
         }

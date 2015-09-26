@@ -4,6 +4,7 @@ import com.poco.Extractor.Closure;
 import com.poco.Extractor.ParsFlgConsts;
 import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseVisitor;
+import javafx.beans.binding.ObjectExpression;
 import org.antlr.v4.runtime.misc.NotNull;
 
 import javax.xml.bind.SchemaOutputResolver;
@@ -166,15 +167,15 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             handleMapExec(ctx);
         else if (ctx.LPAREN() != null)  //for grouped executions but not alternation
             handleGroupedExecs(ctx);
-        else
+        else {
             handleLeafExec(ctx);
-
+        }
         return null;
     }
 
-    private void handleLeafExec(@NotNull PoCoParser.ExecutionContext ctx) {
+    private void handleLeafExec(PoCoParser.ExecutionContext ctx) {
         if (ctx.exch() != null) {
-            String modifier = getModifierFlag();
+            String modifier = getModifierFlag(ctx);
             String executionName = "exec" + executionNum++;
             executionNames.push(executionName);
             outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", executionName, modifier);
@@ -188,8 +189,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         }
     }
 
-    private void handleGroupedExecs(@NotNull PoCoParser.ExecutionContext ctx) {
-        String modifier = getModifierFlag();
+    private void handleGroupedExecs(PoCoParser.ExecutionContext ctx) {
+        String modifier = getModifierFlag(ctx);
         String seqExec = "groupedExec" + executionNum++;
         executionNames.push(seqExec);
         outLine(3, "SequentialExecution %s = new SequentialExecution(\"%s\");", seqExec, modifier);
@@ -216,7 +217,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     }
 
     private void handleAlterExec(@NotNull PoCoParser.ExecutionContext ctx) {
-        String modifier = getModifierFlag();
+        String modifier = getModifierFlag(ctx);
         String executionName = "alterExec" + executionNum++;
         executionNames.push(executionName);
         outLine(3, "AlternationExecution %s = new AlternationExecution(\"%s\");", executionName, modifier);
@@ -304,10 +305,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             handleSubsetMatch(ctx);
         } else if (ctx.SREEQUALS() != null) {
             handleEqualsMatch(ctx);
-        } else if(ctx.AT()!=null) {
+        } else if (ctx.AT() != null) {
             handleAtMatch(ctx);
-        }
-        else { //ire case
+        } else { //ire case
             //set isMatch for ture, so match as @out[`$p'] case will be knowned as match
             flagStack4Exc.push(ParsFlgConsts.isExchMatch);
             visitChildren(ctx);
@@ -385,8 +385,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             if (ctx.re() != null) {
                 // (+|-)`re' case
                 visitRe(ctx.re());
-            }
-            else if (ctx.qid() != null) {
+            } else if (ctx.qid() != null) {
                 //$qid case
                 String str = loadFromClosure(ctx.qid().getText());
                 if (str == null)
@@ -394,23 +393,19 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 String matchName = "match" + matchNum++;
                 outLine(3, "Match %s = new Match(\"%s\");", matchName, scrubString(str));
                 outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
-            }
-            else if (ctx.NEUTRAL() != null) {
+            } else if (ctx.NEUTRAL() != null) {
                 //neutral case
                 String matchName = "match" + matchNum++;
                 outLine(3, "Match %s = new Match(\"*\");", matchName);
                 outLine(3, "%s.addMatcher(%s);", currentExchange, matchName);
-            }
-            else if(ctx.srebop() != null) {
+            } else if (ctx.srebop() != null) {
                 // srebop(sre0,sre1) case
                 LHSRewildWSreBop(ctx);
-            }
-            else  {
+            } else {
                 // handle both () case and sreuop(sre) case
                 visitChildren(ctx);
             }
-        }
-        else {
+        } else {
             if (ctx.NEUTRAL() != null) {
                 handleSreNeutral();
             } else if (ctx.PLUS() != null | ctx.MINUS() != null) {
@@ -424,20 +419,16 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                     return null;
 
                 handlePosNegReCase(ctx, sreName);
-            }
-            else if (ctx.srebop() != null) {
+            } else if (ctx.srebop() != null) {
                 // srebop(sre0,sre1) case
                 handleSreBopCase(ctx);
-            }
-            else if (ctx.sreuop() != null) {
+            } else if (ctx.sreuop() != null) {
                 // sreuop(sre0) case
                 handleSreUopCase(ctx);
-            }
-            else if (ctx.DOLLAR() != null) {
+            } else if (ctx.DOLLAR() != null) {
                 //$qid case
                 handleSreQidCase(ctx);
-            }
-            else if (ctx.LPAREN() != null) {
+            } else if (ctx.LPAREN() != null) {
                 //() case
                 visitChildren(ctx);
             }
@@ -465,9 +456,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         //SreUop is null, then we will check if it is pos or neg, when
         //SreUop is not null, then we treat pos differently
         String sreName = "sre" + sreNum++;
-        String varName = policyName +"_"+ctx.qid().getText();
-        if(closure!= null && closure.isVarsContain(varName))
-            outLine(3, "SRE %s = new SRE(\"%s\", null);", sreName, "$"+varName);
+        String varName = policyName + "_" + ctx.qid().getText();
+        if (closure != null && closure.isVarsContain(varName))
+            outLine(3, "SRE %s = new SRE(\"%s\", null);", sreName, "$" + varName);
         else
             outLine(3, "SRE %s = new SRE(\"%s\", null);", sreName, closure.loadFrmFunctions(varName));
 
@@ -518,8 +509,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         } else {
             if (PoCoUtils.isExchMatch(flagStack4Exc)) {
                 if (currentMatch.contains("otherMatch"))
-                    outLine(3, "%s.setSRE1(%s);", currentMatch, sreName);
-            }else if(PoCoUtils.isExchRHSSre(flagStack4Exc)) {
+                    outLine(3, "%s.setSre1(%s);", currentMatch, sreName);
+            } else if (PoCoUtils.isExchRHSSre(flagStack4Exc)) {
                 outLine(3, "%s.setSRE(%s);", currentExchange, sreName);
             }
         }
@@ -607,7 +598,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 } else {
                     if (PoCoUtils.isParsingArg(flagStack4Arg)) {
                         argListStr.append(ctx.getText() + ",");
-                    }else {
+                    } else {
                         content = ctx.getText();
                     }
                 }
@@ -621,7 +612,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 if (PoCoUtils.isPosNegRe4SRE(flagStack4RE)) {
                     if (PoCoUtils.isSrePosRE(flagStack4RE)) {
                         outLine(3, "%s.setPositiveRE(\"%s\");", sreNames.peek(), content);
-                    }else
+                    } else
                         outLine(3, "%s.setNegativeRE(\"%s\");", sreNames.peek(), content);
 
                     if (PoCoUtils.isMapSreFlag(flagStack4Exc))
@@ -635,9 +626,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 } else if (PoCoUtils.isExchMatch(flagStack4Exc)) {
                     //if content is variable then do nothing, otherwise make sure get
                     //the valid method signature for matching string
-                    if(!PoCoUtils.isVariable(content))
+                    if (!PoCoUtils.isVariable(content))
                         //content = PoCoUtils.getMethodSignature(content);
-                    outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content);
+                        outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content);
                 }
             }
         }
@@ -694,7 +685,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         String[] objInfos = PoCoUtils.objMethodCall(ctx.qid().getText());
         if (objInfos != null) {
             content = ctx.getText();
-        }else if (closure != null && closure.isVarsContain(policyName + "_" + ctx.getText().substring(1))) {
+        } else if (closure != null && closure.isVarsContain(policyName + "_" + ctx.getText().substring(1))) {
             content = ctx.getText();
         } else
             content = loadFromClosure(policyName + "_" + ctx.qid().getText());
@@ -713,8 +704,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 content += PoCoUtils.trimEndPunc(argListStr.toString(), ",");
             }
             content += ")";
-        }
-        else {
+        } else {
             content = PoCoUtils.attachPolicyName(policyName + "_", content);
         }
         return content;
@@ -769,8 +759,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 //if it is Bopsre case, we will need postpone setSRE till pop to the right Sre
                 if (PoCoUtils.isExchRHSSre(flagStack4Exc) && !PoCoUtils.isSREBopCase(flagStack4Sre))
                     outLine(3, "%s.setSRE(%s);", currentExchange, sreNames.peek());
-            }
-            else if (PoCoUtils.isIREMatch(flagStack4RE)) {
+            } else if (PoCoUtils.isIREMatch(flagStack4RE)) {
                 if (PoCoUtils.isIREAction(flagStack4RE)) {
                     //temp = PoCoUtils.getMethodSignature(temp);
                     outLine(3, "%s.setMatchString(\"%s\");", currentMatch, temp);
@@ -813,8 +802,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 matchNames.pop();
                 outLine(3, "%s.addMatcher(%s);", currentExchange, matchsName);
                 flagStack4RE.pop();
-            }
-            else {
+            } else {
                 String matchStr = null;
                 if (ctx.qid() != null) {
                     // if it is a variable, that means we need dynamically check its value at runtime,
@@ -877,6 +865,29 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     /**
      * use to get the last seen modifier and reset the flags of the modifiers to false
      */
+    public String getModifierFlag(PoCoParser.ExecutionContext ctx) {
+        String result = "none";
+        if (ctx.getParent() != null) {
+            if (ctx.getParent().getRuleIndex() == 20) {//RULE_execution
+                int size = ctx.getParent().getChildCount();
+                if (ctx.getParent().getChild(size - 1).getText().equals("*")) {
+                    result = "*";
+                } else if (ctx.getParent().getChild(size - 1).getText().equals("+")) {
+                    result = "+";
+                } else if (ctx.getParent().getChild(size - 1).equals(ctx)) {
+                    if (ctx.getParent().getParent().getRuleIndex() == 20) {
+                        size = ctx.getParent().getParent().getChildCount();
+                        if (ctx.getParent().getParent().getChild(size - 1).getText().equals("*"))
+                            result = "*";
+                        else if (ctx.getParent().getParent().getChild(size - 1).getText().equals("+"))
+                            result = "+";
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
     public String getModifierFlag() {
         String result = "none";
         if (PoCoUtils.hasAsterisk(flagStack4Exc)) {
@@ -884,6 +895,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             flagStack4Exc.pop();
         } else if (PoCoUtils.hasPlus(flagStack4Exc)) {
             result = "+";
+            flagStack4Exc.pop();
+        } else if (PoCoUtils.hasNone(flagStack4Exc)) {
+            result = "none";
             flagStack4Exc.pop();
         }
         return result;
@@ -898,8 +912,10 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     public void setModifierFlag(boolean asterisk, boolean plus) {
         if (asterisk)
             flagStack4Exc.push(ParsFlgConsts.hasAsterisk);
-        if (plus)
+        else if (plus)
             flagStack4Exc.push(ParsFlgConsts.hasPlus);
+        else
+            flagStack4Exc.push(ParsFlgConsts.hasNone);
     }
 
     public void setSREvalue(String fieldName, String sreName) {
@@ -907,9 +923,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             outLine(3, "%s.setSRE(%s);", fieldName, sreName);
         else if (fieldName.contains("bopSRE")) {
             if (PoCoUtils.isSREBop1(flagStack4Sre))
-                outLine(3, "%s.setSRE1(%s);", fieldName, sreName);
+                outLine(3, "%s.setSre1(%s);", fieldName, sreName);
             else {//if (PoCoUtils.isSREBop2(flagStack4Sre))
-                outLine(3, "%s.setSRE2(%s);", fieldName, sreName);
+                outLine(3, "%s.setSre2(%s);", fieldName, sreName);
             }
         }
     }

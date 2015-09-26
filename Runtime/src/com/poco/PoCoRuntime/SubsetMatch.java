@@ -18,8 +18,8 @@ public class SubsetMatch extends Match{
      * if match the event, then return true, else return false
      */
     public boolean accepts(Event event) {
-        SRE sre1 = matchSre1;
-        SRE sre2 = matchSre2;
+        SRE sre1 = matchSre1.getAbsVal();
+        SRE sre2 = matchSre2.getAbsVal();
         return SREUtil.isSubSet(sre1,sre2);
     }
 }

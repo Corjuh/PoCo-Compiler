@@ -1,6 +1,7 @@
 package com.poco.PoCoRuntime;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -15,41 +16,61 @@ import java.util.regex.Pattern;
  * Created by caoyan on 1/30/15.
  */
 public class Promoter {
+	private static boolean successlyPromoted = false;
+	private static boolean isMethodValid = true;
+
+	public static boolean isSuccesslyPromoted() {
+		return successlyPromoted;
+	}
+
+	public static void resetSuccesslyPromoted() {
+		successlyPromoted = false;
+	}
+
 	/**
 	 *
 	 * @param pocoString
 	 *            the function want to be invoked
 	 * @throws Exception
 	 */
-	public static void Reflect(Object obj, String pocoString, Object[] objects)
-			throws Exception {
+	public static void Reflect(Object obj, String pocoString, Object[] objects,
+							   String[] objInfos) throws Exception {
 		List<String> toExecute;
-		// the case of calling the instance method of a object
-		if (obj != null) {
-			String className = obj.getClass().getName();
-			toExecute = Parse(className + "." + pocoString);
-		} else
-			toExecute = Parse(pocoString);
+		toExecute = Parse(pocoString);
 
-		// class we are calling
-		String className = toExecute.get(0)
-				.substring(0, toExecute.get(0).length() - 1).trim();
-		// the name of function the to be invoked
-		String methodName = toExecute.get(1).trim();
+		// if the method is invalid, directly return, so we can continue loading
+		// the next concrete method
+		if (!isMethodValid)
+			return;
+
+		String className = null;
+		String methodName = null;
+		// this is the case where we invoke an object's method
+		if (obj != null) {
+			className = obj.getClass().getName();
+			methodName = objInfos[2];
+		} else {
+			// class we are calling
+			className = toExecute.get(0).trim();
+			// the name of function the to be invoked
+			methodName = toExecute.get(1).trim();
+		}
+
 		ArrayList<ReflectParameter> rps = null;
-		// if params list is not empty
 		if (toExecute.size() == 3) {
 			String[] params = toExecute.get(2).split(","); // #java.lang.Integer{42}
-
 			rps = ParseParameters(params);
 		}
+
+		if (!isMethodValid)
+			return;
+
 		ReflectExecute(obj, className, methodName, rps, objects);
 	}
 
 	private static void ReflectExecute(Object obj, String className,
 									   String methodName, ArrayList<ReflectParameter> params, Object[] objs)
 			throws Exception {
-
 		try {
 			boolean isfound = false;
 			// get rid of the return type if the string contains it
@@ -63,6 +84,7 @@ public class Promoter {
 
 			// the constructor case
 			if (methodName.equals("new")) {
+
 				handleConstructorCase(params, objs, isfound, cls1, paramCounts);
 			} else {
 				handleMethodCase(obj, methodName, params, objs, isfound, cls1,
@@ -83,13 +105,14 @@ public class Promoter {
 		for (Method method : methods) {
 			// if find the method name
 			if (method.getName().equals(methodName)) {
+
 				Type[] methodParams = method.getGenericParameterTypes();
 				if (methodParams.length == paramCounts) {
 					isfound = true;
 					if (paramCounts != 0) {
 						int i = 0;
-						for (Iterator<ReflectParameter> it = params
-								.iterator(); it.hasNext();) {
+						for (Iterator<ReflectParameter> it = params.iterator(); it
+								.hasNext();) {
 							String methodParam = GetTypeName(methodParams[i++]
 									.toString());
 							// if the type is not the primitive type
@@ -104,12 +127,14 @@ public class Promoter {
 			}
 			if (isfound) {
 				theMethod = method;
+
 				break;
 			}
 		}
 
 		// found the right method that is we wanted
 		if (isfound) {
+			successlyPromoted = true;
 			if (obj != null)
 				theMethod.invoke(obj, objs);
 			else {
@@ -120,8 +145,11 @@ public class Promoter {
 					theMethod.invoke(cls1.newInstance(), objs);
 			}
 		} else {
-			System.out.println("Sorry, cannot find the right method to pomote, "
-					+ "please check the policy definition!");
+			// return and try to locate next easy-to-find method
+			return;
+			// System.out
+			// .println("Sorry, cannot find the right method to pomote, "
+			// + "please check the policy definition!");
 		}
 	}
 
@@ -140,11 +168,10 @@ public class Promoter {
 				Type[] conParams = con.getGenericParameterTypes();
 				for (Iterator<ReflectParameter> it = params.iterator(); it
 						.hasNext();) {
-					String conParam = GetTypeName(conParams[i]
-							.toString());
+					String conParam = GetTypeName(conParams[i].toString());
 
-					if (!conParam.equalsIgnoreCase(it.next()
-							.GetParameterType())) {
+					if (!conParam
+							.equalsIgnoreCase(it.next().GetParameterType())) {
 						isfound = false;
 						break;
 					}
@@ -157,11 +184,14 @@ public class Promoter {
 			}
 		}
 		if (isfound) {
+			successlyPromoted = true;
 			theConstructor.newInstance(objs);
 		} else {
-			System.out
-					.println("Sorry, failed to find the right constructor to initialize "
-							+ "the class, please check the policy definition!");
+			// return and try to locate next easy-to-find method
+			return;
+			// System.out
+			// .println("Sorry, failed to find the right constructor to initialize "
+			// + "the class, please check the policy definition!");
 		}
 	}
 
@@ -179,16 +209,23 @@ public class Promoter {
 		Matcher matcher = pattern.matcher(toParse);
 
 		if (matcher.find()) {
+			int lParen = toParse.indexOf('(');
+			int rParen = toParse.lastIndexOf(')');
+			String methodName = toParse.substring(0, lParen);
+			int dotIndex = methodName.lastIndexOf('.');
+			String info = methodName.substring(0, dotIndex);
+			String[] infos = info.split("\\s+");
 			// package and class name
-			tokens.add(matcher.group(1).toString());
+			tokens.add(infos[infos.length - 1]);
 			// method name
-			tokens.add(matcher.group(2).toString());
+			tokens.add(methodName.substring(dotIndex + 1));
 			// parameter list if not null
-			if (matcher.group(3) != null
-					&& matcher.group(3).trim().length() > 0)
-				tokens.add(matcher.group(3).toString());
+			if (rParen - lParen > 1)
+				tokens.add(toParse.substring(lParen + 1, rParen));
 		} else {
-			throw new Exception("the function you want to invoked is invalid!");
+			isMethodValid = false;
+			return null;// throw new
+			// Exception("the function you want to invoked is invalid!");
 		}
 		return tokens;
 	}
@@ -202,27 +239,16 @@ public class Promoter {
 		Matcher matcher;
 		for (int i = 0; i < params.length; i++) {
 			matcher = pattern.matcher(params[i]);
-			//first check if the parameter is an object or not, if so
-			//direct get the object value
+			// first check if the parameter is an object or not, if so
+			// direct get the object value
 			if (matcher.find()) {
-				String paraTyp = matcher.group(1).toString().trim();
-
-				//if the value is variable, need dynamically update the type
-				//of the argument, since it may be changed.
-				String paraVal = matcher.group(2).toString().trim();
-				if(RuntimeUtils.isVariable(paraVal))
-					paraTyp = DataWH.dataVal.get(paraVal.substring(1)).getType();
-
+				int sharp = params[i].indexOf('#');
+				int lCBracet = params[i].indexOf('{');
+				String paraTyp = params[i].substring(sharp + 1, lCBracet);
 				rps.add(new ReflectParameter(paraTyp, null));
-			}
-			//if it is not an object, then must be variable case, need load info
-			//at run time to get correct information about this variable
-			else if(RuntimeUtils.isVariable(params[i])) {
-				String varTyp = DataWH.dataVal.get(params[i].substring(1)).getType();
-				rps.add(new ReflectParameter(varTyp, null));
-			}
-			else {
-				throw new Exception("the parameter you entered is invalid");
+			} else {
+				isMethodValid = false;
+				// throw new Exception("the parameter you entered is invalid");
 			}
 		}
 		return rps;

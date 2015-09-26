@@ -1,8 +1,14 @@
 package com.poco.PoCoRuntime;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.ArrayList;
 
+/**
+ * This class is extended from the Match, and it is used for the Result case of
+ * IRE
+ *
+ * @author yan
+ *
+ */
 public class ResMatch extends Match {
 	private String resultMatchStr; /* use to compare result */
 
@@ -11,14 +17,14 @@ public class ResMatch extends Match {
 		this.resultMatchStr = null;
 	}
 
-	public ResMatch(String matchString, boolean boolUop, String resultMatchStr) {
+	public ResMatch(String matchString, String resultMatchStr) {
 		super(matchString);
 		this.resultMatchStr = resultMatchStr;
 	}
 
 	public ResMatch(String matchString) {
 		super(matchString);
-		this.resultMatchStr = resultMatchStr;
+		this.resultMatchStr = "";
 	}
 
 	public void setResultMatchStr(String resultMatchStr) {
@@ -34,31 +40,20 @@ public class ResMatch extends Match {
 	 * if match the event, then return true, else return false
 	 */
 	public boolean accepts(Event event) {
-		String eventSig = getEventSig(event);
-
-		if (isWildcard)
-			return RuntimeUtils.matchFunction(eventSig, matchString);
-
-		if (event.getResult() == null)
-			return false;
-
-		// if it is the action, just match the event signature with matchString
-		// if the matchstrings are compound re, then we need check sub-item
-
-		String[] matchs = RuntimeUtils.getMethodSignature(matchString).split(
-				"\\|");
-
-		// if it is result, we have to permit the action in order to get the
-		// result. If action not done yet, permit action first then get
-		// action result back, compare the result with resultMatchStr
-		boolean result;
-		for (int i = 0; i < matchs.length; i++) {
-			if (RuntimeUtils.matchFunction(eventSig, matchs[i])) {
-				String reg = this.resultMatchStr;
-				Pattern ptn = Pattern.compile(reg);
-				Matcher mth = ptn.matcher(event.getResult().toString());
-				if (mth.find())
-					return true;
+		String eventSig = RuntimeUtils.getMethodSignature(event.getSignature());
+		// Step 1: check the result
+		if (!isWildcard) {
+			if (!RuntimeUtils.isMatching(this.resultMatchStr, event.getResult()
+					.toString()))
+				return false;
+		}
+		// Step 2: make sure it is from the right method
+		ArrayList<String> matchs = SREUtil.splitSreStr(matchString);
+		for (int i = 0; i < matchs.size(); i++) {
+			String temp = handlVar4Action(matchs.get(i));
+			temp = RuntimeUtils.getMethodSignature(temp);
+			if (temp != null && RuntimeUtils.matchFunction(eventSig, temp)) {
+				return true;
 			}
 		}
 		return false;
@@ -69,4 +64,5 @@ public class ResMatch extends Match {
 		return "Match [matchString=" + matchString + ", isWildcard="
 				+ isWildcard + ", resultMatchStr=" + resultMatchStr + "]";
 	}
+
 }
