@@ -38,13 +38,14 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
     public GenAspectJFile(PrintWriter out, int indentLevel, Closure closure, PointCutExtractor pcExactor) {
         this.out = out;
         this.indentLevel = indentLevel;
-        this.pocoRoot = pcExactor.getRoot();
+        this.pocoRoot = pcExactor.getRoot() + "root";
         if (pocoRoot == null || pocoRoot.length() == 0)
             this.aspectName = "AspectRoot";
         else
             this.aspectName = "Aspect" + pocoRoot;
 
         policies = pcExactor.getPolicyNames();
+
         this.closure = closure;
         currentParentRoot = new Stack<>();
         currentPolicyName = new Stack<>();
@@ -67,7 +68,7 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
         outLine(0, "import java.lang.reflect.Constructor;\n");
         outLine(0, "public aspect %s {", aspectName);
 
-        outLine(1, "private RootPolicy %s = new RootPolicy();\n", pocoRoot);
+        outLine(1, "private RootPolicy %s = new RootPolicy();\n", this.pocoRoot);
     }
 
     private void genDataHW() {
@@ -75,14 +76,14 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
         for (Object varname : closure.getVars().keySet()) {
             VarTypeVal temp = (VarTypeVal) closure.getVars().get(varname);
             String typ = temp.getVarType();
-            if(typ == null || typ.trim().length()==0 || typ.trim().equals("null"))
+            if (typ == null || typ.trim().length() == 0 || typ.trim().equals("null"))
                 typ = "java.lang.String";
-            outLine(2, "DataWH.dataVal.put(\"" + varname + "\"," + "new TypeVal(\""+ typ+"\",\"\"));");
+            outLine(2, "DataWH.dataVal.put(\"" + varname + "\"," + "new TypeVal(\"" + typ + "\",\"\"));");
         }
         //if there is no root policy, we will just declear a root and add all the polices to it.
         if (pocoRoot == null || pocoRoot.length() == 0) {
             for (String policy : policies)
-                outLine(1, "root.addChild( new %s() );", policy);
+                outLine(1, "root.addChild(new %s());", policy);
         }
     }
 
@@ -118,11 +119,25 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitTreedef(@NotNull PoCoParser.TreedefContext ctx) {
         String policyId = ctx.id(0).getText();
-        currentParentRoot.push(policyId);
+        if ((policyId + "root").equals(pocoRoot))
+            currentParentRoot.push(pocoRoot);
+        else
+            currentParentRoot.push(policyId);
 
         if (ctx.srebop() != null) {
-            //TREE id = srebop(policyargs) case
-            outLine(2, "%s.setStrategy(\"%s\");", policyId, ctx.srebop().getText());
+            if (!policies.contains(currentParentRoot.peek())) {
+                if (!defindedPolicies.contains(currentParentRoot.peek())) {
+                    defindedPolicies.add(currentParentRoot.peek());
+                    outLine(2, "NodePolicy %s = new NodePolicy();", currentParentRoot.peek());
+                }
+                //TREE id = srebop(policyargs) case
+                outLine(2, "%s.setStrategy(\"%s\");", currentParentRoot.peek(), ctx.srebop().getText());
+            } else {
+                if (!defindedPolicies.contains(currentParentRoot.peek())) {
+                    defindedPolicies.add(currentParentRoot.peek());
+                    outLine(2, "Policy %s = new %s;", currentParentRoot.peek(), currentParentRoot.peek() + "(" + ")");
+                }
+            }
             visitChildren(ctx);
         } else if (ctx.id(1) != null) {
             //TREE id = id(policyargs) case
@@ -137,7 +152,43 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
             if (pocoRoot.equals(currentParentRoot.peek())) {
                 outLine(2, "%s.addChild( new %s );", pocoRoot, currentPolicyName.peek() + "(" + argStr + ")");
             } else {
-                outLine(2, "Policy %s = new %s ;", currentParentRoot.peek(), currentPolicyName.peek() + "(" + argStr + ")");
+                //NodePolicy case
+                if (!policies.contains(currentParentRoot.peek())) {
+                    if (!defindedPolicies.contains(currentParentRoot.peek())) {
+                        defindedPolicies.add(currentParentRoot.peek());
+                        outLine(2, "NodePolicy %s = new NodePolicy();", currentParentRoot.peek());
+                    }
+
+                    if (policies.contains(currentPolicyName.peek())) {
+                        if (defindedPolicies.contains(currentPolicyName.peek()))
+                            outLine(2, "%s.add(\"%s\");", currentParentRoot.peek(), currentPolicyName.peek());
+                        else {
+                            String[] args = argStr.split(",");
+                            StringBuilder sb = new  StringBuilder();
+                            for (int i = 0; i< args.length; i++) {
+                                if (!defindedPolicies.contains(args[i])) {
+                                    defindedPolicies.add(args[i]);
+                                    sb.append("new " + args[i]+"()");
+                                }else
+                                    sb.append(args[i]);
+                                if(i != args.length-1)
+                                    sb.append(",");
+                            }
+                            outLine(2, "%s.addChild(new %s(%s));", currentParentRoot.peek(), currentPolicyName.peek(), sb.toString());
+                        }
+                    } else {
+                        outLine(2, "%s.setStrategy(\"%s\");", currentParentRoot.peek(), currentPolicyName.peek());
+                        String[] args = argStr.split(",");
+                        for (String str : args) {
+                            if (defindedPolicies.contains(str))
+                                outLine(2, "%s.addChild(%s);", currentParentRoot.peek(), str);
+                            else
+                                outLine(2, "%s.addChild(new %s());", currentParentRoot.peek(), str);
+                        }
+                    }
+                    //outLine(2, "Policy %s = new %s ;", currentParentRoot.peek(), currentPolicyName.peek() + "(" + argStr + ")");
+                } else
+                    outLine(2, "Policy %s = new %s ;", currentParentRoot.peek(), currentPolicyName.peek() + "(" + argStr + ")");
                 defindedPolicies.add(currentParentRoot.peek());
             }
 
@@ -183,20 +234,26 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
                 policyArgs = new StringBuilder();
                 if (argStr.length() > 0) {
                     argStr = PoCoUtils.trimEndPunc(argStr, ",");
-
                     //the case the argStr is the argument of the ctx.id()
-                    if (ctx.policyargs().getText().trim().length() > 0)
-                        policyArgs.append("new " + ctx.id().getText().trim() + "(" + argStr + "),");
-                    else
+                    if (ctx.policyargs().getText().trim().length() > 0) {
+                        policyArgs.append(ctx.id().getText().trim() + "(" + argStr + "),");
+                    } else {
                         policyArgs.append(argStr + "," + ctx.id().getText().trim() + ",");
+                    }
                 } else {
-                    if (defindedPolicies.contains(ctx.id().getText().trim()))
+                    if (defindedPolicies.contains(ctx.id().getText().trim())) {
                         policyArgs.append(ctx.id().getText().trim() + ",");
-                    else
-                        policyArgs.append("new " + ctx.id().getText().trim() + "(),");
+                    } else {
+                        policyArgs.append(ctx.id().getText().trim() + ",");
+                    }
                 }
             } else if (!currentParentRoot.isEmpty()) {
-                outLine(2, "%s.addChild(new  %s);", currentParentRoot.peek(), ctx.getText());
+                if (defindedPolicies.contains(ctx.id().getText().trim())) {
+                    outLine(2, "%s.addChild(%s);", currentParentRoot.peek(), ctx.id().getText().trim());
+                } else {
+                    defindedPolicies.add(ctx.getText().trim());
+                    outLine(2, "%s.addChild(new %s);", currentParentRoot.peek(), ctx.getText().trim());
+                }
             }
         }
 

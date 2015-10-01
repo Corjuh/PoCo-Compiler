@@ -60,7 +60,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
     private StringBuilder reBopStr;
     private StringBuilder argListStr;
-
+    private StringBuilder policyArgStr;
 
     /**
      * Constructor
@@ -98,6 +98,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
         argListStr = new StringBuilder();
         reBopStr = new StringBuilder();
+        policyArgStr = new StringBuilder();
     }
 
     /**
@@ -136,10 +137,22 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
      * @return
      */
     @Override
-    public Void visitPocopol(@NotNull PoCoParser.PocopolContext ctx) {
+    public Void visitPocopol(PoCoParser.PocopolContext ctx) {
         policyName = ctx.id().getText();
+
+        if (ctx.paramlist() != null && ctx.paramlist().getText().trim().length() > 0) {
+            visitParamlist(ctx.paramlist());
+            policyArgStr.deleteCharAt(policyArgStr.length() - 1);
+            System.out.println(policyArgStr.toString());
+        }
+
         outLine(0, "class %s extends Policy {", policyName);
-        outLine(1, "public %s() {", policyName);
+        if (policyArgStr.toString().length() > 0) {
+            outLine(1, "public %s(%s) {", policyName, policyArgStr);
+        }else
+            outLine(1, "public %s() {", policyName);
+
+        outLine(2, "super();");
         outLine(2, "try {");
         outLine(3, "SequentialExecution rootExec = new SequentialExecution(\"none\");");
         executionNames.push("rootExec");
@@ -147,6 +160,18 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         executionNames.pop();
         outLine(3, "rootExec.getCurrentChildModifier();");
         outLine(3, "setRootExecution(rootExec);");
+
+        if (policyArgStr.toString().length() > 0) {
+            //double percent,long interval ; Policy p1,Policy p2
+            String[] args = policyArgStr.toString().split(",");
+            for(String arg: args) {
+                String varTyp = arg.split("\\s+")[0];
+                String varName = arg.split("\\s+")[1];
+                outLine(3, "DataWH.updateTyeVal(\"" + policyName+"_"+varName + "\", \"" + varTyp + "\", " + varName + ");");
+            }
+            policyArgStr = new StringBuilder();
+        }
+
         outLine(2, "} catch (PoCoException pex) {");
         outLine(3, "System.out.println(pex.getMessage());");
         outLine(3, "pex.printStackTrace();");
@@ -156,6 +181,14 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         outLine(0, "}");
         //outLine(0, "%s policy1 = new %s();", policyName, policyName);
         //outLine(0, "root.setChild(policy1);");
+        return null;
+    }
+
+    @Override
+    public Void visitParamlist(PoCoParser.ParamlistContext ctx) {
+        if (ctx.getText().trim().length() > 0)
+            visitChildren(ctx);
+        policyArgStr.append(ctx.qid().getText() + " " + ctx.id().getText() + ",");
         return null;
     }
 

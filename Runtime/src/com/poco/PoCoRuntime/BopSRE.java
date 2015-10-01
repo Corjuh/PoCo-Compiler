@@ -102,12 +102,6 @@ public class BopSRE extends SRE {
 	/**
 	 * get the absolute value of this SRE, that is, apply all the variable
 	 * values.
-	 *
-	 * @param mode
-	 *            0: get the SRE absolute value, that is, apply all the variable
-	 *            values; 1: apply only necessary variables, that is, a. for
-	 *            action case, will only apply the variable as method name b.
-	 *            for result case, will not apply the variable value
 	 * @return
 	 */
 	@Override
