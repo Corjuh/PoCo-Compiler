@@ -1,6 +1,8 @@
 package com.poco.Extractor;
 
+import java.util.ArrayList;
 import java.util.Hashtable;
+import java.util.Set;
 
 /**
  * Created by caoyan on 10/28/14.
@@ -8,6 +10,8 @@ import java.util.Hashtable;
 public class Closure {
     private Hashtable<String, VarTypeVal> vars;
     private Hashtable<String, VarTypeVal> functions;
+    private ArrayList<String> varFunNames;
+
 
     public Hashtable getVars() {
         return vars;
@@ -20,6 +24,7 @@ public class Closure {
     public Closure() {
         vars = new Hashtable<String, VarTypeVal>();
         functions = new Hashtable<String, VarTypeVal>();
+        varFunNames = new ArrayList<String>();
     }
 
 
@@ -35,6 +40,7 @@ public class Closure {
         varNameValidation(varName);
         valValidation(typeVal);
         target.put(varName, typeVal);
+        varFunNames.add(varName);
     }
 
 
@@ -105,6 +111,12 @@ public class Closure {
         return getTargetTyp(varName, functions);
     }
 
+    public ArrayList<String> getAllVarNames() {
+        if(varFunNames != null)
+            return  varFunNames;
+        return null;
+    }
+
     private String getTargetTyp(String varName, Hashtable<String, VarTypeVal> target) {
         VarTypeVal vals = checkedLoad(varName, target);
         if (vals != null)
@@ -138,6 +150,7 @@ public class Closure {
             for (Object varname : functions.keySet()) {
                 System.out.println(varname + ": ");
                 System.out.println("Type    : " + loadFrmFunctions((String) varname).getVarType());
+                System.out.println("Args    : " + loadFrmFunctions((String) varname).getFunArgs());
                 System.out.println("Context : " + loadFrmFunctions((String) varname).getVarContext());
                 System.out.println("************************************************************");
             }

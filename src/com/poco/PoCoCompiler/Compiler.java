@@ -10,6 +10,7 @@ import joptsimple.OptionSpec;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.objectweb.asm.ClassReader;
 
 import java.io.FileInputStream;
 import java.io.FileWriter;
@@ -17,8 +18,6 @@ import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class Compiler {
     /*
@@ -51,7 +50,7 @@ public class Compiler {
     /**
      * Used to write to the AspectJ file
      */
-    private PrintWriter aspectWriter = null;
+    private PrintWriter fileWriter = null;
     /**
      * Other policies that need to be parsed (found via "import" statements)
      */
@@ -93,8 +92,6 @@ public class Compiler {
      * vars and marcos value will be saved in closure
      */
     private Closure closure;
-    private Hashtable<String, String> monitoredPC = new Hashtable<String, String>();
-    private HashSet<String> varNeedBind;
 
     public static void main(String[] args) {
         Compiler compiler = new Compiler(args);
@@ -126,12 +123,12 @@ public class Compiler {
         // Indent to appropriate level
         int numSpaces = indentLevel * 4;
         for (int i = 0; i < numSpaces; i++) {
-            aspectWriter.format(" ");
+            fileWriter.format(" ");
         }
 
         // Output supplied format string and append newline
-        aspectWriter.format(text, args);
-        aspectWriter.format("\n");
+        fileWriter.format(text, args);
+        fileWriter.format("\n");
     }
 
     /**
@@ -211,6 +208,8 @@ public class Compiler {
         for (int i = 0; i < scanOpts.values(options).size(); i++) {
             scanFilePaths[i] = Paths.get(scanOpts.values(options).get(i));
         }
+        this.scanFilePaths = new Path[1];
+        scanFilePaths[0] = this.policyFilePath;
 
         // "--extract" option indicates that the user only wants to extract REs
         if (options.has("extract")) {
@@ -242,13 +241,9 @@ public class Compiler {
     public void compile() {
         // Runs through the steps of compilation (parse, extract, mapping)
         this.doParse();
-
         this.doGenerateClosure();
-
         this.doExtract();
-
-        this.doStaticAnalysis();
-
+        //this.doStaticAnalysis();
         this.doGenerateAspectJ();
     }
 
@@ -263,16 +258,16 @@ public class Compiler {
         // Open the PoCo policy file
         try {
             antlrStream = new ANTLRInputStream(new FileInputStream(policyFilePath.toFile()));
+            // Call lexer, get tokens, pass tokens to parser. Obtain the parseTree for the root-level rule, "policy".
+            PoCoLexer lexer = new PoCoLexer(antlrStream);
+            CommonTokenStream tokens = new CommonTokenStream(lexer);
+            PoCoParser parser = new PoCoParser(tokens);
+            this.parseTree = parser.policy();
         } catch (Exception ex) {
             System.out.println(ex.getMessage());
             ex.printStackTrace();
             System.exit(-1);
         }
-        // Call lexer, get tokens, pass tokens to parser. Obtain the parseTree for the root-level rule, "policy".
-        PoCoLexer lexer = new PoCoLexer(antlrStream);
-        CommonTokenStream tokens = new CommonTokenStream(lexer);
-        PoCoParser parser = new PoCoParser(tokens);
-        this.parseTree = parser.policy();
     }
 
     /**
@@ -304,15 +299,14 @@ public class Compiler {
         pcExtractor = new PointCutExtractor(this.closure);
         pcExtractor.visit(parseTree);
         this.extractedMethodSignatures = new LinkedHashSet<>();
-        //Modify temporarily
-        /*for (Path scanFilePath : scanFilePaths) {
+        for (Path scanFilePath : scanFilePaths) {
             this.extractedMethodSignatures.addAll(new MethodSignaturesExtract(scanFilePath).getMethodSignatures());
-        }*/
+        }
         Path myPath = Paths.get("/Users/yan/Desktop/Test/RuntimeDemo.class");
-        //this.extractedMethodSignatures.addAll(new MethodSignaturesExtract(myPath).getMethodSignatures());
-        // Write the extracted methods to a file
-        //Path methodExtractPath = outputDir.resolve(policyName + "_allmethods.txt");
-        //writeToFile(extractedMethodSignatures, methodExtractPath);
+        this.extractedMethodSignatures.addAll(new MethodSignaturesExtract(myPath).getMethodSignatures());
+        //Write the extracted methods to a file
+        Path methodExtractPath = outputDir.resolve(pcExtractor.getRoot() + "_allmethods.txt");
+        writeToFile(extractedMethodSignatures, methodExtractPath);
     }
 
     /**
@@ -323,7 +317,7 @@ public class Compiler {
         ANTLRInputStream antlrStream = null;
         try {
             antlrStream = new ANTLRInputStream(new FileInputStream(policyFilePath.toFile()));
-            StaticAnalysis sa = new StaticAnalysis();
+            StaticAnalysis sa = new StaticAnalysis(this.closure);
             sa.StaticAnalysis(antlrStream, this.extractedMethodSignatures);
         } catch (Exception ex) {
             System.out.println(ex.getMessage());
@@ -338,117 +332,41 @@ public class Compiler {
     private void doGenerateAspectJ() {
         String rootName = pcExtractor.getRoot();
 
-        //if the root is not explicitly declared, then output the error message and terminate.
-//        if(rootName == null) {
-//            System.err.println("There is not root to be delcared in your policy, please check");
-//            System.exit(-11);
-//        }
-//
-        rootName = "root";
+        // Step 1: Make sure that policy root is declared.
+        if (rootName == null) {
+            System.err.println("The root policy has not been delcared yet, please check");
+            System.exit(-11);
+        }
 
-        // Generate AspectJ pointcuts according to the mappings
-        Path poincutPath = outputDir.resolve("Aspect" + rootName + ".aj");
+        // Step 2: Generate AspectJ pointcuts according to the mappings
+        Path poincutPath = outputDir.resolve("Aspect" + rootName + "root.aj");
         vOut("Generating AspectJ file %s ...\n", poincutPath.getFileName());
-
-        // Open up the AspectJ file for writing
         try {
-            aspectWriter = new PrintWriter(poincutPath.toFile());
+            fileWriter = new PrintWriter(poincutPath.toFile());
         } catch (Exception ex) {
-            System.out.println("ERROR during pointcut gen");
+            System.out.println("Failed to generate the specified policy in aspectj format.");
             System.out.println(ex.getMessage());
             System.exit(-1);
         }
-
-        // Generate policy classes
-        GenAspectJFile genAJfile = new GenAspectJFile(aspectWriter, 0, this.closure, pcExtractor);
+        GenAspectJFile genAJfile = new GenAspectJFile(fileWriter, 0, this.closure, pcExtractor);
         genAJfile.visit(parseTree);
-
-        PointCutGen pointCutGen = new PointCutGen(aspectWriter, 0, this.closure, pcExtractor);
+        PointCutGen pointCutGen = new PointCutGen(fileWriter, 0, this.closure, pcExtractor);
         pointCutGen.GenAspectJ();
 
-        // Generate policy classes
-        PolicyVisitor pvisitor = new PolicyVisitor(aspectWriter, 1, this.closure);
+        // Step 3: Generate policy classes
+        PolicyVisitor pvisitor = new PolicyVisitor(fileWriter, 1, this.closure);
         pvisitor.visit(parseTree);
-        if (pvisitor.hasTransation())
-            createTransUtil(pvisitor.getTransactions());
         outAspectEpilogue();
-        aspectWriter.close();
-        aspectWriter = null;
+        fileWriter.close();
+        fileWriter = null;
+
+        // Step 4: Generate Transaction classes
+        GenTransactions genTransactions = new GenTransactions(outputDir);
+        genTransactions.visit(parseTree);
     }
 
     private void outAspectEpilogue() {
         jOut(0, "}");
-    }
-
-    private void createTransUtil(String str) {
-        //String fileName = policyName + "_Utils";
-        String fileName = "_Utils";
-        Path path = outputDir.resolve(fileName + ".java");
-
-        StringBuffer stringBuffer = new StringBuffer();
-        //write the package info
-        ArrayList<String> packs = getUtilPackages(str);
-        if (packs != null) {
-            for (Iterator<String> it = packs.iterator(); it.hasNext(); ) {
-                stringBuffer = stringBuffer.append(it.next());
-                stringBuffer = stringBuffer.append(System.getProperty("line.separator"));
-            }
-            stringBuffer = stringBuffer.append(System.getProperty("line.separator"));
-        }
-        //write the class name
-        stringBuffer = stringBuffer.append("public class " + fileName + "{");
-        stringBuffer = stringBuffer.append(System.getProperty("line.separator"));
-        //add methods
-        ArrayList<String> methods = getUtilMethods(str);
-        if (methods != null) {
-            for (Iterator<String> it = methods.iterator(); it.hasNext(); ) {
-                stringBuffer = stringBuffer.append(it.next());
-                stringBuffer = stringBuffer.append(System.getProperty("line.separator"));
-            }
-        }
-        stringBuffer = stringBuffer.append("}");
-        //write into "policyName_Utils.java"
-        try {
-            FileWriter fw = new FileWriter(path.toString());
-            fw.write(stringBuffer.toString());
-            fw.flush();
-            fw.close();
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-    }
-
-    private ArrayList<String> getUtilPackages(String str) {
-        ArrayList<String> packages = new ArrayList<>();
-        String reg = "\\s*import\\s+(.+);";
-        Pattern pattern = Pattern.compile(reg);
-        Matcher matcher = pattern.matcher(str);
-        while (matcher.find()) {
-            packages.add("import " + matcher.group(1).trim() + ";");
-        }
-        return packages;
-    }
-
-    private ArrayList<String> getUtilMethods(String str) {
-        ArrayList<Integer> methodIndex = new ArrayList<>();
-        ArrayList<String> methods = new ArrayList<>();
-        String reg = "\\s*(public\\s+(static)?\\s+\\w+\\s+\\w+\\s*\\(.*?\\))\\s*";
-        Pattern pattern = Pattern.compile(reg);
-        Matcher matcher = pattern.matcher(str);
-        while (matcher.find())
-            methodIndex.add(matcher.start());
-
-        if (methodIndex.size() > 0) {
-            int firstIndex = methodIndex.get(0);
-            methodIndex.remove(0);
-            for (Iterator<Integer> it = methodIndex.iterator(); it.hasNext(); ) {
-                int nextIndex = it.next();
-                methods.add("\t" + str.substring(firstIndex, nextIndex).trim());
-                firstIndex = nextIndex;
-            }
-            methods.add("\t" + str.substring(firstIndex, str.length()).trim());
-        }
-        return methods;
     }
 
 }

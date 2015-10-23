@@ -17,15 +17,15 @@
         <SOURCES />
       </library>
     </orderEntry>
-    <orderEntry type="module-library">
-      <library>
-        <CLASSES>
-          <root url="jar://$MODULE_DIR$/../libs/antlr-4.4-complete.jar!/" />
-        </CLASSES>
-        <JAVADOC />
-        <SOURCES />
-      </library>
-    </orderEntry>
     <orderEntry type="library" name="antlr-4.5.1-complete" level="project" />
+    <orderEntry type="library" name="asm-5.0.1" level="project" />
+    <orderEntry type="library" name="commons-lang3-3" level="project" />
+    <orderEntry type="library" name="antlr-4.5-complete" level="application" />
+    <orderEntry type="library" name="streamsupport-1.2.1" level="application" />
+    <orderEntry type="library" name="asm-commons-5.0.3" level="application" />
+    <orderEntry type="library" name="automaton" level="application" />
+    <orderEntry type="library" name="jopt-simple-4.7" level="application" />
+    <orderEntry type="library" name="junit-4.11" level="application" />
+    <orderEntry type="library" name="ST4-4.0.8" level="application" />
   </component>
 </module>

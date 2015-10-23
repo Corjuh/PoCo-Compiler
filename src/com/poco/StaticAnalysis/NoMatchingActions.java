@@ -1,159 +1,135 @@
 package com.poco.StaticAnalysis;
-import java.util.*;
 
-import com.poco.Library.SRE;
+import com.poco.Extractor.Closure;
+import com.poco.PoCoCompiler.PoCoUtils;
 import com.poco.PoCoParser.PoCoParser;
-import com.poco.PoCoParser.PoCoParserBaseListener;
+import com.poco.PoCoParser.PoCoParserBaseVisitor;
+
+import java.util.HashSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 
 /**
- * Created by Danielle on 8/5/2014.
+ * This class extracts all the security-relevant methods to a list while scanning the policies.
+ * Then, by comparing this list with the list of the target application's all deployed methods,
+ * we will be able warning the policy designer with those method.
  */
 
-public class NoMatchingActions extends PoCoParserBaseListener {
-    PoCoParser parser;
-    List<String> start;
-    boolean finalresult = true;
-    String errorsegment = "";
-    LinkedHashSet<String> possibleinputs;
-    Map<String, String> bindings;
 
-    public NoMatchingActions(PoCoParser parser, LinkedHashSet<String> possibleinputs) {
-        this.parser = parser;
-        this.start = new ArrayList<String>();
-        this.possibleinputs = possibleinputs;
-        this.bindings = new HashMap<String, String>();
+public class NoMatchingActions extends PoCoParserBaseVisitor<Void> {
+    private Closure closure;
+    private HashSet<String> methodSigs;
+    private String policyName = null;
+
+    public NoMatchingActions(Closure closure) {
+        this.closure = closure;
+        methodSigs = new HashSet<>();
     }
+
     @Override
-    public void exitPocopol(PoCoParser.PocopolContext ctx) {
-        NoMatchingActions(start);
-        if(!finalresult) {
-            System.out.println("Warning: The exchange '" + errorsegment + "' does not match any possible input actions.");
-        }
-        this.start = new ArrayList<String>();
-        this.possibleinputs = possibleinputs;
-        this.bindings = new HashMap<String, String>();
+    public Void visitPocopol(PoCoParser.PocopolContext ctx) {
+        policyName = ctx.id().getText();
+        visitChildren(ctx);
+        return null;
     }
 
-    private boolean NoMatchingActions(List<String> list)
-    {
-        String re = "";
-        for (int i = 0; i < list.size(); i++) {
-            re = list.get(i);
-            Boolean result = true;
-            Iterator<String> itr =  possibleinputs.iterator();
-            while(itr.hasNext())
-            {
-                if(itr.next().matches(re)) {
-                    result = false;
-                    break;
+    //skip vars
+    public Void visitVardecl(PoCoParser.VardeclContext ctx) {
+        return null;
+    }
+
+    @Override
+    public Void visitRe(PoCoParser.ReContext ctx) {
+        // can skip variable case since it will either
+        // be dynamic or has been added thru visitMacrodecl
+        if (ctx.function() != null && ctx.function().fxnname() != null) {
+            String methodName = ctx.function().fxnname().getText().trim();
+            if (PoCoUtils.isVariable(methodName))
+                methodName = loadFuncFrmClousre(methodName.substring(1));
+                String funName = methodName.split("\\s+")[methodName.split("\\s+").length-1];
+            if (methodName != null && funName.contains(".")) {
+                String argStr = "";
+                if (ctx.function().INIT() != null) {
+                    methodName = methodName + "<init>";
                 }
-            }
-            if(result)
-            {
-                finalresult = false;
-                errorsegment = re;
-            }
-            break;
-        }
-
-
-        return true;
-    }
-
-    @Override
-    public void exitMacrodecl(PoCoParser.MacrodeclContext ctx) {
-        if(ctx.re() != null) {
-            if (bindings.containsKey(ctx.id().getText())) {
-                bindings.remove(ctx.id().getText());
-            }
-            String value = SRE.replaceBinding(ctx.re(), bindings);
-            if(ctx.LPAREN() != null) {
-                PoCoParser.IdlistContext idctx = ctx.idlist();
-                List<String> ids = new ArrayList<String>();
-                while (idctx != null) {
-                    if (idctx.id() != null) {
-                        ids.add(0, idctx.id().getText());
-                    }
-                    idctx = idctx.idlist();
+                if (ctx.function().arglist() != null) {
+                    argStr = ctx.function().arglist().getText().trim();
+                    argStr = getArgsig(argStr);
                 }
-
-                Iterator<String> itr = ids.iterator();
-                int i = 0;
-                while (itr.hasNext()) {
-                    value = value.replace("$" + itr.next(), "{" + i + "}");
-                    i++;
-                }
-            }
-            bindings.put(ctx.id().getText(), value);
-        }
-    }
-
-    @Override
-    public void exitSrecase(PoCoParser.SrecaseContext ctx) {
-        if(ctx.AT() != null)
-        {
-            //standard macro (not function)
-            if(bindings.containsKey(ctx.id().getText()))
-            {
-                bindings.remove(ctx.id().getText());
-            }
-            bindings.put(ctx.id().getText(), ctx.re().getText());
-        }
-    }
-
-    @Override
-     public void exitMatch(PoCoParser.MatchContext ctx) {
-        if(ctx.AT() != null)
-        {
-            //standard macro (not function)
-            if(bindings.containsKey(ctx.id().getText()))
-            {
-                bindings.remove(ctx.id().getText());
-            }
-            bindings.put(ctx.id().getText(), ctx.re().getText());
-        }
-    }
-
-    @Override
-    public void exitRe(PoCoParser.ReContext ctx) {
-        if(ctx.AT() != null)
-        {
-            //standard macro (not function)
-            if(bindings.containsKey(ctx.id().getText()))
-            {
-                bindings.remove(ctx.id().getText());
-            }
-            bindings.put(ctx.id().getText(), ctx.re().get(0).getText());
-        }
-    }
-
-    @Override
-    public void exitMatchs(PoCoParser.MatchsContext ctx) {
-        String re = "";
-        if(ctx.match() != null) {
-            if(ctx.match().ire() != null) {
-                if (ctx.match().ire().re().size() > 0) {
-                    //The first re is always the action
-                    PoCoParser.ReContext rectx =  ctx.match().ire().re().get(0);
-                    while(rectx.AT() != null)
-                    {
-                        rectx = rectx.re().get(0);
-                    }
-                    if(rectx.DOLLAR() != null)
-                    {
-                        re = SRE.replaceValues(rectx, bindings);
-                    }
-                    else {
-                        re = rectx.getText();
-                    }
-                } else {
-                    start.add(".*");
-                    return;
-                }
+                if (methodName.contains("("))
+                    methodName = methodName.substring(0, methodName.indexOf('('));
+                methodSigs.add(methodName + "(" + argStr + ")");
             }
         }
-        re = re.split("\\(")[0];
-        re = re.replace("%", ".*");
-        start.add(re);
+        visitChildren(ctx);
+        return null;
     }
+
+    public HashSet<String> getAllMethods() {
+        if (methodSigs != null && methodSigs.size() > 0)
+            return methodSigs;
+
+        return null;
+    }
+
+    private String getArgsig(String methodStr) {
+        String[] args = methodStr.split(",");
+        if (args != null) {
+            String argSig = "";
+            for (int i = 0; i < args.length; i++) {
+                if (args[i].equals("%")) {
+                    argSig += "%";
+                } else if (PoCoUtils.isPoCoObject(args[i])) {
+                    argSig += PoCoUtils.getObjType(args[i]);
+                } else if (args[i].startsWith("$")) {
+                    String temp = getVarTypFrmClousre(PoCoUtils.getVariableName(args[i]));
+                    if (temp == null)
+                        temp = "java.lang.String";
+                    argSig += temp;
+                }else
+                    argSig += args[i];
+                if (i != args.length - 1)
+                    argSig += ",";
+            }
+            return argSig;
+        }
+        return null;
+    }
+
+    private String getMethodInfo(String methodStr, int mode) {
+        String reg = "(.+)\\((.*)\\)";
+        Pattern pattern = Pattern.compile(reg);
+        Matcher matcher = pattern.matcher(methodStr);
+        if (matcher.find()) {
+            if (mode == 1)
+                return matcher.group(1).trim();
+            else if (matcher.group(2).trim().length() > 0)
+                return matcher.group(2).trim();
+        } else if (mode == 1)
+            return methodStr;
+
+        return null;
+    }
+
+    private String loadFuncFrmClousre(String varName) {
+        if (closure == null)
+            return null;
+
+        if (closure.isFunctionsContain(policyName + "_" + varName))
+            return closure.getFunctionContext(policyName + "_" + varName);
+
+        return null;
+    }
+
+    private String getVarTypFrmClousre(String varName) {
+        if (closure == null)
+            return null;
+        if (closure.isVarsContain(policyName + "_" + varName))
+            return closure.getVarType(policyName + "_" + varName);
+        else if (closure.isFunctionsContain(policyName + "_" + varName))
+            return closure.getMacroType(policyName + "_" + varName);
+        return null;
+    }
+
 }

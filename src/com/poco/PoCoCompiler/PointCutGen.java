@@ -10,7 +10,6 @@ import java.util.*;
 public class PointCutGen {
     private final int indentLevel;
     private final PrintWriter out;
-    private String aspectName;
     //private String policyName;
     private String pocoRoot;
 
@@ -29,12 +28,10 @@ public class PointCutGen {
     public PointCutGen(PrintWriter out, int indentLevel, Closure closure,
                        PointCutExtractor pcExactor) {
         this.out = out;
-        this.pocoRoot = pcExactor.getRoot()+"root";
-        this.aspectName = "Aspect" + pocoRoot;
+        this.pocoRoot = pcExactor.getRoot() + "root";
         this.indentLevel = indentLevel;
         this.closure = closure;
         this.actionPtCut = pcExactor.getPCStrings();
-
         this.resultPtCut = pcExactor.getPCStrs4Result();
         this.prmResPtCut = pcExactor.getPCStrs4Promoter();
         this.actResPtCut = new HashMap<String, HashMap<String, String>>();
@@ -63,7 +60,6 @@ public class PointCutGen {
 
         //setp 6: generate advice for promoted action
         genAdvice4PromotedActions();
-
     }
 
 
@@ -117,13 +113,14 @@ public class PointCutGen {
      * Generage pointcut and advice for non-promoted action
      */
     private void genPointCuts(HashMap<String, HashMap<String, String>> target, int mode) {
-        HashMap<String, HashMap<String, String>> pointcuts = target;
 
-        Set<String> keys = pointcuts.keySet();
+        Set<String> keys = target.keySet();
+        int ii = 0;
         for (Iterator<String> key = keys.iterator(); key.hasNext(); ) {
             String entry = key.next();
+            bindingVars = target.get(entry);
+            HashSet<String> donelist = new HashSet<>();
 
-            bindingVars = pointcuts.get(entry);
             /*
             pointcut PointCut1(java.lang.String value0):
                 call(java.io.File.new(..,java.lang.String)) && args(*,value0);
@@ -176,7 +173,6 @@ public class PointCutGen {
                                 argTyp = "java.lang.String value";
 
                             bindKind = bindingVars.get(argValStr.substring(1)).toString();
-
                             if (bindKind.equals("result")) {
                                 //put info in monitorVal
                                 varsNeed2Bind4Res.put(argTyp + " value" + count, argsList[i]);
@@ -184,7 +180,7 @@ public class PointCutGen {
                                 //action or sig case, which means that the binding happens before allowing proceeding
                                 varsNeed2Bind4Act.put(argTyp + " value" + count, argsList[i]);
                             }
-                            bindingVars.remove(argValStr.substring(1));
+                            donelist.add(argValStr.substring(1));
                         }
 
                         //store the arg along with the value it need to be matched
@@ -212,7 +208,7 @@ public class PointCutGen {
                                 argStrs4.add("#" + argTyp + "{\"+" + "arg" + count + "+\"}");
                             }
                         } else {
-                            //argStrs5.add("String arg" + count + " = getAddr(value)" + count);
+                            argStrs5.add("int arg" + count + " = System.identityHashCode(value" + count + ");");
                             argStrs4.add("#" + argTyp + "{\"+" + "arg" + count + "+\"}");
                         }
                         count++;
@@ -242,6 +238,8 @@ public class PointCutGen {
                 Set vars = bindingVars.keySet();
                 for (Iterator<String> it = vars.iterator(); it.hasNext(); ) {
                     String varName = (String) it.next();
+                    if(donelist.contains(varName))
+                        continue;
                     //binding return value to a variable case
                     if (bindingVars.get(varName).toString().equals("result")) {
                         varsNeed2Bind4Res.put(PoCoUtils.getMethodRtnTyp(methodSig) + " ret", "$" + varName.toString());
@@ -259,6 +257,7 @@ public class PointCutGen {
                 genAdvice4Results("PointCut" + pointcutNum++, argStrs, varsNeed2Bind4Res, argVal4Match, argStrs5);
             else
                 genAdvice4Events("PointCut" + pointcutNum++, argStrs, varsNeed2Bind4Act, varsNeed2Bind4Res, argVal4Match, argStrs5);
+            bindingVars = new HashMap<String, String>();
         }
     }
 
@@ -299,11 +298,14 @@ public class PointCutGen {
                 valueBind4Advices(varsNeed2Bind, 3);
                 if (argStrs[2] != null && argStrs[2].trim().length() > 0) {
                     outLine(3, "Object[] objs = new Object[]{" + argStrs[2] + "};");
+                    outLine(3, pocoRoot + ".addAct2Monitor(RuntimeUtils.getNameFrmJonPiont(thisJoinPoint)+\"("
+                            + argStrs[4].replace("..", "*") + ")\");");
                     outLine(3, pocoRoot + ".queryAction(new Action(thisJoinPoint, \"" + argStrs[3].replace("*", "..") + "\", objs, varNames));");
-                } else
+                } else {
+                    outLine(3, pocoRoot + ".addAct2Monitor(RuntimeUtils.getSigFrmJPoint(thisJoinPoint));");
                     outLine(3, pocoRoot + ".queryAction(new Action(thisJoinPoint));");
-
-                outLine(3, "if("+pocoRoot+".hasRes4Action()) {");
+                }
+                outLine(3, "if(" + pocoRoot + ".hasRes4Action()) {");
                 outLine(4, "return " + pocoRoot + ".getRes4Action();");
                 outLine(3, "} else");
                 outLine(4, "return proceed(%s);", argStrs[2]);
@@ -311,19 +313,29 @@ public class PointCutGen {
                 outLine(3, "return proceed(%s);", argStrs[2]);
             } else {
                 //handle vars in order to generate correct method signatures info, which includes the variable infos
+                outLine(2, "String[] varNames = null;");
                 handleSigVar(handleSig, 2);
                 valueBind4Advices(varsNeed2Bind, 2);
-                outLine(2, pocoRoot+".queryAction(new Action(thisJoinPoint));");
+                if (argStrs[2] != null && argStrs[2].trim().length() > 0) {
+                    outLine(2, "Object[] objs = new Object[]{" + argStrs[2] + "};");
+                    outLine(2, pocoRoot + ".addAct2Monitor(RuntimeUtils.getNameFrmJonPiont(thisJoinPoint)+\"("
+                            + argStrs[4].replace("..", "*") + ")\");");
+                    outLine(2, pocoRoot + ".queryAction(new Action(thisJoinPoint, \"" + argStrs[3].replace("*", "..") + "\", objs, varNames));");
+                } else {
+                    outLine(2, pocoRoot + ".addAct2Monitor(RuntimeUtils.getSigFrmJPoint(thisJoinPoint));");
+                    outLine(2, pocoRoot + ".queryAction(new Action(thisJoinPoint));");
+                }
                 outLine(2, "if(" + pocoRoot + ".hasRes4Action()) {");
-                outLine(3, "return "+ pocoRoot+".getRes4Action();");
+                outLine(3, "return " + pocoRoot + ".getRes4Action();");
                 outLine(2, "} else");
                 outLine(3, "return proceed(%s);", argStrs[2]);
             }
         } else {
             outLine(1, "Object around(): %s() {", pointcutName);
-            outLine(2, pocoRoot+".queryAction(new Action(thisJoinPoint));");
+            outLine(2, pocoRoot + ".addAct2Monitor(RuntimeUtils.getSigFrmJPoint(thisJoinPoint));");
+            outLine(2, pocoRoot + ".queryAction(new Action(thisJoinPoint));");
             outLine(2, "if(" + pocoRoot + ".hasRes4Action()) {");
-            outLine(3, "return "+pocoRoot+".getRes4Action();");
+            outLine(3, "return " + pocoRoot + ".getRes4Action();");
             outLine(2, "} else");
             outLine(3, "return proceed();");
         }
@@ -380,9 +392,9 @@ public class PointCutGen {
                 valueBind4Advices(varsNeed2Bind4Act, 3);
                 if (argStrs[2] != null && argStrs[2].trim().length() > 0) {
                     outLine(3, "Object[] objs = new Object[]{" + argStrs[2] + "};");
-                    outLine(3, pocoRoot+".queryAction(new Action(thisJoinPoint, \"" + argStrs[3] + "\", objs, varNames));");
+                    outLine(3, pocoRoot + ".queryAction(new Action(thisJoinPoint, \"" + argStrs[3] + "\", objs, varNames));");
                 } else
-                    outLine(3, pocoRoot+".queryAction(new Action(thisJoinPoint));");
+                    outLine(3, pocoRoot + ".queryAction(new Action(thisJoinPoint));");
                 outLine(3, "Object ret = proceed(%s);", argStrs[2]);
                 valueBind4Advices(varsNeed2Bind4Res, 3);
                 //generate code for create Event Object,which will be used for policy query action
@@ -391,8 +403,13 @@ public class PointCutGen {
                 outLine(2, "else");
                 outLine(3, "return proceed(%s);", argStrs[2]);
             } else {
+                outLine(2, "String[] varNames = null;");
                 valueBind4Advices(varsNeed2Bind4Act, 2);
-                outLine(2, pocoRoot+".queryAction(new Action(thisJoinPoint));");
+                if (argStrs[2] != null && argStrs[2].trim().length() > 0) {
+                    outLine(2, "Object[] objs = new Object[]{" + argStrs[2] + "};");
+                    outLine(2, pocoRoot + ".queryAction(new Action(thisJoinPoint, \"" + argStrs[3] + "\", objs, varNames));");
+                } else
+                    outLine(2, pocoRoot + ".queryAction(new Action(thisJoinPoint));");
                 outLine(2, "Object ret = proceed(%s);", argStrs[2]);
                 handleSigVar(handleSig, 2);
                 valueBind4Advices(varsNeed2Bind4Res, 2);
@@ -402,7 +419,7 @@ public class PointCutGen {
             outLine(1, "Object around(): %s() {", pointcutName);
             handleSigVar(handleSig, 2);
             valueBind4Advices(varsNeed2Bind4Act, 2);
-            outLine(2, pocoRoot+".queryAction(new Action(thisJoinPoint));");
+            outLine(2, pocoRoot + ".queryAction(new Action(thisJoinPoint));");
             outLine(2, "Object ret = proceed();", argStrs[2]);
             valueBind4Advices(varsNeed2Bind4Res, 2);
             genEvent4queryAction(2);
@@ -412,7 +429,7 @@ public class PointCutGen {
 
     private void genEvent4queryAction(int offset) {
         outLine(offset, "Result result = new Result(thisJoinPoint, ret);");
-        outLine(offset, pocoRoot+".queryAction(result);");
+        outLine(offset, pocoRoot + ".queryAction(result);");
         outLine(offset, "return result.getResult();");
     }
 
@@ -541,8 +558,8 @@ public class PointCutGen {
                     }
                     varName = varName.substring(1);
                     //sb4NamList.append(varName);
-                    if (index++ != set.size() - 1)
-                        sb4NamList.append(",");
+//                    if (index++ != set.size() - 1)
+//                        sb4NamList.append(",");
 
                 }
 
@@ -557,8 +574,10 @@ public class PointCutGen {
                     outLine(offset, "DataWH.address2ObjVal.put(Integer.toString(System.identityHashCode(" + typVal[1] + ")),"
                             + typVal[1] + ");");
             }
-//            if (sb4NamList.length() > 0)
-//                outLine(offset, "varNames = new String[] {\"" + sb4NamList.toString() + "\"};");
+            if (sb4NamList.length() > 0) {
+                String temp = PoCoUtils.trimEndPunc(sb4NamList.toString(), ",");
+                outLine(offset, "varNames = new String[] {\"" + temp + "\"};");
+            }
         }
     }
 
@@ -594,13 +613,13 @@ public class PointCutGen {
 
     private void outAdvicePrologue4Result(String pointcutName) {
         outLine(1, "Object around(Method run): %s(run) {", pointcutName);
-        outLine(2, "if (RuntimeUtils.matchingStack("+pocoRoot+".promotedEvents,run)) {");
-        outLine(3, pocoRoot+".promotedEvents.pop();");
+        outLine(2, "if (RuntimeUtils.matchingStack(" + pocoRoot + ".promotedEvents,run)) {");
+        outLine(3, pocoRoot + ".promotedEvents.pop();");
         outLine(3, "Object ret = proceed(run);");
         outLine(3, "String retTyp = RuntimeUtils.trimClassName(ret.getClass().toString());");
         genVarBing4Prom();
         outLine(3, "PromotedResult promRes = new PromotedResult(thisJoinPoint,run,ret);");
-        outLine(3, pocoRoot+".queryAction(promRes);");
+        outLine(3, pocoRoot + ".queryAction(promRes);");
         outLine(3, "return ret;");
         outLine(2, "}");
         outLine(2, "else");
@@ -610,14 +629,14 @@ public class PointCutGen {
 
     private void outAdviceInvokeConstructor(String pointcutName) {
         outLine(1, "Object around(Constructor run): %s(run) {", pointcutName);
-        outLine(2, "if (RuntimeUtils.matchStack4Constr("+pocoRoot+".promotedEvents, run)) {");
-        outLine(3, pocoRoot+".promotedEvents.pop();");
+        outLine(2, "if (RuntimeUtils.matchStack4Constr(" + pocoRoot + ".promotedEvents, run)) {");
+        outLine(3, pocoRoot + ".promotedEvents.pop();");
         outLine(3, "Object ret = proceed(run);");
         outLine(3, "String retTyp = run.getName();");
         genVarBing4Prom();
 
         outLine(3, "PromotedResult promRes = new PromotedResult(thisJoinPoint, run, ret);");
-        outLine(3, pocoRoot+".queryAction(promRes);");
+        outLine(3, pocoRoot + ".queryAction(promRes);");
         outLine(3, "return ret;");
         outLine(2, "}");
         outLine(2, "else");

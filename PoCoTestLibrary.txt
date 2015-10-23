@@ -24,12 +24,19 @@ class Test { public int foo(int x) { return x; } }
 =================================================================================
 =================================================================================
 NoCreateClassFiles() :
-<_ => -`java.io.File.<init>(#java.lang.String{%.class})|java.io.File.<init>(\*, #java.lang.String{%.class})'>*
+<_ => -`java.io.File.<init>(#java.lang.String{%.class})|java.io.File.<init>(%, #java.lang.String{%.class})'>*
 
 
 NoCreateClassFiles() :
-@creatFile()[`java.io.File.<init>(#java.lang.String{%.class})|java.io.File.<init>(\*, #java.lang.String{%.class})'] :RE
-<_ => -`$creatFile'>*
+@creatFile1()[`java.io.FileInputStream.<init>(#java.lang.String{%.class})|
+	      java.util.zip.ZipFile.<init>(#java.lang.String{%.class}) |
+	      java.io.RandomAccessFile.<init>(#java.lang.String{%.class}, %)'] :RE
+
+@creatFile2()[`java.io.FileInputStream.<init>(java.io.File)|
+	       java.io.RandomAccessFile.<init>(java.io.File, %)'] :RE
+
+<!(Action(`$creatFile1') ||Action(`$creatFile2')) => Neutral>*
+
 **********************************************RuntimeDemo.java********************************************
 import java.io.File;  
 public class RuntimeDemo {
@@ -49,6 +56,39 @@ public class RuntimeDemo {
 =================================================================================
 =================================================================================
 DisSysCalls() : <_ => -`Runtime.exec(%)'>*
+
+/*****---------------------**  RuntimeDemo.java **----------------------*****/
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
+public class RuntimeDemo {
+    public static void main(String[] args) {
+		RuntimeDemo obj = new RuntimeDemo();
+		String domainName = "google.com";
+		String command = "ping -c 3 " + domainName;
+		String output = obj.executeCommand(command);
+		System.out.println(output);
+	}
+
+	private String executeCommand(String command) {
+		StringBuffer output = new StringBuffer();
+		Process p;
+		try {
+			p = Runtime.getRuntime().exec(command);
+			p.waitFor();
+			BufferedReader reader = new BufferedReader(new InputStreamReader(
+					p.getInputStream()));
+			String line = "";
+			while ((line = reader.readLine()) != null) {
+				output.append(line + "\n");
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return output.toString();
+	}
+    }
+}
 =================================================================================
 ================================================================================= 
 AllowOnlyMIME() : 
@@ -529,9 +569,28 @@ tree rootNode = Union(DenyEmails(), NoOpenPorts())
 
 =================================================================================
 IsClientSigned(Policy p1, Policy p2):
-<!Action(`isSigned()') => Union($p2(),  +`isSigned()')>*
+<!Action(`isSigned()') => +`isSigned()')>*
   (<Result(`isSigned()', `#Boolean{true}')  => $p1()>  <_ => $p1()>*)
  |(<Result(`isSigned()', `#Boolean{false}') => $p2()> <_ => $p2()>*)
+
+transaction
+public boolean isSigned(File file) {
+    assert file != null;
+    try {
+	JarFile jarFile = new JarFile(file);
+	Enumeration em = jarFile.entries();
+	while (em.hasMoreElements()) {
+    	    Certificate[] ca = ((JarEntry) em.nextElement()).getCertificates();
+	    if (ca != null && ca.length > 0 && ca[0] != null)
+		return true;
+	}
+    } catch (Exception ex) {
+        System.out.println(ex.toString());
+    }
+    return false;
+}
+
+end transaction
 
 DenyEmails() :
 var msg: RE

@@ -6,6 +6,7 @@ import org.objectweb.asm.ClassReader;
 
 import java.io.*;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -18,8 +19,9 @@ public class MethodSignaturesExtract {
     private LinkedHashSet<String> methodSignatures = new LinkedHashSet<>();
 
     public MethodSignaturesExtract(Path scanFile) {
-        this.toScan = scanFile;
+        //this.toScan = scanFile;
 
+        this.toScan = Paths.get("/Users/yan/Downloads/pooka.jar");
         // Scan for method signatures
         String fileName = toScan.getFileName().toString();
         String extension = fileName.substring(fileName.lastIndexOf('.'));

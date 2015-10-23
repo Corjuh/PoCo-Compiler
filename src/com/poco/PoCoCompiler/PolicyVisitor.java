@@ -4,12 +4,11 @@ import com.poco.Extractor.Closure;
 import com.poco.Extractor.ParsFlgConsts;
 import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseVisitor;
-import javafx.beans.binding.ObjectExpression;
 import org.antlr.v4.runtime.misc.NotNull;
 
-import javax.xml.bind.SchemaOutputResolver;
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -42,11 +41,7 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     private Closure closure;
 
     private int sreNum;
-
     private Stack<String> sreNames;
-
-    //use to save the transactions that need to be added into Util
-    private String transactions = null;
     private String policyName = null;
 
     //this stack is used to flag the status when parsing arguments
@@ -143,13 +138,12 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         if (ctx.paramlist() != null && ctx.paramlist().getText().trim().length() > 0) {
             visitParamlist(ctx.paramlist());
             policyArgStr.deleteCharAt(policyArgStr.length() - 1);
-            System.out.println(policyArgStr.toString());
         }
 
         outLine(0, "class %s extends Policy {", policyName);
         if (policyArgStr.toString().length() > 0) {
             outLine(1, "public %s(%s) {", policyName, policyArgStr);
-        }else
+        } else
             outLine(1, "public %s() {", policyName);
 
         outLine(2, "super();");
@@ -164,10 +158,10 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         if (policyArgStr.toString().length() > 0) {
             //double percent,long interval ; Policy p1,Policy p2
             String[] args = policyArgStr.toString().split(",");
-            for(String arg: args) {
+            for (String arg : args) {
                 String varTyp = arg.split("\\s+")[0];
                 String varName = arg.split("\\s+")[1];
-                outLine(3, "DataWH.updateTyeVal(\"" + policyName+"_"+varName + "\", \"" + varTyp + "\", " + varName + ");");
+                outLine(3, "DataWH.updateTyeVal(\"" + policyName + "_" + varName + "\", \"" + varTyp + "\", " + varName + ");");
             }
             policyArgStr = new StringBuilder();
         }
@@ -567,22 +561,21 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
 
     private boolean handleSre4Up8RetVal(@NotNull PoCoParser.SreContext ctx, String sreName) {
         if (ctx.PLUS() != null) {
-            String funReg = "(.+)\\((.*)\\)";
-            Pattern funPtn = Pattern.compile(funReg);
-            Matcher funMth = funPtn.matcher(ctx.re().getText().trim());
-            String objReg = "#(.+)\\{(.+)\\}";
-            Pattern objPtn = Pattern.compile(objReg);
-            Matcher objMth = objPtn.matcher(ctx.re().getText().trim());
             //not a function call but an object value, then is the case of update return value
-            if (!funMth.find() && objMth.find()) {
-                if (!objMth.group(1).trim().startsWith("$")) {
-                    String temp = ctx.re().getText().trim();
-                    outLine(3, "%s.setPositiveRE(\"%s\");", sreNames.peek(), temp);
-                    sreNames.pop();
-                    if (!sreNames.empty())
-                        setSREvalue(sreNames.peek(), sreName);
-                    outLine(3, "%s.setSRE(%s);", currentExchange, sreName);
-                    return true;
+            if (isPoCoObject(ctx.re().getText().trim())) {
+                String objReg = "#(.+)\\{(.+)\\}";
+                Pattern objPtn = Pattern.compile(objReg);
+                Matcher objMth = objPtn.matcher(ctx.re().getText().trim());
+                if (objMth.find()) {
+                    String temp = objMth.group(2).trim();
+                    if (temp.length() > 0 && !temp.startsWith("$")) {
+                        outLine(3, "%s.setPositiveRE(\"%s\");", sreNames.peek(), ctx.re().getText().trim());
+                        sreNames.pop();
+                        if (!sreNames.empty())
+                            setSREvalue(sreNames.peek(), sreName);
+                        outLine(3, "%s.setSRE(%s);", currentExchange, sreName);
+                        return true;
+                    }
                 }
             }
         }
@@ -611,9 +604,12 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         } else if (ctx.rebop() != null) {
             handleReBopCase(ctx);
         } else if (ctx.AT() != null) { //binding variable
-            handleReAtCase(ctx);
+            visitRe(ctx.re(0));
+            //handleReAtCase(ctx);
         } else if (ctx.rewild() != null) {
-            if (PoCoUtils.isIREAction(flagStack4RE) || PoCoUtils.isIREResMatch(flagStack4RE))
+            if (PoCoUtils.isParsingArg(flagStack4Arg))
+                argListStr.append("*,");
+            else if (PoCoUtils.isIREAction(flagStack4RE) || PoCoUtils.isIREResMatch(flagStack4RE))
                 outLine(3, "%s.setWildcard(true);", scrubString(currentMatch));
         } else {  //leaf case of RE
             String content = "";
@@ -642,6 +638,9 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             if (PoCoUtils.isReBopFlag(flagStack4RE)) {
                 reBopStr.append(content + "|");
             } else {
+                if (isMethod(content))
+                    content = handleTransCase(content, policyName);
+
                 if (PoCoUtils.isPosNegRe4SRE(flagStack4RE)) {
                     if (PoCoUtils.isSrePosRE(flagStack4RE)) {
                         outLine(3, "%s.setPositiveRE(\"%s\");", sreNames.peek(), content);
@@ -669,35 +668,33 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
     }
 
     private void handleRE4IREcase(String content) {
+        if (isMethod(content))
+            content = handleTransCase(content, policyName);
+
         if (PoCoUtils.isIREAction(flagStack4RE)) {
-            //content = PoCoUtils.getMethodSignature(content);
             outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content);
         } else if (PoCoUtils.isIREResult(flagStack4RE)) {
-            //content = PoCoUtils.getMethodSignature(content);
             outLine(3, "%s.setMatchString(\"%s\");", currentMatch, content);
         } else //if (PoCoUtils.isIREResMatch(flagStack4RE)) {
             outLine(3, "%s.setResultMatchStr(\"%s\");", currentMatch, content);
     }
 
     private String reIsFuncCase(@NotNull PoCoParser.ReContext ctx) {
-        String content;
-        content = ctx.function().fxnname().getText().trim();
+        String funName = ctx.function().fxnname().getText().trim();
+        String argStr = "";
         if (ctx.function().INIT() != null) {
-            content = content.substring(0, content.length() - 1) + ".new";
+            funName += ".new";
         }
-        if (ctx.function().arglist() != null) {
-            content += "(";
-            if (!ctx.function().arglist().getText().equals("%")) {
-                resetArgStr();
-                flagStack4Arg.push(ParsFlgConsts.parsArgs);
-                visitChildren(ctx.function().arglist());
-                flagStack4Arg.pop();
-                content += PoCoUtils.trimEndPunc(argListStr.toString(), ",");
-            } else
-                content += "*";
-            content += ")";
+
+        if (ctx.function().arglist() != null && ctx.function().arglist().getText().trim().length() != 0) {
+            resetArgStr();
+            flagStack4Arg.push(ParsFlgConsts.parsArgs);
+            visitChildren(ctx.function().arglist());
+            flagStack4Arg.pop();
+            argStr = PoCoUtils.trimEndPunc(argListStr.toString(), ",");
         }
-        return content;
+
+        return funName + "(" + argStr + ")";
     }
 
     private String reIsObjCase(@NotNull PoCoParser.ReContext ctx, String content) {
@@ -724,22 +721,26 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
             content = loadFromClosure(policyName + "_" + ctx.qid().getText());
 
         if (ctx.opparamlist() != null && ctx.opparamlist().getText().trim().length() != 0) {
-            if (content.indexOf('(') != -1)
-                content = content.substring(0, content.indexOf('('));
-            content += "(";
-            if (ctx.opparamlist().getText().equals("%")) {
-                content += "*";
-            } else {
-                resetArgStr();
-                flagStack4Arg.push(ParsFlgConsts.parsArgs);
-                visitChildren(ctx.opparamlist());
-                flagStack4Arg.pop();
-                content += PoCoUtils.trimEndPunc(argListStr.toString(), ",");
+            //switch the var with content
+            ArrayList<String> arglist = getFunArgList(policyName + "_" + ctx.qid().getText());
+            if (arglist == null) {
+                System.err.println("THe argument(s) specified for the function: " +
+                        policyName + "_" + ctx.qid().getText() + " are in correct");
+                System.exit(-1);
             }
-            content += ")";
+            int index = 0;
+            resetArgStr();
+            flagStack4Arg.push(ParsFlgConsts.parsArgs);
+            visitChildren(ctx.opparamlist());
+            flagStack4Arg.pop();
+            String[] newArgs = PoCoUtils.trimEndPunc(argListStr.toString(), ",").split(",");
+            for (int i = 0; i < newArgs.length; i++)
+                content = content.replace("$" + arglist.get(0), newArgs[i]);
+
         } else {
             content = PoCoUtils.attachPolicyName(policyName + "_", content);
         }
+        //System.out.println("conent: " + content + "\n");
         return content;
     }
 
@@ -779,6 +780,8 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         //set the parsed value to proper attribute,
         if (flagStack4RE.empty() || !PoCoUtils.isReBopFlag(flagStack4RE)) {
             String temp = PoCoUtils.trimEndPunc(reBopStr.toString(), "|");
+            if (isMethod(temp))
+                temp = handleTransCase(temp,policyName);
             resetREBopStr();
             if (PoCoUtils.isPosNegRe4SRE(flagStack4RE)) {
                 if (PoCoUtils.isSrePosRE(flagStack4RE))
@@ -875,24 +878,6 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
                 }
             }
         }
-    }
-
-
-    @Override
-    public Void visitTransaction(@NotNull PoCoParser.TransactionContext ctx) {
-        String transaction = ctx.transbody().getText();
-        transactions = transaction.substring(0, transaction.length() - 15);
-        return null;
-    }
-
-    public boolean hasTransation() {
-        if (transactions != null)
-            return true;
-        return false;
-    }
-
-    public String getTransactions() {
-        return transactions;
     }
 
     /**
@@ -996,6 +981,14 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         return returnStr;
     }
 
+    public ArrayList<String> getFunArgList(String varName) {
+        ArrayList<String> returnStr = null;
+        if (closure != null && closure.loadFrmFunctions(varName) != null)
+            returnStr = closure.loadFrmFunctions(varName).getFunArgs();
+
+        return returnStr;
+    }
+
     public String getArgStr4PosSRE(String varName) {
         if (closure.isFunctionsContain(varName) && closure.loadFrmFunctions(varName).getVarContext() != null) {
             String varVal = closure.loadFrmFunctions(varName).getVarContext();
@@ -1018,12 +1011,39 @@ public class PolicyVisitor extends PoCoParserBaseVisitor<Void> {
         argListStr = new StringBuilder();
     }
 
+    public static boolean isMethod(String str) {
+        if (str == null)
+            return false;
+        return isMatching("^(.+)\\((.*)\\)$", str);
+    }
 
-//
-//    public boolean checkPargeInfo(ParserRuleContext ctx) {
-//        return ctx.parent != null && ctx.parent.getClass().toString().endsWith("$OpparamlistContext");
-//    }
+    public static boolean isPoCoObject(String str) {
+        if (str == null)
+            return false;
+        return (!isMethod(str)) && isMatching("#(.+)\\{(.+)\\}", str);
+    }
 
+    private static boolean isMatching(String reg, String str4Match) {
+        Pattern pattern = Pattern.compile(reg);
+        Matcher matcher = pattern.matcher(str4Match);
+        return matcher.find();
+    }
+
+    private static String handleTransCase(String content, String policyName) {
+        Pattern pattern = Pattern.compile("^(.+)\\((.*)\\)$");
+        Matcher matcher = pattern.matcher(content);
+        if (matcher.find()) {
+            String methodName = matcher.group(1).trim();
+            if (methodName.length() > 0) {
+                String[] temp = methodName.split("\\s+");
+                methodName = temp[temp.length-1];
+            }
+            if (!methodName.startsWith("$") && !methodName.contains(".")) {
+                content = content.replace(matcher.group(1), "com.poco." + policyName + "_Trans." + methodName);
+            }
+        }
+        return content;
+    }
 
     /**
      * Generates code for class representing a Main tree policy.

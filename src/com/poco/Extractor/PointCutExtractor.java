@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.Stack;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Created by caoyan on 11/7/14.
@@ -153,7 +155,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             actResFlags.pop();
         } else if (ctx.matchs() != null) {
             visitMatchs(ctx.matchs());
-            if(ctx.sre().NEUTRAL() == null)
+            if (ctx.sre().NEUTRAL() == null)
                 visitSre(ctx.sre());
         }
         return null;
@@ -194,7 +196,11 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         }
 
         if (ctx.qid() != null) {
-            pointcutStr.append("* " + ctx.qid().getText() + "(..)");
+            //$policy() case, should not generate the pointcut
+            if(ctx.LPAREN()!= null && ctx.RPAREN()!= null)
+                ;
+            else
+                pointcutStr.append("* " + ctx.qid().getText() + "(..)");
         } else if (ctx.srebop() != null) {
             visitChildren(ctx.sre(0));
             visitChildren(ctx.sre(1));
@@ -238,7 +244,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                     //if it is an action pointcut, the binding happens before allowing proceeding
                     //otherwise, the binding happens after proceeding (result)
                     if (isActionPointCut()) {
-                        if(ctx.re(0).getText().equals("%"))
+                        if (ctx.re(0).getText().equals("%"))
                             varBind4thisPC.put(policyName + ctx.id().getText(), "action%");
                         else
                             varBind4thisPC.put(policyName + ctx.id().getText(), "action");
@@ -325,6 +331,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     }
 
     private void handleQidCase(@NotNull PoCoParser.ReContext ctx) {
+
+
         // 1. check to see if it is and method call from an object, if so
         //    1.1 attach the policy name to the variable name
         //    1.2 store the object into objParams HashMap
@@ -344,7 +352,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         // 3. parsing the function parameters
         if (ctx.opparamlist() != null)
             handlePara4Qid(ctx);
-
     }
 
     private String getFunInfoFrmClosure(String qidStr) {
@@ -406,10 +413,11 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     private void add2PCHashmaps() {
         String ptStr = this.pointcutStr.toString().trim();
-        //handle the case if there is "|" case, such as
-        //ptStr = "java.io.File.new(#String{*.class})|java.io.File.new(\*,#String{*.class})
-        String[] funStrs = PoCoUtils.parseFunStr(ptStr);
 
+        ptStr = handleTransCase(ptStr,this.policyName);
+
+        //handle the case if there is "|" case, such as
+        String[] funStrs = PoCoUtils.splitSreStr(ptStr);
         //1. reset global variable pointcutStr
         resetPTStr();
         for (String str : funStrs) {
@@ -478,7 +486,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     private void addUp8Set(String ptStr, HashMap<String, HashMap<String, String>> target) {
         if (target.containsKey(ptStr))
             varBind4thisPC.putAll(target.get(ptStr));
-
         target.put(ptStr, varBind4thisPC);
     }
 
@@ -507,6 +514,22 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 return key;
         }
         return null;
+    }
+
+    private static String handleTransCase(String content, String policyName) {
+        Pattern pattern = Pattern.compile("^(.+)\\((.*)\\)$");
+        Matcher matcher = pattern.matcher(content);
+        if (matcher.find()) {
+            String methodName = matcher.group(1).trim();
+            if (methodName.length() > 0) {
+                String[] temp = methodName.split("\\s+");
+                methodName = temp[temp.length-1];
+            }
+            if (!methodName.startsWith("$") && !methodName.contains(".")) {
+                content = content.replace(matcher.group(1), "com.poco." + policyName + "Trans." + methodName);
+            }
+        }
+        return content;
     }
 
 }

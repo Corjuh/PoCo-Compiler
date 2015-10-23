@@ -69,6 +69,7 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
         outLine(0, "public aspect %s {", aspectName);
 
         outLine(1, "private RootPolicy %s = new RootPolicy();\n", this.pocoRoot);
+        defindedPolicies.add(this.pocoRoot);
     }
 
     private void genDataHW() {
