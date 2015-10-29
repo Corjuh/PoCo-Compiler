@@ -41,27 +41,31 @@ SRETYPE:    'SRE' ;
 RETYPE:     'RE' ;
 
 // SRE Binary Operators:
-SREUNION:   'Union' ;
-SRECONJ:    'Conjunction' ;
-SREDISJ:    'Disjunction' ;
-SREEQUALS:  'Equals' ;
-SREPUNION:  'Punion' ;
+SREUNION:       'Union' ;
+SRECONJ:        'Conjunction' ;
+SREDISJ:        'Disjunction' ;
+SREEQUALS:      'Equals' ;
+SREPUNION:      'Punion' ;
 
 // SRE Unary Operators:
-SRECOMP:    'Complement' ;
-SREACTIONS: 'Actions' ;
-SRERESULTS: 'Results' ;
-SREPOS:     'Positive' ;
-SRENEG:     'Negative' ;
+SRECOMP:        'Complement' ;
+SREACTIONS:     'Actions' ;
+SRERESULTS:     'Results' ;
+SREPOS:         'Positive' ;
+SRENEG:         'Negative' ;
 
-SUBSET:     'Subset' ;
-INFINITE:   'Infinite' ;
-ACTION:     'Action' ;
-RESULT:     'Result' ;
+SUBSET:         'Subset' ;
+INFINITE:       'Infinite' ;
+ACTION:         'Action' ;
+RESULT:         'Result' ;
 
-FOLD:       'fold';
+FOLD:           'fold';
 
-ID:         [a-zA-Z][a-zA-Z0-9_\-]* ;
+ANYVAL:         [ID|NUMBER]+;
+ID:             [a-zA-Z][a-zA-Z0-9_\-]* ;
+
+NUMBER:         [0-9]DIGITS* (DOT DIGITS+)?;
+fragment DIGITS:[0-9];
 
 mode INSIDERE;
 

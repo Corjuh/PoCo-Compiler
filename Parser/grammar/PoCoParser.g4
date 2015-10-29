@@ -40,8 +40,11 @@ treedef:    TREE id |
 treedefs:   treedef |
             treedefs treedef ;
 
-policyarg:  id LPAREN policyargs RPAREN |
-            AT id LBRACKET policyarg RBRACKET ;
+policyarg:  id |
+            id LPAREN policyargs RPAREN |
+            AT id LBRACKET policyargs RBRACKET |
+            NUMBER;
+
 
 policyargs: policyarg |
             policyargs COMMA policyarg |
@@ -57,14 +60,14 @@ transbody: TRANSCONTENT ;
 macrodecls: macrodecl |
             macrodecls macrodecl ;
 
-macrodecl:  AT id LPAREN idlist RPAREN LBRACKET sre RBRACKET COLON SRETYPE |
-            AT id LPAREN idlist RPAREN LBRACKET srecase RBRACKET COLON SRETYPE |
-            AT id LPAREN idlist RPAREN LBRACKET LTICK re APOSTROPHE RBRACKET COLON RETYPE |
-            AT id LPAREN idlist RPAREN LBRACKET BOOLUOP LTICK re APOSTROPHE RBRACKET COLON RETYPE |
-            AT id LPAREN RPAREN LBRACKET srecase RBRACKET COLON SRETYPE |
-            AT id LPAREN RPAREN LBRACKET sre RBRACKET COLON SRETYPE |
-            AT id LPAREN RPAREN LBRACKET LTICK re APOSTROPHE RBRACKET COLON RETYPE |
-            AT id LPAREN RPAREN LBRACKET BOOLUOP LTICK re APOSTROPHE RBRACKET COLON RETYPE ;
+macrodecl:  AT id LPAREN idlist RPAREN COLON SRETYPE LBRACKET sre RBRACKET |
+            AT id LPAREN idlist RPAREN COLON SRETYPE LBRACKET srecase RBRACKET |
+            AT id LPAREN idlist RPAREN COLON RETYPE  LBRACKET LTICK re APOSTROPHE RBRACKET |
+            AT id LPAREN idlist RPAREN COLON RETYPE  LBRACKET BOOLUOP LTICK re APOSTROPHE RBRACKET |
+            AT id LPAREN RPAREN COLON SRETYPE LBRACKET srecase RBRACKET |
+            AT id LPAREN RPAREN COLON SRETYPE LBRACKET sre RBRACKET|
+            AT id LPAREN RPAREN COLON RETYPE  LBRACKET LTICK re APOSTROPHE RBRACKET|
+            AT id LPAREN RPAREN COLON RETYPE  LBRACKET BOOLUOP LTICK re APOSTROPHE RBRACKET;
 
 vardecls:   vardecl |
             vardecls vardecl ;

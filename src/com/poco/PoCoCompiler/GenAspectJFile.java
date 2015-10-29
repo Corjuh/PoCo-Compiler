@@ -21,12 +21,10 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
     private String aspectName;
     private String pocoRoot;
     private ArrayList<String> policies;
-
     private Stack<String> currentParentRoot;
+    private int count = 0;
 
-    private Stack<String> currentPolicyName;
-    private StringBuilder policyArgs;
-
+    private ArrayList<String> policyArgs = null;
     //sb4Binding is used for the case of name binding with @
     private StringBuilder sb4Binding;
     private Stack<String> currentBinding;
@@ -44,22 +42,20 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
         else
             this.aspectName = "Aspect" + pocoRoot;
 
-        policies = pcExactor.getPolicyNames();
+        // all the specified base policies
+        policies = closure.getPolicies();
 
         this.closure = closure;
         currentParentRoot = new Stack<>();
-        currentPolicyName = new Stack<>();
         currentBinding = new Stack<>();
         defindedPolicies = new HashSet<>();
+        policyArgs = new ArrayList<>();
 
         //step 1: gen aspectj prologue.
         outAspectPrologue();
-
         //step 2: gen DataHW for storing dynamic binding variables.
         genDataHW();
-
         //step 3: visitpolicy to get policy hierarchy info
-
     }
 
     private void outAspectPrologue() {
@@ -67,9 +63,7 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
         outLine(0, "import java.lang.reflect.Method;\n");
         outLine(0, "import java.lang.reflect.Constructor;\n");
         outLine(0, "public aspect %s {", aspectName);
-
         outLine(1, "private RootPolicy %s = new RootPolicy();\n", this.pocoRoot);
-        defindedPolicies.add(this.pocoRoot);
     }
 
     private void genDataHW() {
@@ -80,11 +74,6 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
             if (typ == null || typ.trim().length() == 0 || typ.trim().equals("null"))
                 typ = "java.lang.String";
             outLine(2, "DataWH.dataVal.put(\"" + varname + "\"," + "new TypeVal(\"" + typ + "\",\"\"));");
-        }
-        //if there is no root policy, we will just declear a root and add all the polices to it.
-        if (pocoRoot == null || pocoRoot.length() == 0) {
-            for (String policy : policies)
-                outLine(1, "root.addChild(new %s());", policy);
         }
     }
 
@@ -120,80 +109,49 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitTreedef(@NotNull PoCoParser.TreedefContext ctx) {
         String policyId = ctx.id(0).getText();
-        if ((policyId + "root").equals(pocoRoot))
-            currentParentRoot.push(pocoRoot);
-        else
+        if ((policyId + "root").equals(pocoRoot)) {
+            //root case, the root has been declared
+            currentParentRoot.push(policyId + "root");
+        } else {
             currentParentRoot.push(policyId);
-
-        if (ctx.srebop() != null) {
-            if (!policies.contains(currentParentRoot.peek())) {
-                if (!defindedPolicies.contains(currentParentRoot.peek())) {
-                    defindedPolicies.add(currentParentRoot.peek());
-                    outLine(2, "NodePolicy %s = new NodePolicy();", currentParentRoot.peek());
-                }
-                //TREE id = srebop(policyargs) case
-                outLine(2, "%s.setStrategy(\"%s\");", currentParentRoot.peek(), ctx.srebop().getText());
-            } else {
-                if (!defindedPolicies.contains(currentParentRoot.peek())) {
-                    defindedPolicies.add(currentParentRoot.peek());
-                    outLine(2, "Policy %s = new %s;", currentParentRoot.peek(), currentParentRoot.peek() + "(" + ")");
-                }
-            }
-            visitChildren(ctx);
-        } else if (ctx.id(1) != null) {
-            //TREE id = id(policyargs) case
-
-            currentPolicyName.push(ctx.id(1).getText().trim());
-
-            policyArgs = new StringBuilder();
-            visitChildren(ctx);
-
-            String argStr = PoCoUtils.trimEndPunc(policyArgs.toString(), ",");
-
-            if (pocoRoot.equals(currentParentRoot.peek())) {
-                outLine(2, "%s.addChild( new %s );", pocoRoot, currentPolicyName.peek() + "(" + argStr + ")");
-            } else {
-                //NodePolicy case
-                if (!policies.contains(currentParentRoot.peek())) {
-                    if (!defindedPolicies.contains(currentParentRoot.peek())) {
-                        defindedPolicies.add(currentParentRoot.peek());
-                        outLine(2, "NodePolicy %s = new NodePolicy();", currentParentRoot.peek());
-                    }
-
-                    if (policies.contains(currentPolicyName.peek())) {
-                        if (defindedPolicies.contains(currentPolicyName.peek()))
-                            outLine(2, "%s.add(\"%s\");", currentParentRoot.peek(), currentPolicyName.peek());
-                        else {
-                            String[] args = argStr.split(",");
-                            StringBuilder sb = new  StringBuilder();
-                            for (int i = 0; i< args.length; i++) {
-                                if (!defindedPolicies.contains(args[i])) {
-                                    defindedPolicies.add(args[i]);
-                                    sb.append("new " + args[i]+"()");
-                                }else
-                                    sb.append(args[i]);
-                                if(i != args.length-1)
-                                    sb.append(",");
-                            }
-                            outLine(2, "%s.addChild(new %s(%s));", currentParentRoot.peek(), currentPolicyName.peek(), sb.toString());
-                        }
-                    } else {
-                        outLine(2, "%s.setStrategy(\"%s\");", currentParentRoot.peek(), currentPolicyName.peek());
-                        String[] args = argStr.split(",");
-                        for (String str : args) {
-                            if (defindedPolicies.contains(str))
-                                outLine(2, "%s.addChild(%s);", currentParentRoot.peek(), str);
-                            else
-                                outLine(2, "%s.addChild(new %s());", currentParentRoot.peek(), str);
-                        }
-                    }
-                    //outLine(2, "Policy %s = new %s ;", currentParentRoot.peek(), currentPolicyName.peek() + "(" + argStr + ")");
-                } else
-                    outLine(2, "Policy %s = new %s ;", currentParentRoot.peek(), currentPolicyName.peek() + "(" + argStr + ")");
+            if (!defindedPolicies.contains(currentParentRoot.peek())) {
                 defindedPolicies.add(currentParentRoot.peek());
+                outLine(2, "NodePolicy %s = new NodePolicy();", currentParentRoot.peek());
+            }
+        }
+
+        if (ctx.srebop() != null || ctx.id(1) != null) {
+            // Step 1: get the policy combining logic or policyId
+            String currentLogic = "";
+            if (ctx.srebop() != null)
+                currentLogic = ctx.srebop().getText().trim();
+            else if (ctx.id(1) != null)
+                currentLogic = ctx.id(1).getText().trim();
+            if (currentLogic.length() == 0) {
+                System.err.println("You have specified invalid policy name or policy combining logic, please check!");
+                System.exit(-1);
             }
 
-            currentPolicyName.pop();
+            //it is the policy case, if is just a single base policy, direct add to the parent,
+            //otherwise, will need to parse the argument first, then add on to the parent.
+            if (policies.contains(currentLogic) || defindedPolicies.contains(currentLogic)) {
+                if (ctx.policyargs() == null && ctx.policyargs().getText().trim().length() == 0) {
+                    if (!defindedPolicies.contains(currentLogic)) {
+                        defindedPolicies.add(currentParentRoot.peek());
+                        outLine(2, "%s.addChild111(new %s());", currentParentRoot.peek(), currentLogic);
+                    } else
+                        outLine(2, "%s.addChild222(%s);", currentParentRoot.peek(), currentLogic);
+                } else {
+                    // step a: first parse the arguments
+                    policyArgs.clear();
+                    visitPolicyargs(ctx.policyargs());
+                    // step b: add to the parent policy
+                }
+            } else {
+                //it is the combining logic case
+                outLine(2, "%s.setStrategy(\"%s\");", currentParentRoot.peek(), currentLogic);
+                visitPolicyargs(ctx.policyargs());
+            }
         }
         currentParentRoot.pop();
         return null;
@@ -201,64 +159,120 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
 
     @Override
     public Void visitPolicyarg(@NotNull PoCoParser.PolicyargContext ctx) {
-        //if AT()!= null, then need bind the policyArg, just need treat
-        //this id as the policyName that we need to be bind.
-        // e.g., @p2subtree[Policy2(Policy4())]
-        //      push p2subtree onto currentPolicyName stack
-        //also we know that with @, this id will be an alias of a policy DAG,
-        if (ctx.AT() != null) {
-            currentBinding.push(ctx.id().getText().trim());
-            sb4Binding = new StringBuilder();
-            visitChildren(ctx);
-            outLine(2, "Policy %s = %s;", ctx.id().getText().trim(), PoCoUtils.trimEndPunc(sb4Binding.toString(), ","));
-            defindedPolicies.add(ctx.id().getText().trim());
-            policyArgs.append(ctx.id().getText().trim() + ",");
-            currentBinding.pop();
-        } else {
-            currentPolicyName.push(ctx.id().getText().trim());
-            if (ctx.policyargs().getText().trim().length() > 0) {
-                visitChildren(ctx);
-            }
-            currentPolicyName.pop();
+//        //if AT()!= null, then need bind the policyArg, just need treat
+//        //this id as the policyName that we need to be bind.
+//        // e.g., @p2subtree[Policy2(Policy4())]
+//        //      push p2subtree onto currentPolicyName stack
+//        //also we know that with @, this id will be an alias of a policy DAG,
+//        if (ctx.AT() != null) {
+//            currentBinding.push(ctx.id().getText().trim());
+//            sb4Binding = new StringBuilder();
+//            visitChildren(ctx);
+//            outLine(2, "Policy %s = %s;", ctx.id().getText().trim(), PoCoUtils.trimEndPunc(sb4Binding.toString(), ","));
+//            defindedPolicies.add(ctx.id().getText().trim());
+//            currentBinding.pop();
+//        }
+//
+        if (ctx.id() != null) {
+            String tempId = ctx.id().getText();
+            String nodeName = tempId;
+            if (ctx.LPAREN() != null) {
+                if (!policies.contains(tempId) && !defindedPolicies.contains(tempId)) {
+                    //combing Logic case, create a new PolicyNode
+                    nodeName = "nodePolicy" + count++;
+                    outLine(2, "NodePolicy %s = new NodePolicy();", nodeName);
+                    outLine(2, "%s.setStrategy(\"%s\");", nodeName, tempId);
+                    outLine(2, "%s.addChild(%s);", currentParentRoot.peek(),nodeName);
+                }
+                String tempArg = ctx.policyargs().getText().trim();
+                // this is the case where the policy takes no argument, so direct add to its parent
+                if (tempArg.length() == 0) {
+                    if (policies.contains(tempId) || defindedPolicies.contains(tempId)) {
+                        if (policies.contains(currentParentRoot.peek()) || defindedPolicies.contains(currentParentRoot.peek())) {
+                            if (defindedPolicies.contains(tempId))
+                                outLine(2, "%s.addChild(%s);", currentParentRoot.peek(), tempId);
+                            else {
+                                defindedPolicies.add(tempId);
+                                outLine(2, "%s.addChild(new %s());", currentParentRoot.peek(), tempId);
+                            }
+                        } else {
+                            if (defindedPolicies.contains(tempId))
+                                policyArgs.add(tempId);
+                            else {
+                                defindedPolicies.add(tempId);
+                                policyArgs.add("new " + tempId + "()");
+                            }
+                        }
 
-            if (!currentBinding.isEmpty()) {
-                String argStr = sb4Binding.toString();
-                sb4Binding = new StringBuilder();
-                if (argStr.length() > 0) {
-                    argStr = PoCoUtils.trimEndPunc(argStr, ",");
-                    sb4Binding.append("new " + ctx.id().getText().trim() + "(" + argStr + "),");
-                } else {
-                    sb4Binding.append("new " + ctx.id().getText().trim() + "(),");
-                }
-            } else if (!currentPolicyName.isEmpty()) {
-                String argStr = policyArgs.toString();
-                policyArgs = new StringBuilder();
-                if (argStr.length() > 0) {
-                    argStr = PoCoUtils.trimEndPunc(argStr, ",");
-                    //the case the argStr is the argument of the ctx.id()
-                    if (ctx.policyargs().getText().trim().length() > 0) {
-                        policyArgs.append(ctx.id().getText().trim() + "(" + argStr + "),");
-                    } else {
-                        policyArgs.append(argStr + "," + ctx.id().getText().trim() + ",");
                     }
                 } else {
-                    if (defindedPolicies.contains(ctx.id().getText().trim())) {
-                        policyArgs.append(ctx.id().getText().trim() + ",");
+                    currentParentRoot.push(nodeName);
+                    ArrayList<String> temp = new ArrayList<>();
+                    if(policyArgs.size()>0)
+                        temp.addAll(policyArgs);
+                    policyArgs.clear();
+                    visitPolicyargs(ctx.policyargs());
+
+                    String newArgStr = "";
+                    if (policies.contains(tempId) || defindedPolicies.contains(tempId)) {
+                        if (defindedPolicies.contains(tempId))
+                            newArgStr = tempId + "(" + genArgStrFrmArgList(policyArgs) + ")";
+                        else {
+                            defindedPolicies.add(tempId);
+                            newArgStr = "new " + tempId + "(" + genArgStrFrmArgList(policyArgs) + ")";
+                        }
                     } else {
-                        policyArgs.append(ctx.id().getText().trim() + ",");
+                        //
+                    }
+                    policyArgs.clear();
+                    if(temp.size()>0)
+                        policyArgs.addAll(temp);
+                    policyArgs.add(newArgStr);
+                    currentParentRoot.pop();
+
+                    if(policyArgs.size()>0) {
+                        StringBuilder sb = new StringBuilder();
+                        for (int i = 0; i < policyArgs.size(); i++) {
+                            sb.append(policyArgs.get(i));
+                            if (i != policyArgs.size() - 1)
+                                sb.append(",");
+                        }
+                        if(sb.toString().length()>0)
+                            outLine(2, "%s.addChild(%s);", currentParentRoot.peek(), sb.toString());
                     }
                 }
-            } else if (!currentParentRoot.isEmpty()) {
-                if (defindedPolicies.contains(ctx.id().getText().trim())) {
-                    outLine(2, "%s.addChild(%s);", currentParentRoot.peek(), ctx.id().getText().trim());
-                } else {
-                    defindedPolicies.add(ctx.getText().trim());
-                    outLine(2, "%s.addChild(new %s);", currentParentRoot.peek(), ctx.getText().trim());
-                }
+            } else {
+                //This is the case where the policy argument is a non-policy type
+                policyArgs.add(ctx.getText().trim());
             }
+        } else {
+            //number type case
+            policyArgs.add(ctx.getText().trim());
         }
 
         return null;
     }
 
+    private String genArgStrFrmArgList(ArrayList<String> args) {
+        if (args == null || args.size() == 0)
+            return "";
+        else {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < args.size(); i++) {
+                String temp = args.get(i);
+                if (policies.contains(temp) || defindedPolicies.contains(args.get(i))) {
+                    if (defindedPolicies.contains(temp))
+                        sb.append(temp + "()");
+                    else {
+                        sb.append("new " + temp + "()");
+                        defindedPolicies.add(temp);
+                    }
+                } else
+                    sb.append(temp);
+                if (i != args.size() - 1)
+                    sb.append(",");
+            }
+            return sb.toString();
+        }
+    }
 }

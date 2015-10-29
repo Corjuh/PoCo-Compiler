@@ -26,7 +26,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     //used to save the policy hierarchy information
     private HashMap<String, PolicyTreeNode> policy2Props = new HashMap<String, PolicyTreeNode>();
-    private ArrayList<String> policies = new ArrayList<String>();
 
     private Stack<String> currRootName;
 
@@ -68,7 +67,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitPimport(PoCoParser.PimportContext ctx) {
         //need to import those included policies' pointcut
-
         return null;
     }
 
@@ -86,6 +84,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 policy2Props.put(treeid, new PolicyTreeNode(strategy));
             }
         } else if (ctx.id(1) != null) { //id case
+            System.out.println("");
             policy2Props.put(treeid, new PolicyTreeNode());
         } else {
             policy2Props.put(treeid, new PolicyTreeNode());
@@ -120,7 +119,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitPocopol(@NotNull PoCoParser.PocopolContext ctx) {
         policyName = ctx.id().getText().trim() + "_";
-        policies.add(ctx.id().getText().trim());
         visitChildren(ctx);
         return null;
     }
@@ -331,8 +329,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     }
 
     private void handleQidCase(@NotNull PoCoParser.ReContext ctx) {
-
-
         // 1. check to see if it is and method call from an object, if so
         //    1.1 attach the policy name to the variable name
         //    1.2 store the object into objParams HashMap
@@ -503,9 +499,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         varBind4thisPC = new HashMap<String, String>();
     }
 
-    public ArrayList<String> getPolicyNames() {
-        return policies;
-    }
 
     public String getRoot() {
         Set<String> keys = this.policy2Props.keySet();

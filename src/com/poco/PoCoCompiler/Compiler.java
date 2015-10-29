@@ -331,7 +331,6 @@ public class Compiler {
      */
     private void doGenerateAspectJ() {
         String rootName = pcExtractor.getRoot();
-
         // Step 1: Make sure that policy root is declared.
         if (rootName == null) {
             System.err.println("The root policy has not been delcared yet, please check");

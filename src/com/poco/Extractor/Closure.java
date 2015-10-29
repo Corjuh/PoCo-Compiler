@@ -2,7 +2,6 @@ package com.poco.Extractor;
 
 import java.util.ArrayList;
 import java.util.Hashtable;
-import java.util.Set;
 
 /**
  * Created by caoyan on 10/28/14.
@@ -11,7 +10,7 @@ public class Closure {
     private Hashtable<String, VarTypeVal> vars;
     private Hashtable<String, VarTypeVal> functions;
     private ArrayList<String> varFunNames;
-
+    private ArrayList<String> policyNames;
 
     public Hashtable getVars() {
         return vars;
@@ -25,8 +24,20 @@ public class Closure {
         vars = new Hashtable<String, VarTypeVal>();
         functions = new Hashtable<String, VarTypeVal>();
         varFunNames = new ArrayList<String>();
+        policyNames = new ArrayList<String>();
     }
 
+    public void addPolicy(String policyName) {
+        if(this.policyNames.contains(policyName)) {
+            System.err.println("The policy: " + policyName + "has been defined more than once, please check!");
+            System.exit(-1);
+        }
+        this.policyNames.add(policyName);
+    }
+
+    public ArrayList<String> getPolicies() {
+        return this.policyNames;
+    }
 
     public void addVar(String varName, VarTypeVal typeVal) {
         checkedAdd(varName, typeVal, vars);
@@ -112,8 +123,8 @@ public class Closure {
     }
 
     public ArrayList<String> getAllVarNames() {
-        if(varFunNames != null)
-            return  varFunNames;
+        if (varFunNames != null)
+            return varFunNames;
         return null;
     }
 

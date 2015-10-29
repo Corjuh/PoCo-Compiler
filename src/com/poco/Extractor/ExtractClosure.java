@@ -58,22 +58,9 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
     @Override
     public Void visitPocopol(@NotNull PoCoParser.PocopolContext ctx) {
         String pName = ctx.id().getText().trim();
-
         //step 1: check if the policy name is unique or not,
-        //if not, throw exception and quit
-        if (policyNames.contains(pName)) {
-            try {
-                throw new Exception("More than one policy named: \"" + pName + "\" exist.");
-            } catch (Exception e) {
-                e.printStackTrace();
-            } finally {
-                System.exit(-1);
-            }
-        } else
-            policyNames.add(pName);
-
+        this.closure.addPolicy(pName);
         policyName = pName + "_";
-
         visitChildren(ctx);
         return null;
     }
