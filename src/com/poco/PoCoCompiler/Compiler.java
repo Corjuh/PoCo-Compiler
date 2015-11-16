@@ -10,7 +10,6 @@ import joptsimple.OptionSpec;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.objectweb.asm.ClassReader;
 
 import java.io.FileInputStream;
 import java.io.FileWriter;
@@ -353,7 +352,7 @@ public class Compiler {
         pointCutGen.GenAspectJ();
 
         // Step 3: Generate policy classes
-        PolicyVisitor pvisitor = new PolicyVisitor(fileWriter, 1, this.closure);
+        PolicyGen pvisitor = new PolicyGen(fileWriter, 1, this.closure);
         pvisitor.visit(parseTree);
         outAspectEpilogue();
         fileWriter.close();

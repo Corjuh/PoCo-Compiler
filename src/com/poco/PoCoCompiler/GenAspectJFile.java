@@ -135,12 +135,12 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
             //it is the policy case, if is just a single base policy, direct add to the parent,
             //otherwise, will need to parse the argument first, then add on to the parent.
             if (policies.contains(currentLogic) || defindedPolicies.contains(currentLogic)) {
-                if (ctx.policyargs() == null && ctx.policyargs().getText().trim().length() == 0) {
+                if (ctx.policyargs() == null || ctx.policyargs().getText().trim().length() == 0) {
                     if (!defindedPolicies.contains(currentLogic)) {
                         defindedPolicies.add(currentParentRoot.peek());
-                        outLine(2, "%s.addChild111(new %s());", currentParentRoot.peek(), currentLogic);
+                        outLine(2, "%s.addChild(new %s());", currentParentRoot.peek(), currentLogic);
                     } else
-                        outLine(2, "%s.addChild222(%s);", currentParentRoot.peek(), currentLogic);
+                        outLine(2, "%s.addChild(%s);", currentParentRoot.peek(), currentLogic);
                 } else {
                     // step a: first parse the arguments
                     policyArgs.clear();

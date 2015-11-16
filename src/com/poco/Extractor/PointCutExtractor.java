@@ -310,7 +310,11 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             pointcutStr.append(ctx.function().fxnname().getText() + "new");
         } else {
             String temp = ctx.function().fxnname().getText().trim();
-            pointcutStr.append(PoCoUtils.formatFuncRetTyp(temp));
+            //handle abstract action case
+            if(temp.startsWith("ab_"))
+                pointcutStr.append(temp);
+            else
+                pointcutStr.append(PoCoUtils.formatFuncRetTyp(temp));
         }
         // 3. parsing the function parameters
         handlePara4FunCase(ctx);
@@ -409,9 +413,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     private void add2PCHashmaps() {
         String ptStr = this.pointcutStr.toString().trim();
-
         ptStr = handleTransCase(ptStr,this.policyName);
-
         //handle the case if there is "|" case, such as
         String[] funStrs = PoCoUtils.splitSreStr(ptStr);
         //1. reset global variable pointcutStr
@@ -510,6 +512,12 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     }
 
     private static String handleTransCase(String content, String policyName) {
+        assert content!= null;
+
+        //if it is abstract action case, then just return
+        if(content.trim().length()>3 && content.startsWith("ab_"))
+            return content;
+
         Pattern pattern = Pattern.compile("^(.+)\\((.*)\\)$");
         Matcher matcher = pattern.matcher(content);
         if (matcher.find()) {

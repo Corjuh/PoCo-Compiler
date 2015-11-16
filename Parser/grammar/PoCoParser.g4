@@ -40,11 +40,10 @@ treedef:    TREE id |
 treedefs:   treedef |
             treedefs treedef ;
 
-policyarg:  id |
+policyarg:  
             id LPAREN policyargs RPAREN |
-            AT id LBRACKET policyargs RBRACKET |
-            NUMBER;
-
+            AT id LBRACKET policyargs RBRACKET
+            ;
 
 policyargs: policyarg |
             policyargs COMMA policyarg |

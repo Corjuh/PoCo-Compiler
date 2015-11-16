@@ -6,7 +6,6 @@ import com.poco.PoCoParser.PoCoParserBaseVisitor;
 import org.antlr.v4.runtime.misc.NotNull;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Stack;
 
@@ -123,15 +122,14 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
         else
             flagStack4Funcs.push(ParsFlgConsts.clousrFunc);
 
-        if(ctx.idlist()!= null) {
+        if (ctx.idlist() != null) {
             String argStr = ctx.idlist().getText().trim();
-            String[] args = argStr.replace("\\s+","").split(",");
+            String[] args = argStr.replace("\\s+", "").split(",");
             //argList4Func = new ArrayList<>(Arrays.asList(args));
             argList4Func = new ArrayList<>();
-            for(String str: args)
-                argList4Func.add(policyName+str);
-        }
-        else
+            for (String str : args)
+                argList4Func.add(policyName + str);
+        } else
             argList4Func = null;
 
         visitChildren(ctx);
@@ -163,8 +161,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                     if (isParsClosurFuncs()) {
                         if (isVariable(str)) {
                             str = PoCoUtils.attachPolicyName(policyName, str);
-                        }
-                        else if(PoCoUtils.isPoCoObject(str)){
+                        } else if (PoCoUtils.isPoCoObject(str)) {
                             String val = PoCoUtils.getObjVal(str);
                             str = str.replace(val, PoCoUtils.attachPolicyName(policyName, val));
                         }
@@ -230,15 +227,20 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
         } else { //the case of parsing executions
             String varName = PoCoUtils.attachPolicyName(policyName, "$" + ctx.id().getText());
             if (PoCoUtils.isParsingArg(parsingFlags)) {
-                String argTypOnStack = funArgTypLs.peek();
-                while (argTypOnStack.equals("\\*")) {
-                    currParsArgs.append("\\*,");
+                String argTypOnStack = null;
+                if (!funArgTypLs.isEmpty()) {
+                    funArgTypLs.peek();
+                    while (argTypOnStack.equals("\\*")) {
+                        currParsArgs.append("\\*,");
+                        funArgTypLs.pop();
+                        argTypOnStack = funArgTypLs.peek();
+                    }
+                    String varType = PoCoUtils.getObjType(argTypOnStack);
+                    currParsArgs.append("#" + varType + "{" + varName + "},");
                     funArgTypLs.pop();
-                    argTypOnStack = funArgTypLs.peek();
+                }else {
+                    currParsArgs.append("#java.lang.String{" + varName + "},");
                 }
-                String varType = PoCoUtils.getObjType(argTypOnStack);
-                currParsArgs.append("#" + varType + "{" + varName + "},");
-                funArgTypLs.pop();
             } else {
                 visitChildren(ctx);
                 String varType = PoCoUtils.getMethodRtnTyp(currParsVal.toString());
@@ -286,20 +288,20 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
         }
         flagStack4RE.pop();
 
-        if(flagStack4RE.empty() ||(flagStack4RE.size()>0 && ! PoCoUtils.isReBopFlag(flagStack4RE)))
-        if (bindings.size() > 0) {
-            String varName = policyName + bindings.peek();
-            if (isParsClosurFuncs()) {
-                if (closure.isVarsContain(varName) || closure.isFunctionsContain(varName)) {
-                    try {
-                        throw new Exception("More than one variable named: \"" + varName + "\" exist.");
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                } else
-                    closure.addFunction(varName, new VarTypeVal("java.lang.String", currParsVal.toString(),argList4Func));
+        if (flagStack4RE.empty() || (flagStack4RE.size() > 0 && !PoCoUtils.isReBopFlag(flagStack4RE)))
+            if (bindings.size() > 0) {
+                String varName = policyName + bindings.peek();
+                if (isParsClosurFuncs()) {
+                    if (closure.isVarsContain(varName) || closure.isFunctionsContain(varName)) {
+                        try {
+                            throw new Exception("More than one variable named: \"" + varName + "\" exist.");
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    } else
+                        closure.addFunction(varName, new VarTypeVal("java.lang.String", currParsVal.toString(), argList4Func));
+                }
             }
-        }
     }
 
     private void handleObj(@NotNull PoCoParser.ReContext ctx) {
@@ -310,6 +312,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
         } else {
             if (isParsClosurFuncs()) {
                 String temp = ctx.object().re().getText();
+                temp = temp.replace("|", "\\|");
                 if (containsVariables(ctx.object().re().getText())) {
                     temp = getVarValFrmClosure(ctx.object().re().getText());
                 }
@@ -327,7 +330,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                         e.printStackTrace();
                     }
                 } else
-                    closure.addFunction(varName, new VarTypeVal(varTyp, temp,argList4Func));
+                    closure.addFunction(varName, new VarTypeVal(varTyp, temp, argList4Func));
             }
         }
     }
@@ -378,7 +381,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
 
             if (PoCoUtils.isReBopFlag(flagStack4RE)) {
                 currParsVal.append(validStr);
-            }else {
+            } else {
                 //check if the variable name is unique!
                 String varName = policyName + bindings.peek();
                 if (closure.isVarsContain(varName) || closure.isFunctionsContain(varName)) {
@@ -388,7 +391,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                         e.printStackTrace();
                     }
                 } else {
-                    closure.addFunction(varName, new VarTypeVal("java.lang.String", validStr,argList4Func));
+                    closure.addFunction(varName, new VarTypeVal("java.lang.String", validStr, argList4Func));
                 }
             }
         } else {

@@ -11,29 +11,30 @@ import java.util.regex.Pattern;
 public class PoCoUtils {
 
     public static String getMethodName(String methodStr) {
-        return getMethodInfo(methodStr,1);
+        return getMethodInfo(methodStr, 1);
     }
 
     public static String getMethodArgLs(String methodStr) {
-        return getMethodInfo(methodStr,2);
+        return getMethodInfo(methodStr, 2);
     }
 
     /**
      * This method is used to get info for a method
+     *
      * @param methodStr
-     * @param mode 1: method Name, 2: method arglist
+     * @param mode      1: method Name, 2: method arglist
      * @return
      */
     private static String getMethodInfo(String methodStr, int mode) {
-        String  reg     = "(.+)\\((.*)\\)";
+        String reg = "(.+)\\((.*)\\)";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(methodStr);
-        if(matcher.find()) {
+        if (matcher.find()) {
             if (mode == 1)
                 return matcher.group(1).trim();
             else if (matcher.group(2).trim().length() > 0)
                 return matcher.group(2).trim();
-        }else if (mode == 1)
+        } else if (mode == 1)
             return methodStr;
 
         return null;
@@ -42,23 +43,24 @@ public class PoCoUtils {
     /**
      * return the return type info of a method, if it is an initial
      * method the return type would be null
+     *
      * @param methodStr
      * @return
      */
     public static String getMethodRtnTyp(String methodStr) {
-        String rtnTyp = null;
-        if(getMethodInfo(methodStr, 1).split("\\s+").length ==2)
+        if (getMethodInfo(methodStr, 1).split("\\s+").length == 2)
             return getMethodInfo(methodStr, 1).split("\\s+")[0];
-        return rtnTyp;
+        return null;
     }
 
     /**
      * parse a method string and return the arg array
+     *
      * @param methodStr
      * @return if the arglist if empty then return null
      */
     public static String[] getArgArray(String methodStr) {
-        if(getMethodInfo(methodStr, 2) != null)
+        if (getMethodInfo(methodStr, 2) != null)
             return getMethodInfo(methodStr, 2).split(",");
         return null;
     }
@@ -76,22 +78,23 @@ public class PoCoUtils {
     }
 
     public static String getObjType(String objStr) {
-        return getInfoFrmObj(objStr,1);
+        return getInfoFrmObj(objStr, 1);
     }
 
     /**
-    * get infomation about an object string, if an argu is * return null
-    * @param objStr
-    * @param mode 1: return the arg type, 2: return the argname or val
-    * @return
-    */
+     * get infomation about an object string, if an argu is * return null
+     *
+     * @param objStr
+     * @param mode   1: return the arg type, 2: return the argname or val
+     * @return
+     */
     private static String getInfoFrmObj(String objStr, int mode) {
         Pattern pattern = Pattern.compile("#(.+)\\{(.+)\\}");
         Matcher matcher = pattern.matcher(objStr);
         if (matcher.find()) {
             return matcher.group(mode).trim();
         }
-        if(mode ==1 && !objStr.equals("\\*"))
+        if (mode == 1 && !objStr.equals("\\*"))
             return objStr;
         else
             return null;
@@ -118,16 +121,16 @@ public class PoCoUtils {
      * @return method signature
      */
     public static String getArgsTyp4PC(String methodStr) {
-        String returnStr ="";
+        String returnStr = "";
         String[] args = getArgArray(methodStr);
-        if(args != null) {
+        if (args != null) {
             for (int i = 0; i < args.length; i++) {
                 String temp = getObjType(args[i]);
-                if(temp == null)
+                if (temp == null)
                     temp = "..";
-                returnStr +=temp;
-                if(i != args.length-1)
-                    returnStr +=",";
+                returnStr += temp;
+                if (i != args.length - 1)
+                    returnStr += ",";
             }
         }
         return returnStr;
@@ -137,32 +140,31 @@ public class PoCoUtils {
     public static String getMethodSignature(String methodStr) {
         String methodName = getMethodInfo(methodStr, 1);
         String[] args = getArgArray(methodStr);
-        if(args != null) {
+        if (args != null) {
             String argSig = "";
             for (int i = 0; i < args.length; i++) {
                 String temp = getObjType(args[i]);
-                argSig +=temp;
-                if(i != args.length-1)
-                    argSig +=",";
+                argSig += temp;
+                if (i != args.length - 1)
+                    argSig += ",";
             }
             return methodName + "(" + argSig + ")";
-        }
-        else
+        } else
             return methodName + "(" + ")";
     }
 
     public static String validateStr(String str) {
-        if(str == null)
+        if (str == null)
             return null;
-        str = str.replace("\\", "");
+        str = str.replace("\\", "\\\\");
         return str.replace("%", "*");
     }
 
     public static String getVariableName(String str) {
-        String  reg     = "(.*)\\$(\\w+)(.*)";
+        String reg = "(.*)\\$(\\w+)(.*)";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(str);
-        if(matcher.find()) {
+        if (matcher.find()) {
             return matcher.group(2);
         }
         return null;
@@ -170,22 +172,21 @@ public class PoCoUtils {
 
     public static String[] objMethodCall(String str) {
         String[] returnVal = new String[2];
-        String reg = "(.+\\.)(.+)+\\((.*)\\)";
+        String reg = "^(.+\\.)(.+)+\\((.*)\\)$";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(str);
-        if(matcher.find()) {
-            returnVal[0] = matcher.group(1).substring(0,matcher.group(1).length() - 1);
+        if (matcher.find()) {
+            returnVal[0] = matcher.group(1).substring(0, matcher.group(1).length() - 1);
             returnVal[1] = matcher.group(2);
-        }
-        else {
+        } else {
             reg = "(.+\\.)(.+)+";
             pattern = Pattern.compile(reg);
             matcher = pattern.matcher(str);
-            if(matcher.find()) {
-                returnVal[0] = matcher.group(1).substring(0,matcher.group(1).length() - 1);
+            if (matcher.find()) {
+                returnVal[0] = matcher.group(1).substring(0, matcher.group(1).length() - 1);
                 returnVal[1] = matcher.group(2);
             } else
-                returnVal=null;
+                returnVal = null;
         }
         return returnVal;
     }
@@ -194,31 +195,35 @@ public class PoCoUtils {
     /**
      * this function is used to format the function signature
      * function name included return type;
+     *
      * @return
      */
     public static String formatFuncRetTyp(String funcStr) {
-        funcStr = reStrRectify(funcStr);
-        String funName = getMethodInfo(funcStr, 1);
-        if (!funName.endsWith(".new") && funName.split("\\s+").length == 1)
-            return  "* " + funcStr;
-        else
-            return funcStr;
+        String funName = getMethodName(funcStr).replace(" ", "");
+        String retTyp = getMethodRtnTyp(funcStr);
+        String argStr = getMethodArgLs(funcStr);
+        if (retTyp == null)
+            retTyp = "*";
 
-    }
+        if (argStr == null)
+            argStr = "";
 
-    private static String reStrRectify(String reStr) {
-        return reStr.replace("%", "..");
+        if (funName.endsWith(".new")) {
+            return funcStr + "(" + argStr + ")";
+        } else {
+            return retTyp + funcStr + "(" + argStr + ")";
+        }
     }
 
     public static String attachPolicyName(String policyName, String str) {
         str = str.replace("$", "$" + policyName);
-        String  reg     = "(.*)\\$(\\w+\\(\\))(.*)";
+        String reg = "(.*)\\$(\\w+\\(\\))(.*)";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(str);
         while (matcher.find()) {
-            if(matcher.group(2).endsWith("()")) {
-                String temp = matcher.group(2).substring(0,matcher.group(2).length()-2);
-                str = str.replace(matcher.group(2),temp);
+            if (matcher.group(2).endsWith("()")) {
+                String temp = matcher.group(2).substring(0, matcher.group(2).length() - 2);
+                str = str.replace(matcher.group(2), temp);
                 matcher = pattern.matcher(str);
             }
         }
@@ -230,7 +235,7 @@ public class PoCoUtils {
     }
 
     public static boolean isVariable(String varName) {
-        return  varName.startsWith("$");
+        return varName.startsWith("$");
     }
 
     /**
@@ -239,16 +244,16 @@ public class PoCoUtils {
     public static boolean isParsingArg(Stack<Integer> stack) {
         return PoCoUtils.checkStackFlag(stack, 0);
     }
+
     public static boolean notParsingArgs(Stack<Integer> stack) {
         return !isParsingArg(stack);
     }
 
-    public static boolean clousrFunc(Stack<Integer> stack)
-    {
+    public static boolean clousrFunc(Stack<Integer> stack) {
         return PoCoUtils.checkStackFlag(stack, 1);
     }
-    public static boolean closurFunwUop(Stack<Integer> stack)
-    {
+
+    public static boolean closurFunwUop(Stack<Integer> stack) {
         return PoCoUtils.checkStackFlag(stack, 2);
     }
 
@@ -289,7 +294,9 @@ public class PoCoUtils {
         return PoCoUtils.checkStackFlag(stack, 13);
     }
 
-    public static boolean isExchMatch(Stack<Integer> stack) {  return PoCoUtils.checkStackFlag(stack, 14);}
+    public static boolean isExchMatch(Stack<Integer> stack) {
+        return PoCoUtils.checkStackFlag(stack, 14);
+    }
 
 
     public static boolean isReBopFlag(Stack<Integer> stack) {
@@ -315,6 +322,7 @@ public class PoCoUtils {
     public static boolean isPosNegRe4SRE(Stack<Integer> stack) {
         return isSrePosRE(stack) || isSreNegRE(stack);
     }
+
     public static boolean isSrePosRE(Stack<Integer> stack) {
         return PoCoUtils.checkStackFlag(stack, 25);
     }
@@ -336,7 +344,7 @@ public class PoCoUtils {
     }
 
     private static boolean checkStackFlag(Stack<Integer> stack, int flag) {
-        if(!stack.empty() && stack.peek()==flag)
+        if (!stack.empty() && stack.peek() == flag)
             return true;
         else
             return false;
@@ -346,6 +354,7 @@ public class PoCoUtils {
      * take care the case where the single pointcut contained more than one function
      * cannot direct use string.split("|") due to the fact that the function parameters
      * may also contains "|", such as [`#java.lang.String{.exe|.vbs|.hta|.mdb|.bad}']
+     *
      * @param methodStr
      * @return
      */
@@ -357,10 +366,9 @@ public class PoCoUtils {
         int rParenIndex = restStr.indexOf(')', lParenIndex);
 
         //no | case
-        if (rParenIndex == methodStr.length() - 1){
+        if (rParenIndex == methodStr.length() - 1) {
             methodStrs.add(methodStr);
-        }
-        else {
+        } else {
             while (lParenIndex != -1 && rParenIndex != -1) {
                 String left = restStr.substring(0, lParenIndex + 1);
                 String args = restStr.substring(lParenIndex + 1, rParenIndex);
@@ -482,7 +490,7 @@ public class PoCoUtils {
         if (str == null)
             return false;
         // We assume that there will be no nested PoCo object
-        return isMatching("!#(.+)\\{(.+)\\}",str);
+        return isMatching("!#(.+)\\{(.+)\\}", str);
     }
 
     public static boolean isMethod(String str) {
@@ -507,7 +515,7 @@ public class PoCoUtils {
     }
 
     public static boolean isMatching(String reg, String str4Match) {
-        if(str4Match == null)
+        if (str4Match == null)
             return false;
 
         Pattern pattern = Pattern.compile(reg);
