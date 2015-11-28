@@ -5,7 +5,6 @@ import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseVisitor;
 import org.antlr.v4.runtime.misc.NotNull;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.Stack;
@@ -84,7 +83,6 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 policy2Props.put(treeid, new PolicyTreeNode(strategy));
             }
         } else if (ctx.id(1) != null) { //id case
-            System.out.println("");
             policy2Props.put(treeid, new PolicyTreeNode());
         } else {
             policy2Props.put(treeid, new PolicyTreeNode());
@@ -118,7 +116,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     @Override
     public Void visitPocopol(@NotNull PoCoParser.PocopolContext ctx) {
-        policyName = ctx.id().getText().trim() + "_";
+        policyName = ctx.id().getText().trim();
         visitChildren(ctx);
         return null;
     }
@@ -224,7 +222,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 addBindVar2PC();
                 add2PCHashmaps();
             } else if (ctx.AT() != null) {
-                bindVarName.push(policyName + ctx.id().getText());
+                bindVarName.push(policyName +"_"+ ctx.id().getText());
                 visitChildren(ctx);
                 bindVarName.pop();
             } else {
@@ -236,18 +234,18 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             } else if (ctx.qid() != null) {
                 handleObj4ArgCase(ctx.qid().getText());
             } else if (ctx.AT() != null) {
-                bindVarName.push(policyName + ctx.id().getText());
+                bindVarName.push(policyName +"_"+ ctx.id().getText());
                 //record the binding info then parse its children
-                if (closure != null && closure.isVarsContain(policyName + ctx.id().getText())) {
+                if (closure != null && closure.isVarsContain(policyName+"_" + ctx.id().getText())) {
                     //if it is an action pointcut, the binding happens before allowing proceeding
                     //otherwise, the binding happens after proceeding (result)
                     if (isActionPointCut()) {
                         if (ctx.re(0).getText().equals("%"))
-                            varBind4thisPC.put(policyName + ctx.id().getText(), "action%");
+                            varBind4thisPC.put(policyName +"_"+ ctx.id().getText(), "action%");
                         else
-                            varBind4thisPC.put(policyName + ctx.id().getText(), "action");
+                            varBind4thisPC.put(policyName+"_" + ctx.id().getText(), "action");
                     } else {
-                        varBind4thisPC.put(policyName + ctx.id().getText(), "result");
+                        varBind4thisPC.put(policyName +"_"+ ctx.id().getText(), "result");
                     }
                     visitChildren(ctx);
                 } else
@@ -291,11 +289,11 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         // 1. check the var list and var type and value the info if found, otherwise
         // 1. check the pre-defined functions and load the info if found, otherwise
         // 3. raise the NullPointerException
-        if (closure != null && closure.isVarsContain(policyName + str)) {
-            String varTyp = closure.loadFrmVars(policyName + str).getVarType();
-            argStr.append("#" + varTyp + "{$" + policyName + str + "},");
-        } else if (closure != null && closure.isFunctionsContain(policyName + str)) {
-            argStr.append(closure.getFunctionContext(policyName + str) + ",");
+        if (closure != null && closure.isVarsContain(policyName+"_" + str)) {
+            String varTyp = closure.loadFrmVars(policyName +"_"+ str).getVarType();
+            argStr.append("#" + varTyp + "{$" + policyName +"_"+ str + "},");
+        } else if (closure != null && closure.isFunctionsContain(policyName +"_"+ str)) {
+            argStr.append(closure.getFunctionContext(policyName +"_" + str) + ",");
         } else {
             PoCoUtils.throwNoSuchVarExpection(str);
         }
@@ -306,17 +304,12 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         //1. first parse the method name info,
         //  1.1 constructor case needs to attach "new" to the method name
         //  1.2 otherwise, get the method name
-        if (ctx.function().INIT() != null) {
-            pointcutStr.append(ctx.function().fxnname().getText() + "new");
-        } else {
-            String temp = ctx.function().fxnname().getText().trim();
-            //handle abstract action case
-            if(temp.startsWith("ab_"))
-                pointcutStr.append(temp);
-            else
-                pointcutStr.append(PoCoUtils.formatFuncRetTyp(temp));
-        }
-        // 3. parsing the function parameters
+        if (ctx.function().INIT() != null)
+            pointcutStr.append(ctx.function().fxnname().getText().trim() + "new");
+        else
+            pointcutStr.append(ctx.function().fxnname().getText().trim());
+
+        // 2. parsing the function parameters
         handlePara4FunCase(ctx);
     }
 
@@ -340,8 +333,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         if (isMthdCallFrmObj(ctx.qid().getText())) {
             up8ObjVarName(PoCoUtils.objMethodCall(ctx.qid().getText()));
         } else {
-            if (closure.isFunctionsContain(policyName + ctx.qid().getText())) {
-                String funcStr = getFunInfoFrmClosure(policyName + ctx.qid().getText());
+            if (closure.isFunctionsContain(policyName +"_"+ ctx.qid().getText())) {
+                String funcStr = getFunInfoFrmClosure(policyName+"_" + ctx.qid().getText());
                 funcStr = funcStr.replace("%", "*");
                 if (funcStr != null) {
                     funcStr = PoCoUtils.formatFuncRetTyp(funcStr);
@@ -383,8 +376,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         //  if closure is null or the var is not declared raise exception, otherwise
         //      1. attach the policy name to the variable name
         //      2. store the object into objParams HashMap
-        if (closure != null && closure.isVarsContain(policyName + objInfos[0])) {
-            pointcutStr.append("$" + policyName + objInfos[0] + "." + objInfos[1]);
+        if (closure != null && closure.isVarsContain(policyName+"_" + objInfos[0])) {
+            pointcutStr.append("$" + policyName +"_"+ objInfos[0] + "." + objInfos[1]);
         } else
             PoCoUtils.throwNoSuchVarExpection(objInfos[0]);
     }
@@ -413,12 +406,19 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     private void add2PCHashmaps() {
         String ptStr = this.pointcutStr.toString().trim();
-        ptStr = handleTransCase(ptStr,this.policyName);
+        ptStr = "<"+policyName+">"+handleTransCase(ptStr,this.policyName);
         //handle the case if there is "|" case, such as
         String[] funStrs = PoCoUtils.splitSreStr(ptStr);
-        //1. reset global variable pointcutStr
+        //reset global variable pointcutStr
         resetPTStr();
         for (String str : funStrs) {
+
+            //1. if it is not the abstract action, then make sure the str is in right format,
+            // that is, include return type
+            String funName = getFunName(str);
+            if(!funName.startsWith("abs_"))
+                str = PoCoUtils.formatFuncRetTyp(str);
+
             //2. add to the appropriate pointcut set
             if (!PoCoUtils.isResultFlag(actResFlags)) {
                 //Add this pointcut to action set if it is an LHS action pointcut
@@ -513,9 +513,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     private static String handleTransCase(String content, String policyName) {
         assert content!= null;
-
         //if it is abstract action case, then just return
-        if(content.trim().length()>3 && content.startsWith("ab_"))
+        if(content.trim().length()>4 && PoCoUtils.getMtdName(content).startsWith("abs_"))
             return content;
 
         Pattern pattern = Pattern.compile("^(.+)\\((.*)\\)$");
@@ -530,7 +529,15 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                 content = content.replace(matcher.group(1), "com.poco." + policyName + "Trans." + methodName);
             }
         }
+
         return content;
+    }
+
+    private String getFunName(String funStr) {
+        if(funStr == null)
+            return null;
+        String funInfos[] = funStr.split("\\s+");
+        return funInfos[funInfos.length-1];
     }
 
 }

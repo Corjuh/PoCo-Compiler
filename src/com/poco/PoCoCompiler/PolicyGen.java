@@ -688,7 +688,7 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
         String funName = ctx.function().fxnname().getText().trim();
         String argStr = "";
         if (ctx.function().INIT() != null) {
-            funName += ".new";
+            funName += "new";
         }
 
         if (ctx.function().arglist() != null && ctx.function().arglist().getText().trim().length() != 0) {
@@ -869,7 +869,7 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
                     //first handle function name
                     matchStr = ctx.function().fxnname().getText();
                     if (ctx.function().INIT() != null)
-                        matchStr = matchStr.substring(0, matchStr.length() - 1) + ".new";
+                        matchStr = matchStr.substring(0, matchStr.length() - 1) + "new";
 
                     //first handle function parameters
                     if (ctx.function().arglist() != null
@@ -1040,16 +1040,12 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
     }
 
     private static String handleTransCase(String content, String policyName) {
-        Pattern pattern = Pattern.compile("^(.+)\\((.*)\\)$");
-        Matcher matcher = pattern.matcher(content);
-        if (matcher.find()) {
-            String methodName = matcher.group(1).trim();
-            if (methodName.length() > 0) {
-                String[] temp = methodName.split("\\s+");
-                methodName = temp[temp.length-1];
-            }
-            if (!methodName.startsWith("$") && !methodName.contains(".")) {
-                content = content.replace(matcher.group(1), "com.poco." + policyName + "_Trans." + methodName);
+        if(PoCoUtils.isMethod(content)) {
+            String mtdName = PoCoUtils.getMtdName(content);
+            if(mtdName.startsWith("abs_"))
+                ;
+            else if (!mtdName.startsWith("$") && !mtdName.contains(".")) {
+                content = content.replace(mtdName, "com.poco." + policyName + "_Trans." + mtdName);
             }
         }
         return content;

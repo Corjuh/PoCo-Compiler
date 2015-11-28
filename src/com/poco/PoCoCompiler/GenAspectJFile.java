@@ -53,9 +53,7 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
 
         //step 1: gen aspectj prologue.
         outAspectPrologue();
-        //step 2: gen DataHW for storing dynamic binding variables.
-        genDataHW();
-        //step 3: visitpolicy to get policy hierarchy info
+        //step 2: visitpolicy to get policy hierarchy info
     }
 
     private void outAspectPrologue() {
@@ -64,18 +62,10 @@ public class GenAspectJFile extends PoCoParserBaseVisitor<Void> {
         outLine(0, "import java.lang.reflect.Constructor;\n");
         outLine(0, "public aspect %s {", aspectName);
         outLine(1, "private RootPolicy %s = new RootPolicy();\n", this.pocoRoot);
+        outLine(1, "public " + aspectName + "() {");
     }
 
-    private void genDataHW() {
-        outLine(1, "public " + aspectName + "() {");
-        for (Object varname : closure.getVars().keySet()) {
-            VarTypeVal temp = (VarTypeVal) closure.getVars().get(varname);
-            String typ = temp.getVarType();
-            if (typ == null || typ.trim().length() == 0 || typ.trim().equals("null"))
-                typ = "java.lang.String";
-            outLine(2, "DataWH.dataVal.put(\"" + varname + "\"," + "new TypeVal(\"" + typ + "\",\"\"));");
-        }
-    }
+
 
     /**
      * Outputs one line of Java/AspectJ code to the out object (always ends in newline).

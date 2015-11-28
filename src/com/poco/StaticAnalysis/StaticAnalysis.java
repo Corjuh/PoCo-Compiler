@@ -186,7 +186,7 @@ public class StaticAnalysis {
                 .replace("#", "\\#").replace("@", "\\@").replace("?", "\\?")
                 .replace("%", "(.*)");
 
-        String funcNme = PoCoUtils.getMethodName(str);
+        String funcNme = PoCoUtils.getMtdNmInfo(str);
         if (funcNme.split("\\s+").length == 1)
             str = "(.*)" + str;
         return str;

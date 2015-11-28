@@ -142,21 +142,6 @@ public class RuntimeUtils {
         return new String[]{packageNam, methodName, methodArgs, returnType};
     }
 
-    /**
-     * trim the first six letters from the full class name (e.g., trim
-     * "class java.lang.reflect.Method" to "java.lang.reflect.Method")
-     *
-     * @param fullClassName
-     * @return
-     */
-    public static String trimClassName(String fullClassName) {
-        if (fullClassName != null && fullClassName.length() >= 6)
-            if (fullClassName.startsWith("class "))
-                return fullClassName.substring(6, fullClassName.length());
-        return fullClassName;
-
-    }
-
     public static String getMethodSignature(String methodString) {
         if (methodString == null || methodString.equals("null"))
             return null;
@@ -401,7 +386,7 @@ public class RuntimeUtils {
     }
 
     public static boolean matchingStack(Stack<String> events, Method run) {
-        String className = trimClassName(run.getDeclaringClass().toString());
+        String className = run.getDeclaringClass().getName();
         className = concatClsMethod(className, run.getName());
         if (events != null && events.peek().contains(className))
             return true;
@@ -418,7 +403,7 @@ public class RuntimeUtils {
         if (run.getParameterTypes().length > 0) {
             Type[] paraTypes = run.getParameterTypes();
             for (int i = 0; i < paraTypes.length; i++) {
-                methodName.append(trimClassName(paraTypes[i].toString()));
+                methodName.append(paraTypes[i].getClass().getName());
                 if (i != paraTypes.length - 1)
                     methodName.append(",");
             }
@@ -614,7 +599,7 @@ public class RuntimeUtils {
 
     public static boolean matchStack4Constr(Stack<String> events,
                                             Constructor run) {
-        String className = trimClassName(run.getDeclaringClass().toString());
+        String className = run.getDeclaringClass().getName();
         if (events != null && events.peek().contains(className))
             return true;
 
@@ -638,14 +623,12 @@ public class RuntimeUtils {
     }
 
     public static String getConstruSig(Constructor run) {
-        String className = trimClassName(run.getDeclaringClass().toString())
-                + ".new";
+        String className = run.getDeclaringClass().getName() + ".new";
         if (run.getTypeParameters().length > 0) {
             StringBuilder argStr = new StringBuilder();
             Type[] paras = run.getGenericParameterTypes();
             for (int i = 0; i < paras.length; i++) {
-                String temp = paras[i].getClass().toString();
-                argStr.append(trimClassName(temp));
+                argStr.append(paras[i].getClass().getName());
                 if (i != paras.length - 1)
                     argStr.append(",");
             }

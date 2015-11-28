@@ -10,22 +10,45 @@ import java.util.regex.Pattern;
  */
 public class PoCoUtils {
 
-    public static String getMethodName(String methodStr) {
-        return getMethodInfo(methodStr, 1);
+    public static String getMtdName(String methodStr) {
+        String nameStr = getMethodInfos(methodStr, 1);
+        if (nameStr != null) {
+            String reg = "^((public|private|protected)\\s+)?(static\\s+)?(.+\\s+)?(.+\\.)(.+)+$";
+            Pattern pattern = Pattern.compile(reg);
+            Matcher matcher = pattern.matcher(nameStr);
+            if (matcher.find()) {
+                if (matcher.group(5) != null)
+                    return matcher.group(5).concat(matcher.group(6));
+                else
+                    return matcher.group(6);
+            }else {
+                //abs_action case
+                reg = "^((public|private|protected)\\s+)?(static\\s+)?(.+\\s+)?(.+)+$";
+                pattern = Pattern.compile(reg);
+                matcher = pattern.matcher(nameStr);
+                if (matcher.find())
+                    return matcher.group(5);
+            }
+        }
+        return null;
+    }
+
+    public static String getMtdNmInfo(String methodStr) {
+        return getMethodInfos(methodStr, 1);
     }
 
     public static String getMethodArgLs(String methodStr) {
-        return getMethodInfo(methodStr, 2);
+        return getMethodInfos(methodStr, 2);
     }
 
     /**
      * This method is used to get info for a method
      *
      * @param methodStr
-     * @param mode      1: method Name, 2: method arglist
+     * @param mode      1: method Name along with other infos, 2: method arglist
      * @return
      */
-    private static String getMethodInfo(String methodStr, int mode) {
+    private static String getMethodInfos(String methodStr, int mode) {
         String reg = "(.+)\\((.*)\\)";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(methodStr);
@@ -48,8 +71,14 @@ public class PoCoUtils {
      * @return
      */
     public static String getMethodRtnTyp(String methodStr) {
-        if (getMethodInfo(methodStr, 1).split("\\s+").length == 2)
-            return getMethodInfo(methodStr, 1).split("\\s+")[0];
+        String nameStr = getMethodInfos(methodStr, 1);
+        if (nameStr != null) {
+            String reg = "^((public|private|protected)\\s+)?(static\\s+)?(.+\\s+)?(.+\\.)(.+)+$";
+            Pattern pattern = Pattern.compile(reg);
+            Matcher matcher = pattern.matcher(nameStr);
+            if (matcher.find())
+                return matcher.group(4);
+        }
         return null;
     }
 
@@ -60,8 +89,8 @@ public class PoCoUtils {
      * @return if the arglist if empty then return null
      */
     public static String[] getArgArray(String methodStr) {
-        if (getMethodInfo(methodStr, 2) != null)
-            return getMethodInfo(methodStr, 2).split(",");
+        if (getMethodInfos(methodStr, 2) != null)
+            return getMethodInfos(methodStr, 2).split(",");
         return null;
     }
 
@@ -138,7 +167,7 @@ public class PoCoUtils {
 
 
     public static String getMethodSignature(String methodStr) {
-        String methodName = getMethodInfo(methodStr, 1);
+        String methodName = getMethodInfos(methodStr, 1);
         String[] args = getArgArray(methodStr);
         if (args != null) {
             String argSig = "";
@@ -199,24 +228,28 @@ public class PoCoUtils {
      * @return
      */
     public static String formatFuncRetTyp(String funcStr) {
-        String funName = getMethodName(funcStr).replace(" ", "");
+        String funName = getMtdName(funcStr);
         String retTyp = getMethodRtnTyp(funcStr);
         String argStr = getMethodArgLs(funcStr);
+
         if (retTyp == null)
-            retTyp = "*";
+            retTyp = "* ";
 
         if (argStr == null)
             argStr = "";
 
-        if (funName.endsWith(".new")) {
-            return funcStr + "(" + argStr + ")";
-        } else {
-            return retTyp + funcStr + "(" + argStr + ")";
-        }
+        //abs_case need also handle the init case
+        if (funName.endsWith(".<init>"))
+            funName = funName.replace(".<init>", ".new");
+
+        if (funName.endsWith(".new"))
+            return (funName + "(" + argStr + ")").replace("%", "*");
+        else
+            return (retTyp + funName + "(" + argStr + ")").replace("%", "*");
     }
 
     public static String attachPolicyName(String policyName, String str) {
-        str = str.replace("$", "$" + policyName);
+        str = str.replace("$", "$" + policyName+"_");
         String reg = "(.*)\\$(\\w+\\(\\))(.*)";
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(str);

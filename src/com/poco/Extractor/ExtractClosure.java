@@ -59,7 +59,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
         String pName = ctx.id().getText().trim();
         //step 1: check if the policy name is unique or not,
         this.closure.addPolicy(pName);
-        policyName = pName + "_";
+        policyName = pName;
         visitChildren(ctx);
         return null;
     }
@@ -70,7 +70,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
             visitChildren(ctx);
             String varVal = PoCoUtils.attachPolicyName(policyName, ctx.id().getText());
             VarTypeVal varTyVal = new VarTypeVal(ctx.qid().getText(), varVal);
-            String varName = policyName + ctx.id().getText();
+            String varName = policyName +"_" + ctx.id().getText();
             if (closure.isVarsContain(varName) || closure.isFunctionsContain(varName)) {
                 try {
                     throw new Exception("More than one variable named: \"" + varName + "\" exist.");
@@ -95,7 +95,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
     public Void visitVardecl(@NotNull PoCoParser.VardeclContext ctx) {
         if (ctx.id() != null) {
             //check if the variable name is unique!
-            String varName = policyName + ctx.id().getText();
+            String varName = policyName +"_" + ctx.id().getText();
             if (closure.isVarsContain(varName) || closure.isFunctionsContain(varName))
                 try {
                     throw new Exception("More than one variable named: \"" + varName + "\" exist.");
@@ -128,7 +128,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
             //argList4Func = new ArrayList<>(Arrays.asList(args));
             argList4Func = new ArrayList<>();
             for (String str : args)
-                argList4Func.add(policyName + str);
+                argList4Func.add(policyName +"_" + str);
         } else
             argList4Func = null;
 
@@ -170,7 +170,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                         if (ctx.object() != null && isVariable(ctx.object().re().getText())) {
                             String newTyp = ctx.object().qid().getText().trim();
                             String varName = ctx.object().re().getText().trim();
-                            up8ClosurVarTyp(policyName + varName.substring(1), newTyp);
+                            up8ClosurVarTyp(policyName +"_" + varName.substring(1), newTyp);
                         }
                         if (isVariable(str)) {
                             String temp = PoCoUtils.attachPolicyName(policyName, str);
@@ -189,8 +189,9 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                                 funArgTypLs.pop();
                             } else if (closure != null && closure.isVarsContain(temp.substring(1))) {
                                 str = temp + ",";
-                            } else
+                            } else {
                                 PoCoUtils.throwNoSuchVarExpection(temp.substring(1));
+                            }
                         } else if (ctx.rewild() != null) {
                             if (funArgTypLs.size() == 0) {
                                 str += "*,";
@@ -244,7 +245,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
             } else {
                 visitChildren(ctx);
                 String varType = PoCoUtils.getMethodRtnTyp(currParsVal.toString());
-                closure.updateVar(policyName + bindings.peek(), new VarTypeVal(varType, null));
+                closure.updateVar(policyName  +"_"+ bindings.peek(), new VarTypeVal(varType, null));
             }
             bindings.pop();
         }
@@ -260,7 +261,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
 //                    if (ctx.opparamlist().getText().trim().equals("%"))
 //                        return;
 //                    //get the function arguments' signature
-//                    String methodName = PoCoUtils.getMethodName(temp);
+//                    String methodName = PoCoUtils.getMtdNmInfo(temp);
 //                    String[] args = PoCoUtils.getMethodArgLs(temp).split(",");
 //                    for (int i = args.length - 1; i >= 0; i--) {
 //                        funArgTypLs.push(args[i]);
@@ -290,7 +291,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
 
         if (flagStack4RE.empty() || (flagStack4RE.size() > 0 && !PoCoUtils.isReBopFlag(flagStack4RE)))
             if (bindings.size() > 0) {
-                String varName = policyName + bindings.peek();
+                String varName = policyName +"_" + bindings.peek();
                 if (isParsClosurFuncs()) {
                     if (closure.isVarsContain(varName) || closure.isFunctionsContain(varName)) {
                         try {
@@ -307,7 +308,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
     private void handleObj(@NotNull PoCoParser.ReContext ctx) {
         String varTyp = ctx.object().qid().getText();
         if (ctx.object().re().DOLLAR() != null) {
-            String varName = policyName + ctx.object().re().qid().getText();
+            String varName = policyName +"_" + ctx.object().re().qid().getText();
             up8ClosurVarTyp(varName, varTyp);
         } else {
             if (isParsClosurFuncs()) {
@@ -322,7 +323,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                     temp = PoCoUtils.attachPolicyName(policyName, "#" + varTyp + "{" + temp + "}");
 
                 //check if the variable name is unique!
-                String varName = policyName + bindings.peek();
+                String varName = policyName +"_" + bindings.peek();
                 if (closure.isVarsContain(varName) || closure.isFunctionsContain(varName)) {
                     try {
                         throw new Exception("More than one variable named: \"" + varName + "\" exist.");
@@ -337,8 +338,8 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
 
     private String getVarValFrmClosure(String str) {
         String varName = PoCoUtils.getVariableName(str);
-        if (closure != null && closure.isFunctionsContain(policyName + varName)) {
-            String newVal = closure.loadFrmFunctions(policyName + varName).getVarContext();
+        if (closure != null && closure.isFunctionsContain(policyName +"_" + varName)) {
+            String newVal = closure.loadFrmFunctions(policyName +"_" + varName).getVarContext();
             if (newVal != null && PoCoUtils.getObjVal(newVal) != null)
                 newVal = PoCoUtils.getObjVal(newVal);
 
@@ -383,7 +384,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                 currParsVal.append(validStr);
             } else {
                 //check if the variable name is unique!
-                String varName = policyName + bindings.peek();
+                String varName = policyName +"_" + bindings.peek();
                 if (closure.isVarsContain(varName) || closure.isFunctionsContain(varName)) {
                     try {
                         throw new Exception("More than one variable named: \"" + varName + "\" exist.");
