@@ -185,7 +185,7 @@ public class PoCoUtils {
     public static String validateStr(String str) {
         if (str == null)
             return null;
-        str = str.replace("\\", "\\\\");
+        str = str.replace("\\|", "|").replace("\\","\\\\");
         return str.replace("%", "*");
     }
 

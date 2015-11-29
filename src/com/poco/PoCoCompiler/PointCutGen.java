@@ -3,11 +3,13 @@ package com.poco.PoCoCompiler;
 import com.poco.Extractor.Closure;
 import com.poco.Extractor.PointCutExtractor;
 import com.poco.Extractor.PolicyTreeNode;
+import com.sun.xml.internal.ws.api.ha.StickyFeature;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.lang.reflect.Array;
 import java.util.*;
 
 public class PointCutGen {
@@ -115,6 +117,8 @@ public class PointCutGen {
     private void genPointCuts(HashMap<String, HashMap<String, String>> target, int mode) {
 
         Set<String> keys = target.keySet();
+        HashMap<String, Around4Act> around4Acts = new HashMap<>();
+
         for (Iterator<String> key = keys.iterator(); key.hasNext(); ) {
             String entry = key.next();
             bindingVars = target.get(entry);
@@ -201,7 +205,7 @@ public class PointCutGen {
                                     argVal4Match = new Hashtable<>();
                                 if (PoCoUtils.reContainNotMatch(argsList[i])) {
                                     argVal4Match.put("!" + argTyp + " value" + count, argValStr);
-                                }else {
+                                } else {
                                     argVal4Match.put(argTyp + " value" + count, argValStr);
                                 }
 
@@ -253,36 +257,45 @@ public class PointCutGen {
                         if (bindingVars.get(varName).toString().equals("result")) {
                             varsNeed2Bind4Res.put(PoCoUtils.getMethodRtnTyp(methodSig) + " ret", "$" + varName.toString());
                         } else {  //binding action signature to a variable case
-                            String sig = "RuntimeUtils.getNamFrmJP(thisJoinPoint)" + "+\"(" + argStrs[4] + ")\"";
-                            varsNeed2Bind4Act.put("java.lang.String " + sig, "sig$" + varName.toString());
+                            //String sig = "RuntimeUtils.getNamFrmJP(thisJoinPoint)" + "+\"(" + argStrs[4] + ")\"";
+                            varsNeed2Bind4Act.put("java.lang.String evtSig", "sig$" + varName.toString());
                         }
                     }
                 }
 
                 //generate code for action adivce
-                if (mode == 0)
-                    genAdvice4Actions("PointCut" + pointcutNum++, argStrs, varsNeed2Bind4Act, argVal4Match, argStrs5, absActName, policyName);
-                else if (mode == 1) //generate code for action adivce
+                if (mode == 0) {
+                    String pkey = policyName + "=" + entry;
+                    around4Acts.put(pkey,genAdvice4Actions("PointCut" + pointcutNum++, argStrs, varsNeed2Bind4Act, argVal4Match, argStrs5, absActName, policyName));
+                } else if (mode == 1) //generate code for action adivce
                     genAdvice4Results("PointCut" + pointcutNum++, argStrs, varsNeed2Bind4Res, argVal4Match, argStrs5, absActName);
                 else
                     genAdvice4Events("PointCut" + pointcutNum++, argStrs, varsNeed2Bind4Act, varsNeed2Bind4Res, argVal4Match, argStrs5, absActName);
                 bindingVars = new HashMap<String, String>();
             }
         }
+
+        //new generate around for all action pointcut
+        keys = around4Acts.keySet();
+
+        for (Iterator<String> key = keys.iterator(); key.hasNext(); ) {
+            Around4Act act  = around4Acts.get(key.next());
+            genAround(act.getArg4Advice(), act.getPointCutName(), act.getArg4PointCut(), act.getAbstractAct());
+        }
     }
 
     private String removePolicyName(String entry) {
-        assert entry != null && entry.trim().length()>0;
-        int rIndex = entry.indexOf('>',0);
-        return entry.substring(rIndex+1,entry.length());
+        assert entry != null && entry.trim().length() > 0;
+        int rIndex = entry.indexOf('>', 0);
+        return entry.substring(rIndex + 1, entry.length());
     }
 
 
-
     private String getPolicyName(String entry) {
-        assert entry != null && entry.trim().length()>0;
-        int rIndex = entry.indexOf('>',0);
-        return entry.substring(1,rIndex);
+        assert entry != null && entry.trim().length() > 0;
+        int lIndex = entry.indexOf('<', 0);
+        int rIndex = entry.indexOf('>', 0);
+        return entry.substring(lIndex + 1, rIndex);
     }
 
 
@@ -310,21 +323,18 @@ public class PointCutGen {
         return callStr;
     }
 
-    private void genAdvice4Actions(String pointcutName, String[] argStrs, Hashtable varsNeed2Bind, Hashtable argVal4Match, ArrayList<String> handleSig, String isAbsCase, String PolicyName){
+    private Around4Act genAdvice4Actions(String pointcutName, String[] argStrs, Hashtable varsNeed2Bind, Hashtable argVal4Match, ArrayList<String> handleSig, String isAbsCase, String PolicyName) {
         //if it is conditional match or need dynamically bind value to variables
         if (varsNeed2Bind != null || argVal4Match != null) {
             outLine(1, "before(%s): %s(%s) {", argStrs[0], pointcutName, argStrs[2]);
 
-            String paras = getParaList(argStrs[0]);
-
-            //it is the abstraction action case, then need load the parameters
-            if(argStrs[2] == null || argStrs[2].length()==0)
-                ;
-            else {
+            //if there are arguments this pointcut is monitoring
+            if (argStrs[2] != null && argStrs[2].length() > 0) {
+                //it is the abstraction action case, then need load the parameters
                 if (isAbsCase != null)
                     outLine(2, "ArrayList<TypeVal> vals = AbsActions." + isAbsCase + "(thisJoinPoint," + argStrs[2] + ");");
                 else
-                    outLine(2, "ArrayList<TypeVal> vals = RuntimeUtils.getVals(\"" + paras + "\"," + argStrs[2] + ");");
+                    outLine(2, "ArrayList<TypeVal> vals = RuntimeUtils.getVals(\"" + getParaList(argStrs[0]) + "\"," + argStrs[2] + ");");
             }
 
             //generate conditional statement for conditional monitoring case
@@ -332,87 +342,89 @@ public class PointCutGen {
             //if is the conditional monitoring case
             if (conditionState != null && conditionState.length() > 0) {
                 outLine(2, "if (" + conditionState + ") {");
-                //outLine(3, "String[] varNames = null;");
+                outLine(3, "String[] varNames = null;");
                 outLine(3, "DataWH dh = new DataWH();");
 
                 //in order to generate the correct method signature that includes the variable info,
                 //need dynamic genearate variable information
-                handleSigVar(handleSig, 3);
-                valueBind4Advices(varsNeed2Bind, 3);
-                if (argStrs[2] != null && argStrs[2].trim().length() > 0) {
-                    //outLine(3, "Object[] objs = new Object[]{" + argStrs[2] + "};");
+                //handleSigVar(handleSig, 3);
 
-                    if(isAbsCase == null)
+                if (argStrs[2] != null && argStrs[2].trim().length() > 0) {
+                    outLine(3, "Object[] objs = new Object[]{" + argStrs[2] + "};");
+
+                    if (isAbsCase == null)
                         outLine(3, "String evtSig = RuntimeUtils.genSigFrmJP(thisJoinPoint, \"" + argStrs[3] + "\", objs, varNames);");
                     else
                         outLine(3, "String evtSig = AbsActUtils.genAbsSig(\"" + isAbsCase + "\",vals);");
-                    outLine(3, "dh.addTypVal(\""+PolicyName +"_evtSig\", \"java.lang.String\",evtSig);");
-
-                    //outLine(3, pocoRoot + ".queryAction(new Action(evtSig),dh);");
+                    valueBind4Advices(varsNeed2Bind, 3);
+                    outLine(3, "dh.addTypVal(\"" + PolicyName + "_evtSig\", \"java.lang.String\",evtSig);");
+                } else {
+                    valueBind4Advices(varsNeed2Bind, 3);
                 }
-//                else {
-//                    if(isAbsCase == null)
-//                        outLine(3, pocoRoot + ".queryAction(new Action(thisJoinPoint),null);");
-//                    else
-//                        outLine(3, pocoRoot + ".queryAction(new Action(\""+isAbsCase+"()\"),null);");
-//                }
-//                outLine(3, "if(" + pocoRoot + ".hasRes4Action()) {");
-//                outLine(4, "return " + pocoRoot + ".getRes4Action();");
-//                outLine(3, "} else");
-//                outLine(4, "return proceed(%s);", argStrs[2]);
-//                outLine(2, "} else");
-//                outLine(3, "return proceed(%s);", argStrs[2]);
+                outLine(3, "RuntimeUtils.UpdatePolicyVars(dh, " + pocoRoot + ");");
                 outLine(2, "} ");
+
             } else {
                 //handle vars in order to generate correct method signatures info, which includes the variable infos
-                outLine(2, "String[] varNames = null;");
-                handleSigVar(handleSig, 2);
-                valueBind4Advices(varsNeed2Bind, 2);
+                //handleSigVar(handleSig, 2);
                 if (argStrs[2] != null && argStrs[2].trim().length() > 0) {
-                    //outLine(2, "Object[] objs = new Object[]{" + argStrs[2] + "};");
+                    outLine(2, "String[] varNames = null;");
+                    outLine(2, "Object[] objs = new Object[]{" + argStrs[2] + "};");
 
-                    if(isAbsCase == null)
+                    if (isAbsCase == null)
                         outLine(2, "String evtSig = RuntimeUtils.genSigFrmJP(thisJoinPoint, \"" + argStrs[3] + "\", objs, varNames);");
                     else
                         outLine(2, "String evtSig = AbsActUtils.genAbsSig(\"" + isAbsCase + "\",vals);");
-                    outLine(2, "dh.addTypVal(\""+PolicyName +"_evtSig\", \"java.lang.String\",evtSig);");
 
-                    //outLine(2, pocoRoot + ".queryAction(new Action(evtSig), dh);");
+                    valueBind4Advices(varsNeed2Bind, 2);
+                    outLine(2, "dh.addTypVal(\"" + PolicyName + "_evtSig\", \"java.lang.String\",evtSig);");
+                    outLine(2, "RuntimeUtils.UpdatePolicyVars(dh, " + pocoRoot + ");");
+                } else {
+                    valueBind4Advices(varsNeed2Bind, 3);
                 }
-//                else {
-//                    if(isAbsCase == null)
-//                        outLine(2, pocoRoot + ".queryAction(new Action(thisJoinPoint),null);");
-//                    else
-//                        outLine(2, pocoRoot + ".queryAction(new Action(\""+isAbsCase+"()\"),null);");
-//                }
-//                outLine(2, "if(" + pocoRoot + ".hasRes4Action()) {");
-//                outLine(3, "return " + pocoRoot + ".getRes4Action();");
-//                outLine(2, "} else");
-//                outLine(3, "return proceed(%s);", argStrs[2]);
-                outLine(2, "} ");
             }
-        } else {
-            outLine(1, "object around(): %s() {", pointcutName);
-
-            if(isAbsCase == null)
-                outLine(2, pocoRoot + ".queryAction(new Action(thisJoinPoint),null);");
-            else
-                outLine(2, pocoRoot + ".queryAction(new Action(\""+isAbsCase+"\"),null);");
-
-            outLine(2, "if(" + pocoRoot + ".hasRes4Action()) {");
-            outLine(3, "return " + pocoRoot + ".getRes4Action();");
-            outLine(2, "} else");
-            outLine(3, "return proceed();");
+            outLine(1, "}\n");
         }
-        outLine(1, "}\n");
+        return new Around4Act(argStrs[0], pointcutName, argStrs[2], isAbsCase);
     }
 
+    private void genAround(String arg1, String ptName, String arg2, String isAbsCase) {
+        if (arg1 != null)
+            outLine(1, "Object around(%s): %s(%s) {", arg1, ptName, arg2);
+        else
+            outLine(1, "Object around(): %s() {", ptName);
+        genAround4Actions(isAbsCase, 2, arg2);
+    }
+
+    private void genAround4Actions(String isAbsCase, int indentLevel, String vals) {
+        if (isAbsCase == null)
+            outLine(indentLevel, pocoRoot + ".queryAction(new Action(thisJoinPoint));");
+        else {
+            if (vals == null || vals.trim().length() == 0)
+                outLine(indentLevel, pocoRoot + ".queryAction(new Action(\"" + isAbsCase + "()\"));");
+            else {
+                outLine(indentLevel, "ArrayList<TypeVal> vals = AbsActions." + isAbsCase + "(thisJoinPoint," + vals + ");");
+                outLine(indentLevel, pocoRoot + ".queryAction(new Action(AbsActUtils.genAbsSig(\"" + isAbsCase + "\",vals)));");
+            }
+        }
+        outLine(indentLevel, "if(" + pocoRoot + ".hasRes4Action()) {");
+        outLine(indentLevel + 1, "return " + pocoRoot + ".getRes4Action();");
+        outLine(indentLevel, "} else");
+        if (vals != null && vals.length() > 0)
+            outLine(indentLevel + 1, "return proceed(%s);", vals);
+        else
+            outLine(indentLevel + 1, "return proceed();");
+
+        outLine(indentLevel - 1, "}\n");
+    }
+
+
     private String getParaList(String argStr) {
-        String[] paraList  = argStr.split(",");
-        for(int i = 0; i<paraList.length;i++)
+        String[] paraList = argStr.split(",");
+        for (int i = 0; i < paraList.length; i++)
             paraList[i] = paraList[i].split("\\s+")[0];
 
-        return Arrays.toString(paraList).replace("[", "").replace("]","").replace(" ","");
+        return Arrays.toString(paraList).replace("[", "").replace("]", "").replace(" ", "");
     }
 
     private void genAdvice4Results(String pointcutName, String[] argStrs, Hashtable varsNeed2Bind, Hashtable argVal4Match, ArrayList<String> handleSig, String isAbsCase) {
@@ -466,14 +478,14 @@ public class PointCutGen {
                 if (argStrs[2] != null && argStrs[2].trim().length() > 0) {
                     //outLine(3, "Object[] objs = new Object[]{" + argStrs[2] + "};");
 
-                    if(isAbsCase == null)
+                    if (isAbsCase == null)
                         outLine(3, "String evtSig = RuntimeUtils.genSigFrmJP(thisJoinPoint, \"" + argStrs[3] + "\", objs, varNames);");
                     else
                         outLine(3, "String evtSig = AbsActUtils.genAbsSig(\"" + isAbsCase + "\",vals);");
 
-                    outLine(3, pocoRoot + ".queryAction(new Action(evtSig),dh);");
+                    outLine(3, pocoRoot + ".queryAction(new Action(evtSig));");
                 } else {
-                    outLine(3, pocoRoot + ".queryAction(new Action(thisJoinPoint),dh);");
+                    outLine(3, pocoRoot + ".queryAction(new Action(thisJoinPoint));");
                 }
                 outLine(3, "Object ret = proceed(%s);", argStrs[2]);
                 valueBind4Advices(varsNeed2Bind4Res, 3);
@@ -489,14 +501,14 @@ public class PointCutGen {
                 if (argStrs[2] != null && argStrs[2].trim().length() > 0) {
                     //outLine(2, "Object[] objs = new Object[]{" + argStrs[2] + "};");
 
-                    if(isAbsCase == null)
+                    if (isAbsCase == null)
                         outLine(2, "String evtSig = RuntimeUtils.genSigFrmJP(thisJoinPoint, \"" + argStrs[3] + "\", objs, varNames);");
                     else
                         outLine(2, "String evtSig = AbsActUtils.genAbsSig(\"" + isAbsCase + "\",vals);");
 
-                    outLine(2, pocoRoot + ".queryAction(new Action(evtSig),dh);");
+                    outLine(2, pocoRoot + ".queryAction(new Action(evtSig));");
                 } else {
-                    outLine(2, pocoRoot + ".queryAction(new Action(thisJoinPoint),dh);");
+                    outLine(2, pocoRoot + ".queryAction(new Action(thisJoinPoint));");
                 }
                 outLine(2, "Object ret = proceed(%s);", argStrs[2]);
                 valueBind4Advices(varsNeed2Bind4Res, 2);
@@ -506,7 +518,7 @@ public class PointCutGen {
             outLine(1, "Object around(): %s() {", pointcutName);
             handleSigVar(handleSig, 2);
             valueBind4Advices(varsNeed2Bind4Act, 2);
-            outLine(2, pocoRoot + ".queryAction(new Action(thisJoinPoint),dh);");
+            outLine(2, pocoRoot + ".queryAction(new Action(thisJoinPoint));");
             outLine(2, "Object ret = proceed();", argStrs[2]);
             valueBind4Advices(varsNeed2Bind4Res, 2);
             genEvent4queryAction(2);
@@ -516,7 +528,7 @@ public class PointCutGen {
 
     private void genEvent4queryAction(int offset) {
         outLine(offset, "Result result = new Result(thisJoinPoint, ret);");
-        outLine(offset, pocoRoot + ".queryAction(result,null);");
+        outLine(offset, pocoRoot + ".queryAction(result);");
         outLine(offset, "return result.getResult();");
     }
 
@@ -541,9 +553,9 @@ public class PointCutGen {
             if (varVals[i] == null) continue;
             String matchState;
             if (PoCoUtils.isVariable(varVals[i]))
-                matchState = genCondStatWVar(varTyps[i], varNams[i], varVals[i], isAbsCase,i);
+                matchState = genCondStatWVar(varTyps[i], varNams[i], varVals[i], isAbsCase, i);
             else
-                matchState = genCondStatWVal(varTyps[i], varNams[i], varVals[i], isAbsCase,i);
+                matchState = genCondStatWVal(varTyps[i], varNams[i], varVals[i], isAbsCase, i);
 
             if (matchState != null) {
                 returnStr += matchState;
@@ -580,11 +592,11 @@ public class PointCutGen {
             if (PoCoUtils.isPoCoObject(matchVal))
                 matchVal = PoCoUtils.getObjVal(matchVal);
 
-            String retStr = "";
-            if (isAbsCase == null)
-                retStr = "RuntimeUtils.valMatch(" + str + ", \"" + matchVal.replace("\\", "") + "\")";
-            else
-                retStr = "AbsActUtils.valMatch(vals.get("+ index + "), \"" + matchVal.replace("\\", "") + "\")";
+            String retStr = "RuntimeUtils.valMatch(vals.get(" + index + "), \"" + matchVal.replace("\\", "") + "\")";
+//            if (isAbsCase == null)
+//                retStr = "RuntimeUtils.valMatch(" + str + ", \"" + matchVal.replace("\\", "") + "\")";
+//            else
+//                retStr = "AbsActUtils.valMatch(vals.get(" + index + "), \"" + matchVal.replace("\\", "") + "\")";
 
             if (isNotMatch)
                 retStr = "!" + retStr;
@@ -685,7 +697,7 @@ public class PointCutGen {
             }
             if (sb4NamList.length() > 0) {
                 String temp = PoCoUtils.trimEndPunc(sb4NamList.toString(), ",");
-                outLine(offset, "String[] varNames = new String[] {\"" + temp + "\"};");
+                outLine(offset, "varNames = new String[] {\"" + temp + "\"};");
             }
         }
     }
@@ -728,7 +740,7 @@ public class PointCutGen {
         outLine(3, "String retTyp = RuntimeUtils.trimClassName(ret.getClass().toString());");
         genVarBing4Prom();
         outLine(3, "PromotedResult promRes = new PromotedResult(run,ret);");
-        outLine(3, pocoRoot + ".queryAction(promRes,dh);");
+        outLine(3, pocoRoot + ".queryAction(promRes);");
         outLine(3, "return ret;");
         outLine(2, "}");
         outLine(2, "else");
@@ -745,7 +757,7 @@ public class PointCutGen {
         genVarBing4Prom();
 
         outLine(3, "PromotedResult promRes = new PromotedResult(run, ret);");
-        outLine(3, pocoRoot + ".queryAction(promRes,null);");
+        outLine(3, pocoRoot + ".queryAction(promRes);");
         outLine(3, "return ret;");
         outLine(2, "}");
         outLine(2, "else");
@@ -797,13 +809,6 @@ public class PointCutGen {
             return closure.loadFrmVars(varName).getVarContext();
         else
             return varName;
-    }
-
-    private String[] deleteExtraComma(String[] argStrs) {
-        for (int i = 0; i < argStrs.length; i++)
-            argStrs[i] = PoCoUtils.trimEndPunc(argStrs[i], ",");
-
-        return argStrs;
     }
 
     private String arr2Str(ArrayList<String> strs) {

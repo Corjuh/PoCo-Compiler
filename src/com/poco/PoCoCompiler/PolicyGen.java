@@ -161,11 +161,11 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
             for (String arg : args) {
                 String varTyp = arg.split("\\s+")[0];
                 String varName = arg.split("\\s+")[1];
-                outLine(3, "DataWH.updateTyeVal(\"" + policyName + "_" + varName + "\", \"" + varTyp + "\", " + varName + ");");
+                outLine(3, "this.addVar(\"" + policyName + "_" + varName + "\", \"" + varTyp + "\", " + varName + ");");
             }
             policyArgStr = new StringBuilder();
         }
-
+        outLine(3, "this.addVar(\"" + policyName + "_evtSig\", \"java.lang.String\", null);");
         outLine(2, "} catch (PoCoException pex) {");
         outLine(3, "System.out.println(pex.getMessage());");
         outLine(3, "pex.printStackTrace();");
@@ -727,9 +727,6 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
             if(content == null)
                 content = "$"+policyName + "_" + ctx.qid().getText().trim();
         }
-
-
-
         if (ctx.opparamlist() != null && ctx.opparamlist().getText().trim().length() != 0) {
             //switch the var with content
             ArrayList<String> arglist = getFunArgList(policyName + "_" + ctx.qid().getText());
@@ -748,7 +745,7 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
                 content = content.replace("$" + arglist.get(0), newArgs[i]);
 
         } else {
-            content = PoCoUtils.attachPolicyName(policyName + "_", content);
+            content = PoCoUtils.attachPolicyName(policyName, content);
         }
         //System.out.println("conent: " + content + "\n");
         return content;
