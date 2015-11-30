@@ -19,7 +19,7 @@ public class AbstractActions {
             String actionStr = null;
             while ((actionStr = bufr.readLine()) != null) {
                 String temp = PoCoUtils.formatFuncRetTyp(actionStr.trim());
-                temp = genConcreteMtdStr(abaction, temp);
+                temp = genConcreteMtdStr(temp);
                 concreteMtds.add(temp);
             }
         } catch (IOException e) {
@@ -35,31 +35,19 @@ public class AbstractActions {
         return concreteMtds;
     }
 
-    public static String genConcreteMtdStr(String abaction, String conCreteMtd) {
+    public static String genConcreteMtdStr(String conCreteMtd) {
         //abaction: abs_creatFile(#java.lang.String{%.class})
         //conCreteMtd: java.io.FileWriter.new(java.lang.String,..)
 
-        String absArgStr = PoCoUtils.getMethodArgLs(abaction);
-        if (absArgStr == null || absArgStr.trim().length() == 0)
-            return conCreteMtd;
-
         String retTyp = PoCoUtils.getMethodRtnTyp(conCreteMtd);
         String funName = PoCoUtils.getMtdName(conCreteMtd);
-
-        String[] absArgs = absArgStr.split(",");
         String[] conArgs = PoCoUtils.getMethodArgLs(conCreteMtd).split(",");
 
         StringBuilder sb = new StringBuilder();
-        int absArgIndex = 0;
         for (int i = 0; i < conArgs.length; i++) {
             // argument matching case
             if (conArgs[i].startsWith("#")) {
-                if(absArgIndex>=absArgs.length)
-                    throw new RuntimeException("Concrete method: " + conCreteMtd + " failed to match " + abaction + "! Please check!");
-                else {
-                    String val = PoCoUtils.getObjVal(absArgs[absArgIndex++]);
-                    sb.append(conArgs[i] + "{" + val + "}");
-                }
+                sb.append(conArgs[i] + "{someval}");
             } else {
                 sb.append(conArgs[i]);
             }

@@ -53,8 +53,8 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
     //this stack is used to flag different status related to the RE
     private Stack<Integer> flagStack4RE;
 
-    private StringBuilder reBopStr;
-    private StringBuilder argListStr;
+    private ArrayList<String> reBopStr;
+    private ArrayList<String> argListStr;
     private StringBuilder policyArgStr;
 
     /**
@@ -91,8 +91,8 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
         this.flagStack4Exc = new Stack<>();
         this.flagStack4RE = new Stack<>();
 
-        argListStr = new StringBuilder();
-        reBopStr = new StringBuilder();
+        argListStr = new ArrayList<String>();
+        reBopStr = new ArrayList<String>();
         policyArgStr = new StringBuilder();
     }
 
@@ -610,7 +610,7 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
             //handleReAtCase(ctx);
         } else if (ctx.rewild() != null) {
             if (PoCoUtils.isParsingArg(flagStack4Arg))
-                argListStr.append("*,");
+                argListStr.add("*");
             else if (PoCoUtils.isIREAction(flagStack4RE) || PoCoUtils.isIREResMatch(flagStack4RE))
                 outLine(3, "%s.setWildcard(true);", currentMatch);
         } else {  //leaf case of RE
@@ -628,7 +628,7 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
                     content = reIsFuncCase(ctx);
                 } else {
                     if (PoCoUtils.isParsingArg(flagStack4Arg)) {
-                        argListStr.append(ctx.getText() + ",");
+                        argListStr.add(ctx.getText());
                     } else {
                         content = ctx.getText();
                     }
@@ -640,7 +640,7 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
             content = PoCoUtils.validateStr(content);
 
             if (PoCoUtils.isReBopFlag(flagStack4RE)) {
-                reBopStr.append(content + "|");
+                reBopStr.add(content);
             } else {
                 //check wether the current method is a transaction method case
                 if (isMethod(content)) {
@@ -696,7 +696,7 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
             flagStack4Arg.push(ParsFlgConsts.parsArgs);
             visitChildren(ctx.function().arglist());
             flagStack4Arg.pop();
-            argStr = PoCoUtils.trimEndPunc(argListStr.toString(), ",");
+            argStr = PoCoUtils.arr2Str(argListStr);
         }
 
         return funName + "(" + argStr + ")";
@@ -704,7 +704,7 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
 
     private String reIsObjCase(@NotNull PoCoParser.ReContext ctx, String content) {
         if (PoCoUtils.isParsingArg(flagStack4Arg)) {
-            argListStr.append(ctx.object().getText() + ",");
+            argListStr.add(ctx.object().getText());
         } else {
             try {
                 content = parseObject(ctx.object().qid().getText(), ctx.object().re().getText());
@@ -740,14 +740,13 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
             flagStack4Arg.push(ParsFlgConsts.parsArgs);
             visitChildren(ctx.opparamlist());
             flagStack4Arg.pop();
-            String[] newArgs = PoCoUtils.trimEndPunc(argListStr.toString(), ",").split(",");
+            String[] newArgs = PoCoUtils.arr2Str(argListStr).split(",");
             for (int i = 0; i < newArgs.length; i++)
                 content = content.replace("$" + arglist.get(0), newArgs[i]);
 
         } else {
             content = PoCoUtils.attachPolicyName(policyName, content);
         }
-        //System.out.println("conent: " + content + "\n");
         return content;
     }
 
@@ -756,9 +755,9 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
         //first check if the argument is variable or not, if so only add the
         //variable name since its type may change
         if (closure != null && closure.isVarsContain(temp))
-            argListStr.append("$" + temp + ",");
+            argListStr.add("$" + temp);
         else //then check the function closure
-            argListStr.append(closure.loadFrmFunctions(temp).getVarContext().trim() + ",");
+            argListStr.add(closure.loadFrmFunctions(temp).getVarContext().trim());
 
     }
 
@@ -788,7 +787,7 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
         //if not the case that is rebop is inside another rebop, then we will
         //set the parsed value to proper attribute,
         if (flagStack4RE.empty() || !PoCoUtils.isReBopFlag(flagStack4RE)) {
-            String temp = PoCoUtils.trimEndPunc(reBopStr.toString(), "|");
+            String temp = reBopStr.toString().replace("[", "").replace("]", "").replace(", ", "|");
             if (isMethod(temp))
                 temp = handleTransCase(temp,policyName);
             resetREBopStr();
@@ -822,7 +821,7 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
     }
 
     private void resetREBopStr() {
-        reBopStr = new StringBuilder();
+        reBopStr = new ArrayList<String>();
     }
 
     private void handleREonRHS(@NotNull PoCoParser.ReContext ctx) {
@@ -834,13 +833,13 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
                 //not function but var case
                 if(temp ==null)
                     temp = "$"+varName;
-                argListStr.append(temp + ",");
+                argListStr.add(temp);
             } else if (ctx.object() != null) {
-                argListStr.append(ctx.object().getText() + ",");
+                argListStr.add(ctx.object().getText());
             } else if (ctx.rewild() != null) {
-                argListStr.append("*,");
+                argListStr.add("*");
             } else {
-                argListStr.append(ctx.getText() + ",");
+                argListStr.add(ctx.getText());
             }
         } else {
             if (ctx.rebop() != null && !ctx.re(1).getText().toString().equals("()")) {
@@ -875,7 +874,7 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
                         resetArgStr();
                         visitChildren(ctx.function());
                         flagStack4Arg.pop();
-                        matchStr += "(" + PoCoUtils.trimEndPunc(argListStr.toString(), ",") + ")";
+                        matchStr += "(" + PoCoUtils.arr2Str(argListStr) + ")";
                     }
                 } else {
                     matchStr = ctx.getText();
@@ -1015,7 +1014,7 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
     }
 
     private void resetArgStr() {
-        argListStr = new StringBuilder();
+        argListStr = new ArrayList<>();
     }
 
     public static boolean isMethod(String str) {

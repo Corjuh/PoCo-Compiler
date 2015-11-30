@@ -15,7 +15,7 @@ import java.util.Stack;
 public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
     private Closure closure;
     private String policyName = "";
-    private StringBuilder currParsArgs;
+    private ArrayList<String> currParsArgs;
     private StringBuilder currParsVal;
     private Stack<String> bindings;
     private Stack<Integer> parsingFlags;
@@ -37,7 +37,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
         this.flagStack4RE = new Stack<>();
         this.funArgTypLs = new Stack<>();
         currParsVal = new StringBuilder();
-        currParsArgs = new StringBuilder();
+        currParsArgs = new ArrayList<String>();
         policyNames = new HashSet<>();
         argList4Func = null;
     }
@@ -51,7 +51,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
     }
 
     private void resetCurrParsArgs() {
-        currParsArgs = new StringBuilder();
+        currParsArgs = new ArrayList<String>();
     }
 
     @Override
@@ -165,7 +165,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                             String val = PoCoUtils.getObjVal(str);
                             str = str.replace(val, PoCoUtils.attachPolicyName(policyName, val));
                         }
-                        currParsArgs.append(str + ",");
+                        currParsArgs.add(str);
                     } else {
                         if (ctx.object() != null && isVariable(ctx.object().re().getText())) {
                             String newTyp = ctx.object().qid().getText().trim();
@@ -179,7 +179,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                             } else if (funArgTypLs.size() > 0) {
                                 String argTypOnStack = funArgTypLs.peek();
                                 while (argTypOnStack.equals("\\*")) {
-                                    currParsArgs.append("\\*,");
+                                    currParsArgs.add("\\*");
                                     funArgTypLs.pop();
                                     argTypOnStack = funArgTypLs.peek();
                                 }
@@ -201,7 +201,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                             }
                         } else
                             str += ",";
-                        currParsArgs.append(str);
+                        currParsArgs.add(str);
                     }
                 }
             }
@@ -232,15 +232,15 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
                 if (!funArgTypLs.isEmpty()) {
                     funArgTypLs.peek();
                     while (argTypOnStack.equals("\\*")) {
-                        currParsArgs.append("\\*,");
+                        currParsArgs.add("\\*");
                         funArgTypLs.pop();
                         argTypOnStack = funArgTypLs.peek();
                     }
                     String varType = PoCoUtils.getObjType(argTypOnStack);
-                    currParsArgs.append("#" + varType + "{" + varName + "},");
+                    currParsArgs.add("#" + varType + "{" + varName + "}");
                     funArgTypLs.pop();
                 }else {
-                    currParsArgs.append("#java.lang.String{" + varName + "},");
+                    currParsArgs.add("#java.lang.String{" + varName + "}");
                 }
             } else {
                 visitChildren(ctx);
@@ -372,7 +372,7 @@ public class ExtractClosure extends PoCoParserBaseVisitor<Void> {
             parsingFlags.push(ParsFlgConsts.parsArgs);
             resetCurrParsArgs();
             visitChildren(ctx.function().arglist());
-            validStr += "(" + PoCoUtils.trimEndPunc(currParsArgs.toString(), ",") + ")";
+            validStr += "(" + PoCoUtils.arr2Str(currParsArgs) + ")";
             parsingFlags.pop();
         }
 

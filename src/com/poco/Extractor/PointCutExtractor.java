@@ -5,6 +5,7 @@ import com.poco.PoCoParser.PoCoParser;
 import com.poco.PoCoParser.PoCoParserBaseVisitor;
 import org.antlr.v4.runtime.misc.NotNull;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.Stack;
@@ -42,13 +43,13 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         return policy2Props;
     }
 
-    private StringBuilder argStr;
+    private ArrayList<String> argStr;
     private StringBuilder pointcutStr;
 
     public PointCutExtractor(Closure closure) {
         this.closure = closure;
         this.pointcutStr = new StringBuilder();
-        this.argStr = new StringBuilder();
+        this.argStr = new ArrayList<>();
         this.parsFlags = new Stack<>();
         this.actResFlags = new Stack<>();
         this.bindVarName = new Stack<>();
@@ -230,7 +231,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             }
         } else { // handle the case of parsing the parameters
             if (ctx.rewild() != null) {
-                argStr.append("..,");
+                argStr.add("..");
             } else if (ctx.qid() != null) {
                 handleObj4ArgCase(ctx.qid().getText());
             } else if (ctx.AT() != null) {
@@ -258,7 +259,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
                     String temp = PoCoUtils.attachPolicyName(policyName, ctx.getText().trim());
                     if (temp.endsWith("()"))
                         temp = temp.substring(0, temp.length() - 2);
-                    argStr.append(temp + ",");
+                    argStr.add(temp);
                 }
             }
         }
@@ -278,11 +279,11 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
 
     private void handleArgasObjCase(@NotNull PoCoParser.ReContext ctx) {
         if (ctx.object().POUND() != null)
-            argStr.append(ctx.object().getText());
+            argStr.add(ctx.object().getText());
         else if (ctx.DOLLAR() != null)
-            argStr.append(ctx.getText());
+            argStr.add(ctx.getText());
         else   //Null case
-            argStr.append("(..)");
+            argStr.add("(..)");
     }
 
     private void handleObj4ArgCase(String str) {
@@ -291,9 +292,9 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         // 3. raise the NullPointerException
         if (closure != null && closure.isVarsContain(policyName+"_" + str)) {
             String varTyp = closure.loadFrmVars(policyName +"_"+ str).getVarType();
-            argStr.append("#" + varTyp + "{$" + policyName +"_"+ str + "},");
+            argStr.add("#" + varTyp + "{$" + policyName + "_" + str + "}");
         } else if (closure != null && closure.isFunctionsContain(policyName +"_"+ str)) {
-            argStr.append(closure.getFunctionContext(policyName +"_" + str) + ",");
+            argStr.add(closure.getFunctionContext(policyName + "_" + str));
         } else {
             PoCoUtils.throwNoSuchVarExpection(str);
         }
@@ -320,7 +321,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         else {
             flag4ArgParsing();
             visitChildren(ctx);
-            pointcutStr.append("(" + PoCoUtils.trimEndPunc(argStr.toString(), ",") + ")");
+            pointcutStr.append("(" + PoCoUtils.arr2Str(argStr) + ")");
+            argStr = new ArrayList<>();
             parsFlags.pop();
         }
     }
@@ -367,7 +369,8 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
         visitRe(ctx.opparamlist().re());
         //3. append parameter info to the function name
         if (pointcutStr.toString().indexOf("(") == -1)
-            pointcutStr.append("(" + PoCoUtils.trimEndPunc(argStr.toString(), ",") + ")");
+            pointcutStr.append("(" + PoCoUtils.arr2Str(argStr) + ")");
+        argStr = new ArrayList<>();
         //4. pop the flag
         parsFlags.pop();
     }
@@ -407,6 +410,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     private void add2PCHashmaps() {
         String ptStr = this.pointcutStr.toString().trim();
         ptStr = "<"+policyName+">"+handleTransCase(ptStr,this.policyName);
+
         //handle the case if there is "|" case, such as
         String[] funStrs = PoCoUtils.splitSreStr(ptStr);
         //reset global variable pointcutStr
@@ -490,7 +494,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     private void flag4ArgParsing() {
         parsFlags.push(ParsFlgConsts.parsArgs);
         //resetArgStr
-        this.argStr = new StringBuilder();
+        this.argStr = new ArrayList<>();
     }
 
     private boolean isActionPointCut() {

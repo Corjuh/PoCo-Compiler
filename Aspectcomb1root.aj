@@ -17,27 +17,27 @@ public aspect Aspectcomb1root {
         return new SRE(null,"."); 
     }
 
-    pointcut PointCut0(int value0):
-        call(java.net.ServerSocket.new(int)) && args(value0);
+    pointcut PointCut0(java.lang.String value0,int value1):
+        call(java.net.Socket.new(java.lang.String,int,..)) && args(value0,value1,..);
 
-    before(int value0): PointCut0(value0) {
-        ArrayList<TypeVal> vals = RuntimeUtils.getVals("int",value0);
-        if (!RuntimeUtils.valMatch(vals.get(0), "143|993|25|110|995")) {
+    before(java.lang.String value0,int value1): PointCut0(value0,value1) {
+        ArrayList<TypeVal> vals = RuntimeUtils.getVals("java.lang.String,int",value0,value1);
+        if (!RuntimeUtils.valMatch(vals.get(0),"143|993|25|110|995")&&RuntimeUtils.valMatch(vals.get(1),"aaa")) {
             String[] varNames = null;
             DataWH dh = new DataWH();
-            Object[] objs = new Object[]{value0};
-            String evtSig = RuntimeUtils.genSigFrmJP(thisJoinPoint, "int", objs, varNames);
+            Object[] objs = new Object[]{value0,value1};
+            String evtSig = RuntimeUtils.genSigFrmJP(thisJoinPoint, "java.lang.String,int,..", objs, varNames);
             dh.addTypVal("AllowOnlyMIME_evtSig", "java.lang.String",evtSig);
             RuntimeUtils.UpdatePolicyVars(dh, comb1root);
         } 
     }
 
     pointcut PointCut1(int value0):
-        call(boolean  javax.mail.Service.protocolConnect(*,int,..)) && args(*,value0,..);
+        call(boolean  javax.mail.Service.protocolConnect(java.lang.String,int,..)) && args(*,value0,..);
 
     before(int value0): PointCut1(value0) {
         ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
-        if (RuntimeUtils.valMatch(vals.get(0), "80|443")) {
+        if (RuntimeUtils.valMatch(vals.get(0),"80|443")) {
             String[] varNames = null;
             DataWH dh = new DataWH();
             Object[] objs = new Object[]{value0};
@@ -49,75 +49,80 @@ public aspect Aspectcomb1root {
     }
 
     pointcut PointCut2(int value0):
-        call(boolean  com.sun.mail.imap.IMAPStore.protocolConnect(*,int,..)) && args(*,value0,..);
+        call(boolean  com.sun.mail.imap.IMAPStore.protocolConnect(java.lang.String,int,..)) && args(*,value0,..);
 
     before(int value0): PointCut2(value0) {
         ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
-        if (RuntimeUtils.valMatch(vals.get(0), "80|443")) {
+        if (RuntimeUtils.valMatch(vals.get(0),"80|443")) {
             String[] varNames = null;
             DataWH dh = new DataWH();
             Object[] objs = new Object[]{value0};
             String evtSig = AbsActUtils.genAbsSig("abs_NetworkOpens",vals);
+            dh.addTypVal("ConfirmAndAllowOnlyHTTP_call", "java.lang.String", evtSig);
             dh.addTypVal("ConfirmAndAllowOnlyHTTP_evtSig", "java.lang.String",evtSig);
             RuntimeUtils.UpdatePolicyVars(dh, comb1root);
         } 
     }
 
     pointcut PointCut3(int value0):
-        call(boolean  com.sun.mail.pop3.POP3Store.protocolConnect(*,int,..)) && args(*,value0,..);
+        call(boolean  com.sun.mail.pop3.POP3Store.protocolConnect(java.lang.String,int,..)) && args(*,value0,..);
 
     before(int value0): PointCut3(value0) {
         ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
-        if (RuntimeUtils.valMatch(vals.get(0), "80|443")) {
+        if (RuntimeUtils.valMatch(vals.get(0),"80|443")) {
             String[] varNames = null;
             DataWH dh = new DataWH();
             Object[] objs = new Object[]{value0};
             String evtSig = AbsActUtils.genAbsSig("abs_NetworkOpens",vals);
+            dh.addTypVal("ConfirmAndAllowOnlyHTTP_call", "java.lang.String", evtSig);
             dh.addTypVal("ConfirmAndAllowOnlyHTTP_evtSig", "java.lang.String",evtSig);
             RuntimeUtils.UpdatePolicyVars(dh, comb1root);
         } 
     }
 
     pointcut PointCut4(int value0):
-        call(boolean  com.sun.mail.smtp.SMTPTransport.protocolConnect(*,int,..)) && args(*,value0,..);
+        call(boolean  com.sun.mail.smtp.SMTPTransport.protocolConnect(java.lang.String,int,..)) && args(*,value0,..);
 
     before(int value0): PointCut4(value0) {
         ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
-        if (RuntimeUtils.valMatch(vals.get(0), "80|443")) {
+        if (RuntimeUtils.valMatch(vals.get(0),"80|443")) {
             String[] varNames = null;
             DataWH dh = new DataWH();
             Object[] objs = new Object[]{value0};
             String evtSig = AbsActUtils.genAbsSig("abs_NetworkOpens",vals);
+            dh.addTypVal("ConfirmAndAllowOnlyHTTP_call", "java.lang.String", evtSig);
             dh.addTypVal("ConfirmAndAllowOnlyHTTP_evtSig", "java.lang.String",evtSig);
             RuntimeUtils.UpdatePolicyVars(dh, comb1root);
         } 
     }
 
-    pointcut PointCut5(int value0):
-        call(java.net.Socket.new(*,int,..)) && args(*,value0,..);
+    pointcut PointCut5(java.net.InetAddress value0,int value1):
+        call(java.net.Socket.new(java.net.InetAddress,int,..)) && args(value0,value1,..);
 
-    before(int value0): PointCut5(value0) {
-        ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
-        if (RuntimeUtils.valMatch(vals.get(0), "80|443")) {
+    before(java.net.InetAddress value0,int value1): PointCut5(value0,value1) {
+        ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0,value1);
+        if (RuntimeUtils.valMatch(vals.get(0),"80|443")) {
             String[] varNames = null;
             DataWH dh = new DataWH();
-            Object[] objs = new Object[]{value0};
+            Object[] objs = new Object[]{value0,value1};
             String evtSig = AbsActUtils.genAbsSig("abs_NetworkOpens",vals);
+            dh.addTypVal("ConfirmAndAllowOnlyHTTP_call", "java.lang.String", evtSig);
             dh.addTypVal("ConfirmAndAllowOnlyHTTP_evtSig", "java.lang.String",evtSig);
             RuntimeUtils.UpdatePolicyVars(dh, comb1root);
         } 
     }
 
-    pointcut PointCut6(int value0):
-        call(java.net.Socket.new(*,int,..)) && args(*,value0,..);
+    pointcut PointCut6(java.lang.String value0,int value1):
+        call(java.net.Socket.new(java.lang.String,int,..)) && args(value0,value1,..);
 
-    before(int value0): PointCut6(value0) {
-        ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
-        if (RuntimeUtils.valMatch(vals.get(0), "80|443")) {
+    before(java.lang.String value0,int value1): PointCut6(value0,value1) {
+        ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0,value1);
+        if (RuntimeUtils.valMatch(vals.get(0),"80|443")) {
             String[] varNames = null;
             DataWH dh = new DataWH();
-            Object[] objs = new Object[]{value0};
+            Object[] objs = new Object[]{value0,value1};
             String evtSig = AbsActUtils.genAbsSig("abs_NetworkOpens",vals);
+            dh.addTypVal("ConfirmAndAllowOnlyHTTP_call", "java.lang.String", evtSig);
             dh.addTypVal("ConfirmAndAllowOnlyHTTP_evtSig", "java.lang.String",evtSig);
             RuntimeUtils.UpdatePolicyVars(dh, comb1root);
         } 
@@ -128,11 +133,12 @@ public aspect Aspectcomb1root {
 
     before(int value0): PointCut7(value0) {
         ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
-        if (RuntimeUtils.valMatch(vals.get(0), "80|443")) {
+        if (RuntimeUtils.valMatch(vals.get(0),"80|443")) {
             String[] varNames = null;
             DataWH dh = new DataWH();
             Object[] objs = new Object[]{value0};
             String evtSig = AbsActUtils.genAbsSig("abs_NetworkOpens",vals);
+            dh.addTypVal("ConfirmAndAllowOnlyHTTP_call", "java.lang.String", evtSig);
             dh.addTypVal("ConfirmAndAllowOnlyHTTP_evtSig", "java.lang.String",evtSig);
             RuntimeUtils.UpdatePolicyVars(dh, comb1root);
         } 
@@ -143,11 +149,12 @@ public aspect Aspectcomb1root {
 
     before(java.net.DatagramPacket value0): PointCut8(value0) {
         ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
-        if (RuntimeUtils.valMatch(vals.get(0), "80|443")) {
+        if (RuntimeUtils.valMatch(vals.get(0),"80|443")) {
             String[] varNames = null;
             DataWH dh = new DataWH();
             Object[] objs = new Object[]{value0};
             String evtSig = AbsActUtils.genAbsSig("abs_NetworkOpens",vals);
+            dh.addTypVal("ConfirmAndAllowOnlyHTTP_call", "java.lang.String", evtSig);
             dh.addTypVal("ConfirmAndAllowOnlyHTTP_evtSig", "java.lang.String",evtSig);
             RuntimeUtils.UpdatePolicyVars(dh, comb1root);
         } 
@@ -158,17 +165,26 @@ public aspect Aspectcomb1root {
 
     before(java.net.DatagramPacket value0): PointCut9(value0) {
         ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
-        if (RuntimeUtils.valMatch(vals.get(0), "80|443")) {
+        if (RuntimeUtils.valMatch(vals.get(0),"80|443")) {
             String[] varNames = null;
             DataWH dh = new DataWH();
             Object[] objs = new Object[]{value0};
             String evtSig = AbsActUtils.genAbsSig("abs_NetworkOpens",vals);
+            dh.addTypVal("ConfirmAndAllowOnlyHTTP_call", "java.lang.String", evtSig);
             dh.addTypVal("ConfirmAndAllowOnlyHTTP_evtSig", "java.lang.String",evtSig);
             RuntimeUtils.UpdatePolicyVars(dh, comb1root);
         } 
     }
 
-    Object around(java.net.DatagramPacket value0): PointCut9(value0) {
+    Object around(java.lang.String value0,int value1): PointCut0(value0,value1) {
+        comb1root.queryAction(new Action(thisJoinPoint));
+        if(comb1root.hasRes4Action()) {
+            return comb1root.getRes4Action();
+        } else
+            return proceed(value0,value1);
+    }
+
+    Object around(int value0): PointCut1(value0) {
         ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
         comb1root.queryAction(new Action(AbsActUtils.genAbsSig("abs_NetworkOpens",vals)));
         if(comb1root.hasRes4Action()) {
@@ -177,8 +193,72 @@ public aspect Aspectcomb1root {
             return proceed(value0);
     }
 
-    Object around(int value0): PointCut0(value0) {
-        comb1root.queryAction(new Action(thisJoinPoint));
+    Object around(int value0): PointCut2(value0) {
+        ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
+        comb1root.queryAction(new Action(AbsActUtils.genAbsSig("abs_NetworkOpens",vals)));
+        if(comb1root.hasRes4Action()) {
+            return comb1root.getRes4Action();
+        } else
+            return proceed(value0);
+    }
+
+    Object around(int value0): PointCut3(value0) {
+        ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
+        comb1root.queryAction(new Action(AbsActUtils.genAbsSig("abs_NetworkOpens",vals)));
+        if(comb1root.hasRes4Action()) {
+            return comb1root.getRes4Action();
+        } else
+            return proceed(value0);
+    }
+
+    Object around(int value0): PointCut4(value0) {
+        ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
+        comb1root.queryAction(new Action(AbsActUtils.genAbsSig("abs_NetworkOpens",vals)));
+        if(comb1root.hasRes4Action()) {
+            return comb1root.getRes4Action();
+        } else
+            return proceed(value0);
+    }
+
+    Object around(java.net.InetAddress value0,int value1): PointCut5(value0,value1) {
+        ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0,value1);
+        comb1root.queryAction(new Action(AbsActUtils.genAbsSig("abs_NetworkOpens",vals)));
+        if(comb1root.hasRes4Action()) {
+            return comb1root.getRes4Action();
+        } else
+            return proceed(value0,value1);
+    }
+
+    Object around(java.lang.String value0,int value1): PointCut6(value0,value1) {
+        ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0,value1);
+        comb1root.queryAction(new Action(AbsActUtils.genAbsSig("abs_NetworkOpens",vals)));
+        if(comb1root.hasRes4Action()) {
+            return comb1root.getRes4Action();
+        } else
+            return proceed(value0,value1);
+    }
+
+    Object around(int value0): PointCut7(value0) {
+        ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
+        comb1root.queryAction(new Action(AbsActUtils.genAbsSig("abs_NetworkOpens",vals)));
+        if(comb1root.hasRes4Action()) {
+            return comb1root.getRes4Action();
+        } else
+            return proceed(value0);
+    }
+
+    Object around(java.net.DatagramPacket value0): PointCut8(value0) {
+        ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
+        comb1root.queryAction(new Action(AbsActUtils.genAbsSig("abs_NetworkOpens",vals)));
+        if(comb1root.hasRes4Action()) {
+            return comb1root.getRes4Action();
+        } else
+            return proceed(value0);
+    }
+
+    Object around(java.net.DatagramPacket value0): PointCut9(value0) {
+        ArrayList<TypeVal> vals = AbsActions.abs_NetworkOpens(thisJoinPoint,value0);
+        comb1root.queryAction(new Action(AbsActUtils.genAbsSig("abs_NetworkOpens",vals)));
         if(comb1root.hasRes4Action()) {
             return comb1root.getRes4Action();
         } else
@@ -282,10 +362,10 @@ public aspect Aspectcomb1root {
                 SequentialExecution rootExec = new SequentialExecution("none");
                 SequentialExecution exec7 = new SequentialExecution("*");
                 Exchange exch4 = new Exchange();
-                Match match4 = new Match("java.net.ServerSocketnew(!#int{143|993|25|110|995})");
+                Match match4 = new Match("java.net.Socketnew(#java.lang.String{aaa},!#int{143|993|25|110|995},..)");
                 exch4.addMatcher(match4);
                 SRE sre5 = new SRE(null, null);
-                sre5.setNegativeRE("java.net.ServerSocket.new(!#int{143|993|25|110|995})");
+                sre5.setNegativeRE("java.net.Socket.new(#java.lang.String{aaa},!#int{143|993|25|110|995},..)");
                 exch4.setSRE(sre5);
                 exec7.addChild(exch4);
                 exec7.setHasExch(true);

@@ -129,19 +129,6 @@ public class PoCoUtils {
             return null;
     }
 
-    public static String trimEndPunc(String str, String punctuation) {
-        while (str.length() > 1) {
-            int x = str.length() - punctuation.length();
-            if (x > 0 && str.substring(x, str.length()).contains(punctuation))
-                str = str.substring(0, x);
-            else if (x == 0)
-                return "";
-            else
-                break;
-        }
-        return str;
-    }
-
     /**
      * This method is used to draw parameter types of the method, so that
      * pointcut can correctly monitor the correct method.
@@ -554,5 +541,10 @@ public class PoCoUtils {
         Pattern pattern = Pattern.compile(reg);
         Matcher matcher = pattern.matcher(str4Match);
         return matcher.find();
+    }
+
+    public static String arr2Str(ArrayList<String> strs) {
+        assert strs != null;
+        return strs.toString().replace("[", "").replace("]", "").replace(", ", ",");
     }
 }
