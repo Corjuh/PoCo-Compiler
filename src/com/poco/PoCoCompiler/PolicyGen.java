@@ -57,6 +57,8 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
     private ArrayList<String> argListStr;
     private StringBuilder policyArgStr;
 
+    private ArrayList<String> policyVars;
+
     /**
      * Constructor
      *
@@ -94,6 +96,7 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
         argListStr = new ArrayList<String>();
         reBopStr = new ArrayList<String>();
         policyArgStr = new StringBuilder();
+
     }
 
     /**
@@ -133,6 +136,8 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
      */
     @Override
     public Void visitPocopol(PoCoParser.PocopolContext ctx) {
+        policyVars = new ArrayList<>();
+
         policyName = ctx.id().getText();
 
         if (ctx.paramlist() != null && ctx.paramlist().getText().trim().length() > 0) {
@@ -150,21 +155,20 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
         outLine(2, "try {");
         outLine(3, "SequentialExecution rootExec = new SequentialExecution(\"none\");");
         executionNames.push("rootExec");
+
+        if(ctx.vardecls() != null)
+            visitVardecls(ctx.vardecls());
+
         visitExecution(ctx.execution());
         executionNames.pop();
         outLine(3, "rootExec.getCurrentChildModifier();");
         outLine(3, "setRootExecution(rootExec);");
 
-        if (policyArgStr.toString().length() > 0) {
-            //double percent,long interval ; Policy p1,Policy p2
-            String[] args = policyArgStr.toString().split(",");
-            for (String arg : args) {
-                String varTyp = arg.split("\\s+")[0];
-                String varName = arg.split("\\s+")[1];
-                outLine(3, "this.addVar(\"" + policyName + "_" + varName + "\", \"" + varTyp + "\", " + varName + ");");
-            }
-            policyArgStr = new StringBuilder();
+        if(policyVars!= null && policyVars.size()>0) {
+            for(String var: policyVars)
+                outLine(3, "this.addVar(\"" + var + "\", \"java.lang.String\", null);");
         }
+
         outLine(3, "this.addVar(\"" + policyName + "_evtSig\", \"java.lang.String\", null);");
         outLine(2, "} catch (PoCoException pex) {");
         outLine(3, "System.out.println(pex.getMessage());");
@@ -182,7 +186,16 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
     public Void visitParamlist(PoCoParser.ParamlistContext ctx) {
         if (ctx.getText().trim().length() > 0)
             visitChildren(ctx);
-        policyArgStr.append(ctx.qid().getText() + " " + ctx.id().getText() + ",");
+        policyArgStr.append(ctx.qid().getText().trim() + " " + ctx.id().getText().trim() + ",");
+        policyVars.add(policyName + "_" + ctx.id().getText().trim());
+        return null;
+    }
+
+    @Override
+    public Void visitVardecl(@NotNull PoCoParser.VardeclContext ctx) {
+        if (ctx.id() != null) {
+            policyVars.add(policyName +"_" +ctx.id().getText().trim());
+        }
         return null;
     }
 

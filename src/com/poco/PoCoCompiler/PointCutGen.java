@@ -44,29 +44,21 @@ public class PointCutGen {
     }
 
     public void GenAspectJ() {
-
         outLine(1, "}\n");
-
         //step 1: add pointcut for monitoring reflection events, only allow poco to do so
         genPt4Reflect();
-
         //step 2: check the action and result pointcuts sets, if a method needs to be monitored
         //both before and after proceed, then we will need to generate 2 advices for this method
         checkCommonActResPCs();
-
         //step 3: generate advice for not-promoted action
         genPointCut4Actions();
-
         //step 4: generate advice for not-promoted result
         genPointCut4Results();
-
         //step 5: generate advices for those methods that need monitor both before and after proceed
         genPointCut4Events();
-
         //setp 6: generate advice for promoted action
         genAdvice4PromotedActions();
     }
-
 
     private void genPt4Reflect() {
         outLine(1, "pointcut PC4Reflection():");
@@ -357,7 +349,6 @@ public class PointCutGen {
                 else
                     genAdvice4Events("PointCut" + pointcutNum++, argStrs, varsNeed2Bind4Act, varsNeed2Bind4Res, argVal4Match, null);
                 bindingVars = new HashMap<String, String>();
-
             }
 
         }
@@ -687,9 +678,6 @@ public class PointCutGen {
             if (isNotMatch)
                 retStr = "!" + retStr;
 
-
-            System.out.println(retStr);
-
             return retStr;
 
 
@@ -764,6 +752,7 @@ public class PointCutGen {
             for (Iterator<String> it = set.iterator(); it.hasNext(); ) {
                 String argName = it.next();
                 String varName = varsNeed2Bind.get(argName).toString();
+
                 //if it is sig binding case, it will not be used for this query
                 if (varName.startsWith("sig$")) {
                     varName = varName.substring(4);
@@ -781,7 +770,6 @@ public class PointCutGen {
                 typVal[1] = typVal[1].replace("..", "*");
                 outLine(offset, "dh.addTypVal(\"" + varName + "\", \"" + typVal[0] + "\", " + typVal[1] + ");");
             }
-
             if (sb4NamList.size() > 0)
                 outLine(offset, "varNames = new String[] {\"" + arr2Str(sb4NamList) + "\"};");
         }

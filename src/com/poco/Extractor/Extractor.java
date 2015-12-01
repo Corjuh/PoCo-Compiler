@@ -28,12 +28,6 @@ public class Extractor extends PoCoParserBaseVisitor<Void> {
         return null;
     }
 
-    public void printMatchStrings() {
-        for (String matchString : matchStrings) {
-            System.out.println(matchString);
-        }
-    }
-
     public ArrayList<String> getMatchStrings() {
         return new ArrayList<String>(matchStrings);
     }
