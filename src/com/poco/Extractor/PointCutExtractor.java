@@ -420,7 +420,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
             //1. if it is not the abstract action, then make sure the str is in right format,
             // that is, include return type
             String funName = getFunName(str);
-            if(!funName.startsWith("abs_"))
+            if(!funName.startsWith("Abs_"))
                 str = PoCoUtils.formatFuncRetTyp(str);
 
             //2. add to the appropriate pointcut set
@@ -518,7 +518,7 @@ public class PointCutExtractor extends PoCoParserBaseVisitor<Void> {
     private static String handleTransCase(String content, String policyName) {
         assert content!= null;
         //if it is abstract action case, then just return
-        if(content.trim().length()>4 && PoCoUtils.getMtdName(content).startsWith("abs_"))
+        if(content.trim().length()>4 && PoCoUtils.getMtdName(content).startsWith("Abs_"))
             return content;
 
         Pattern pattern = Pattern.compile("^(.+)\\((.*)\\)$");

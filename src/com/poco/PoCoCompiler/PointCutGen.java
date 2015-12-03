@@ -124,7 +124,7 @@ public class PointCutGen {
             String policyName = getPolicyName(entry);
             entry = removePolicyName(entry);
 
-            if (PoCoUtils.getMtdName(entry).startsWith("abs_")) {
+            if (PoCoUtils.getMtdName(entry).startsWith("Abs_")) {
                 Hashtable<String, String> argVal4Match = null;
                 ArrayList<String> concreteMtds = new ArrayList<>();
                 HashSet<String> donelist = new HashSet<>();
@@ -407,11 +407,13 @@ public class PointCutGen {
             if (argStrs[2] != null && argStrs[2].length() > 0) {
                 //it is the abstraction action case, then need load the parameters
                 if (isAbsCase != null)
-                    outLine(2, "ArrayList<TypeVal> vals = AbsActions." + isAbsCase + "(thisJoinPoint," + argStrs[2] + ");");
+                    outLine(2, "ArrayList<TypeVal> vals = new " + isAbsCase + "().handleActions(thisJoinPoint," + argStrs[2] + ");");
                 else
                     outLine(2, "ArrayList<TypeVal> vals = RuntimeUtils.getVals(\"" + getParaList(argStrs[0]) + "\"," + argStrs[2] + ");");
             }
-
+            else {
+                outLine(2, "ArrayList<TypeVal> vals = new " + isAbsCase + "().handleActions(thisJoinPoint,null);");
+            }
             //generate conditional statement for conditional monitoring case
             String conditionState = genCoditionStatements(argVal4Match, isAbsCase);
             //if is the conditional monitoring case
@@ -434,6 +436,10 @@ public class PointCutGen {
                     valueBind4Advices(varsNeed2Bind, 3);
                     outLine(3, "dh.addTypVal(\"" + PolicyName + "_evtSig\", \"java.lang.String\",evtSig);");
                 } else {
+                    if (isAbsCase == null)
+                        outLine(3, "String evtSig = RuntimeUtils.genSigFrmJP(thisJoinPoint, \"" + argStrs[3] + "\", objs, varNames);");
+                    else
+                        outLine(3, "String evtSig = AbsActUtils.genAbsSig(\"" + isAbsCase + "\",vals);");
                     valueBind4Advices(varsNeed2Bind, 3);
                 }
                 outLine(3, "RuntimeUtils.UpdatePolicyVars(dh, " + pocoRoot + ");");
@@ -455,6 +461,10 @@ public class PointCutGen {
                     outLine(2, "dh.addTypVal(\"" + PolicyName + "_evtSig\", \"java.lang.String\",evtSig);");
                     outLine(2, "RuntimeUtils.UpdatePolicyVars(dh, " + pocoRoot + ");");
                 } else {
+                    if (isAbsCase == null)
+                        outLine(2, "String evtSig = RuntimeUtils.genSigFrmJP(thisJoinPoint, \"" + argStrs[3] + "\", objs, varNames);");
+                    else
+                        outLine(2, "String evtSig = AbsActUtils.genAbsSig(\"" + isAbsCase + "\",vals);");
                     valueBind4Advices(varsNeed2Bind, 3);
                 }
             }

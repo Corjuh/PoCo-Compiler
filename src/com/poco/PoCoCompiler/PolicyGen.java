@@ -1051,7 +1051,7 @@ public class PolicyGen extends PoCoParserBaseVisitor<Void> {
     private static String handleTransCase(String content, String policyName) {
         if(PoCoUtils.isMethod(content)) {
             String mtdName = PoCoUtils.getMtdName(content);
-            if(mtdName.startsWith("abs_"))
+            if(mtdName.startsWith("Abs_"))
                 ;
             else if (!mtdName.startsWith("$") && !mtdName.contains(".")) {
                 content = content.replace(mtdName, "com.poco." + policyName + "_Trans." + mtdName);
